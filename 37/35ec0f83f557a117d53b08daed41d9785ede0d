@@ -1,0 +1,38 @@
+internal/catalog/worktree.go
+  s_27a413bd486ecb::t_0361517f5e401c 24,46,49,51
+  s_27a413bd486ecb::t_70d522b4e0c320 35-37
+  s_27a413bd486ecb::t_2915f20d36e331 25-26,28
+  s_27a413bd486ecb::t_d2b1f1b5e3ed0f 27,31,44,50,57,77
+  s_27a413bd486ecb::t_94c57f3e82348e 1-23,29-30,32-34,38-43,45,47-48,52-56,58-76,78-84
+internal/catalog/identity_test.go
+  s_27a413bd486ecb::t_2915f20d36e331 33-35,38-43,56-58,68-70,72-80,85-87,90-92
+  s_27a413bd486ecb::t_b2117daec331d9 1-32,36-37,44-55,59-67,71,81-84,88-89,93
+internal/catalog/worktree_test.go
+  s_27a413bd486ecb::t_c207fc3167a9b5 12,14,22,32,44,46-47,55,68,84-85,93,98,107-110,114
+  s_27a413bd486ecb::t_726fc1e335e05f 111-113,115-129
+  s_27a413bd486ecb::t_b2117daec331d9 1-6,8-11,13,39-43,45,51-54,62-64,79-83,89-92,94-97,131
+  s_27a413bd486ecb::t_2915f20d36e331 7,15-21,23-28,33-38,48-50,56-61,65-67,69-78,86-88,99-106,130
+  s_27a413bd486ecb::t_9eb09a1c34b577 29-31
+internal/catalog/identity.go
+  s_27a413bd486ecb::t_a9348f053804fa 25
+  s_27a413bd486ecb::t_d2b1f1b5e3ed0f 15,22,42,46-51,55-59,61,65,71
+  s_27a413bd486ecb::t_70d522b4e0c320 18,43-45,52-54
+  s_27a413bd486ecb::t_94c57f3e82348e 1-14,16-17,19-20,26-41,60,62-64,66-70,72-132
+  s_27a413bd486ecb::t_9c1c7693ade69b 21,23-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3735ec0f83f557a117d53b08daed41d9785ede0d",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
