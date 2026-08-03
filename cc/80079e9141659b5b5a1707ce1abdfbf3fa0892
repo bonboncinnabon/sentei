@@ -1,0 +1,64 @@
+internal/resume/render.go
+  s_27a413bd486ecb::t_a6595ff0c27e8d 52-54,56-58,64-66,68-70,110-112
+  s_27a413bd486ecb::t_2069e594c38da6 6,8,10-12,22-23,55,67,75-80,84-109,113-116
+  s_27a413bd486ecb::t_6bc2f16ead453e 1-5,7,9,13-21,24-39,51,59-63,71-74,81-83,117
+  s_27a413bd486ecb::t_03fa9797654537 40-50
+internal/resume/render_test.go
+  s_27a413bd486ecb::t_36ac7f4dc9bc49 10-11,47-53,57-58
+  s_27a413bd486ecb::t_9e5b8eeca7a8f7 1-6,9,14-16,21-27,31-32,36-37,41,66-71,75,201-203,205-209,211,216-219
+  s_27a413bd486ecb::t_d0ae39333225de 54-56,59-64
+  s_27a413bd486ecb::t_9d094c84aa5179 18,28-30,33-35,38-40,42-44,46,65,72-74,204,213-215
+  s_27a413bd486ecb::t_fac4d0906e51ee 7,12-13
+  s_27a413bd486ecb::t_f1ebed48d05006 45
+  s_27a413bd486ecb::t_70ee6201cf2b43 212
+  s_27a413bd486ecb::t_2443e91b869b0e 91-96,99-101,103-105,114-125,135-137,147-149,152-154,180-191,197-199
+  s_27a413bd486ecb::t_83b4f82edc3fb4 8,17,76-90,97-98,102,106-113,126-134,138-146,150-151,155-179,192-196,200
+  s_27a413bd486ecb::t_e7ee5288a722f8 19-20,210
+docs/resume-context-v1.md
+  s_27a413bd486ecb::t_36ac7f4dc9bc49 1-2,12-40,42,47-49
+  s_27a413bd486ecb::t_03fa9797654537 3-11
+  s_27a413bd486ecb::t_c5f45bbc7bdfb5 41,43-46,50-51
+internal/obligation/selector.go
+  s_27a413bd486ecb::t_5b248d0d568bff 1-20
+internal/obligation/types.go
+  s_27a413bd486ecb::t_9b6dd2c8b3a009 381-386,393,399-403
+  s_27a413bd486ecb::t_cde6dac92f7acd 360-365
+  s_27a413bd486ecb::t_933999a431d506 387-392,394-398
+internal/resume/testdata/context.markdown.golden
+  s_27a413bd486ecb::t_e1c15c2c921e09 3,5-43
+  s_27a413bd486ecb::t_36ac7f4dc9bc49 1-2,4
+internal/obligation/selector_test.go
+  s_27a413bd486ecb::t_b5505f43f6668f 1-41
+internal/resume/context.go
+  s_27a413bd486ecb::t_b8ea08bbcc6cc9 117-119
+  s_27a413bd486ecb::t_cde6dac92f7acd 23-25,70,92-94,120-121,166-169,171
+  s_27a413bd486ecb::t_5717ee5dd84f47 112-114
+  s_27a413bd486ecb::t_5b248d0d568bff 1-13,22,26-67,71-91,95-111,115-116,122-165,170,172-187
+  s_27a413bd486ecb::t_03fa9797654537 14-21
+  s_27a413bd486ecb::t_15c6242fddb193 68-69
+internal/resume/context_test.go
+  s_27a413bd486ecb::t_ebe42e38a299ab 80-84
+  s_27a413bd486ecb::t_bc24944fcff346 86-94
+  s_27a413bd486ecb::t_70ee6201cf2b43 31,57,70-79,85
+  s_27a413bd486ecb::t_82813402879ed1 17-18,20,97-103,114-116,121-123,131-138
+  s_27a413bd486ecb::t_b5505f43f6668f 1-16,19,21-30,32-56,58-69,95-96,104-113,117-120,124-130
+internal/resume/testdata/context.human.golden
+  s_27a413bd486ecb::t_36ac7f4dc9bc49 1
+  s_27a413bd486ecb::t_540165bf741454 2-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "cc80079e9141659b5b5a1707ce1abdfbf3fa0892",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
