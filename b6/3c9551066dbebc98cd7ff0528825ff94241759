@@ -1,0 +1,27 @@
+internal/tui/inbox_projection_test.go
+  s_27a413bd486ecb::t_c873eda11c1704 1-12,17-26,29,31-38,40-108
+  s_27a413bd486ecb::t_f096e5305ffd73 13-16,39
+  s_27a413bd486ecb::t_f2e52f1ac7a90e 27-28,30
+internal/tui/inbox_projection.go
+  s_27a413bd486ecb::t_29fd04ea7afbcf 1-14,26-41,47-57,59-91,95-98,100-107,111-133,135-146,165-177
+  s_27a413bd486ecb::t_8282a77ebec815 18,42-46,58,108-110,134,147-164
+  s_27a413bd486ecb::t_751527c7215973 94
+  s_27a413bd486ecb::t_66cb2efe6532eb 15-17,19-25
+  s_27a413bd486ecb::t_989b854e2a76be 92-93,99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b63c9551066dbebc98cd7ff0528825ff94241759",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
