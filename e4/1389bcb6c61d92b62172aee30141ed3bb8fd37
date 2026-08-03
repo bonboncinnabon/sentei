@@ -1,0 +1,47 @@
+internal/obligation/intent_projection_test.go
+  s_27a413bd486ecb::t_e8314bdf3b15bf 1-56
+internal/intent/projection_test.go
+  s_27a413bd486ecb::t_facbceaccd4ac4 21-24
+  s_27a413bd486ecb::t_45df339a9849fd 1-20,25-49
+internal/resume/context_test.go
+  s_27a413bd486ecb::t_6d9e6528f2066b 49-76,81-87
+  s_27a413bd486ecb::t_f477181c4140c6 10
+  s_27a413bd486ecb::t_cad4c6c8fec3ae 77-80
+  s_27a413bd486ecb::t_531f465a0487d8 88
+internal/resume/context.go
+  s_27a413bd486ecb::t_aa7f41fc4e960e 9,27,69-78,96,169-177
+  s_27a413bd486ecb::t_4356becd174b89 178
+internal/resume/render_test.go
+  s_27a413bd486ecb::t_aa7f41fc4e960e 180-183
+internal/resume/live.go
+  s_27a413bd486ecb::t_2d817737af4cab 13,76-85,93,96-101,112-118,154,175-177,187-211
+cmd/attention.go
+  s_27a413bd486ecb::t_2d817737af4cab 16,67-71
+internal/resume/render.go
+  s_27a413bd486ecb::t_aa7f41fc4e960e 92-98
+internal/resume/live_test.go
+  s_27a413bd486ecb::t_d933cc8fbb2fc9 16,25-47,51-59
+  s_27a413bd486ecb::t_fe6d643e2213de 48-50
+  s_27a413bd486ecb::t_5dfa1ff69de0e8 60
+internal/intent/projection.go
+  s_27a413bd486ecb::t_44e1150f4ff287 1-52
+internal/obligation/derive.go
+  s_27a413bd486ecb::t_715535de6a8edf 44,106-108,197-201,225-240
+  s_27a413bd486ecb::t_d76b4fd2aab8b0 241-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e41389bcb6c61d92b62172aee30141ed3bb8fd37",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
