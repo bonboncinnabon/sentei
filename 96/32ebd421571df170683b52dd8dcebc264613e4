@@ -1,0 +1,32 @@
+cmd/create_pr_test.go
+  s_528292aebf342e::t_88c0073b765bfd 26,32-44
+  s_27a413bd486ecb::t_51dc787c145ed2 45-46
+internal/github/review.go
+  s_528292aebf342e::t_cab69164f492ec 23
+internal/tui/github_test.go
+  s_528292aebf342e::t_56406290e12910 85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9632ebd421571df170683b52dd8dcebc264613e4",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    },
+    "s_528292aebf342e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6a1f-363e-7f43-88fb-9a1f3d63aca6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
