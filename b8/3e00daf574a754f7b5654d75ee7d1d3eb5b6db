@@ -1,0 +1,32 @@
+internal/enrichment/store.go
+  s_27a413bd486ecb::t_59cfb935f9ed10 29-34,36-41,50-52,58-59,68-70,75-77,81-83,92-94,96-98,108-110,114-119,121-123,125-127
+  s_27a413bd486ecb::t_a874ab47e0e7d2 9,11,64,107,130-139
+  s_27a413bd486ecb::t_1cf2af535d14da 1-8,10,12-28,35,42-49,53-57,60-63,65-67,71-74,78-80,84-91,95,99-106,111-113,120,124,128-129,140
+openspec/changes/add-obligation-engine/tasks.md
+  s_27a413bd486ecb::t_7a158cdd8d4383 83-84
+openspec/changes/add-obligation-engine/evidence/milestone-6.md
+  s_27a413bd486ecb::t_7a158cdd8d4383 7
+  s_27a413bd486ecb::t_f0a90c5b5de72c 1-6,8-17
+internal/enrichment/model.go
+  s_27a413bd486ecb::t_1cf2af535d14da 1-43,46-72,76-103,116-132,139-150
+  s_27a413bd486ecb::t_59cfb935f9ed10 44-45,73-75,104-115,133-138
+internal/enrichment/cache_test.go
+  s_27a413bd486ecb::t_59cfb935f9ed10 19,21-22,33-35,56-58,61-72,74-76,79-81,84-89,100-102,104-109,111-116
+  s_27a413bd486ecb::t_a533235a1ae2e8 1-18,20,23-32,36-55,59-60,73,77-78,82-83,90-99,103,110,117-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b83e00daf574a754f7b5654d75ee7d1d3eb5b6db",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
