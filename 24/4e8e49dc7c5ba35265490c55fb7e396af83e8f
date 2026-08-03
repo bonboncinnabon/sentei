@@ -1,0 +1,24 @@
+internal/enrichment/scheduler_test.go
+  s_27a413bd486ecb::t_bca06336f62ab5 229-232,236-241,248-249,256
+  s_27a413bd486ecb::t_d8a7c58b2e18e5 202-205,209-210,214,221,228
+  s_27a413bd486ecb::t_29ea7fefe74397 206-208,211-213,215-220,222-227
+  s_27a413bd486ecb::t_a94fa40377f269 233-235,242-247,250-255
+internal/enrichment/scheduler.go
+  s_27a413bd486ecb::t_0716552e0d1638 112-113,149-152,274-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "244e8e49dc7c5ba35265490c55fb7e396af83e8f",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
