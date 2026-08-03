@@ -1,0 +1,35 @@
+internal/operation/store_test.go
+  s_528292aebf342e::t_82a4bc50a4e56f 8,147-187
+  s_27a413bd486ecb::t_86a77519fe92ae 188-189
+go.mod
+  s_528292aebf342e::t_145366225effec 11
+  s_27a413bd486ecb::t_6ba709dd608ab3 13
+internal/operation/store.go
+  s_528292aebf342e::t_d9cfbf1661db94 14-15,90-97,132-145,147-153,155-157,159-160
+go.sum
+  s_27a413bd486ecb::t_8e58004bf367f5 41-42,57,68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e6d891e0c0de2fc2be6b42fb022a405362638376",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    },
+    "s_528292aebf342e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6a1f-363e-7f43-88fb-9a1f3d63aca6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
