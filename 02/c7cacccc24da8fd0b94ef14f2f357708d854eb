@@ -1,0 +1,29 @@
+openspec/changes/add-obligation-engine/tasks.md
+  s_27a413bd486ecb::t_bb9697d0f66553 41-49
+  s_27a413bd486ecb::t_87ca191e3f23ca 50
+  s_27a413bd486ecb::t_e2388079601204 51
+openspec/changes/add-obligation-engine/evidence/milestone-3.md
+  s_27a413bd486ecb::t_56e7285d19c6dd 44
+  s_27a413bd486ecb::t_bb9697d0f66553 1-15,19-21,24,26,28-32,34-35,37-42,45,47-52,75,78-80
+  s_27a413bd486ecb::t_bd2ebdd5329787 18,72
+  s_27a413bd486ecb::t_87ca191e3f23ca 76-77
+  s_27a413bd486ecb::t_39a24820bd4a9e 16-17,22-23,25,27,33,36,43,46,54,62-71,73-74
+  s_27a413bd486ecb::t_e2388079601204 55-61
+  s_27a413bd486ecb::t_4f9f36fc975699 53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "02c7cacccc24da8fd0b94ef14f2f357708d854eb",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
