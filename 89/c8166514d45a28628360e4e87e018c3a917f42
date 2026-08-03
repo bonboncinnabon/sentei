@@ -1,0 +1,41 @@
+openspec/changes/add-obligation-engine/tasks.md
+  s_27a413bd486ecb::t_fb0ec27c1bfe1e 1-122
+openspec/changes/add-obligation-engine/specs/resume-context/spec.md
+  s_27a413bd486ecb::t_fcbd578775a7f3 1-54
+openspec/changes/add-obligation-engine/specs/remote-enrichment/spec.md
+  s_27a413bd486ecb::t_fcbd578775a7f3 1-54
+openspec/changes/add-obligation-engine/specs/repository-catalog/spec.md
+  s_27a413bd486ecb::t_fcbd578775a7f3 1-80
+openspec/changes/add-obligation-engine/specs/obligation-engine/spec.md
+  s_27a413bd486ecb::t_fcbd578775a7f3 1-74
+openspec/changes/add-obligation-engine/specs/attention-inbox/spec.md
+  s_27a413bd486ecb::t_fcbd578775a7f3 1-66
+openspec/changes/add-obligation-engine/.openspec.yaml
+  s_27a413bd486ecb::t_27f874e76b3ce6 1-2
+openspec/changes/add-obligation-engine/design.md
+  s_27a413bd486ecb::t_5c3ee94b0bdb16 1-180
+openspec/changes/add-obligation-engine/specs/intent-ledger/spec.md
+  s_27a413bd486ecb::t_fcbd578775a7f3 1-50
+openspec/changes/add-obligation-engine/proposal.md
+  s_27a413bd486ecb::t_5f66e0efb1ab07 1-41
+openspec/changes/add-obligation-engine/README.md
+  s_27a413bd486ecb::t_27f874e76b3ce6 1-3
+openspec/changes/add-obligation-engine/specs/recovery-closeout/spec.md
+  s_27a413bd486ecb::t_fcbd578775a7f3 1-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "89c8166514d45a28628360e4e87e018c3a917f42",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
