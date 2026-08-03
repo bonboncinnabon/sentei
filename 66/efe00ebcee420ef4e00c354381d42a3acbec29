@@ -1,0 +1,26 @@
+openspec/changes/add-obligation-engine/tasks.md
+  s_27a413bd486ecb::t_97aa4481f27478 10-19
+  s_27a413bd486ecb::t_0ab2c1fa6b84df 20-21
+openspec/changes/add-obligation-engine/evidence/milestone-1.md
+  s_27a413bd486ecb::t_a5963c5b14d8a2 80
+  s_27a413bd486ecb::t_70ac8f12f2777f 100,111-136
+  s_27a413bd486ecb::t_0ab2c1fa6b84df 151-165,168
+  s_27a413bd486ecb::t_ac8dae6b0b8a29 82-99,101-110,137
+  s_27a413bd486ecb::t_97aa4481f27478 1-79,81,138-150,166-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "66efe00ebcee420ef4e00c354381d42a3acbec29",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
