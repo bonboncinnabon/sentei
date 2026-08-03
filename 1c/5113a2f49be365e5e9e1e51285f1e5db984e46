@@ -1,0 +1,43 @@
+internal/resume/live_test.go
+  s_27a413bd486ecb::t_feeee0f5c93590 46-59
+internal/intent/store_test.go
+  s_27a413bd486ecb::t_14a6d5cee200f4 163-278,323
+  s_27a413bd486ecb::t_2738d30e943f77 325-346
+  s_27a413bd486ecb::t_af3388c2f9521c 306-322
+  s_27a413bd486ecb::t_21a6c447f79bf0 324
+internal/resume/render_test.go
+  s_27a413bd486ecb::t_1ef3b9821ee56b 181
+cmd/create_intent_test.go
+  s_27a413bd486ecb::t_66cdd23ae3f090 112-131
+internal/resume/render.go
+  s_27a413bd486ecb::t_1ef3b9821ee56b 94
+internal/resume/context.go
+  s_27a413bd486ecb::t_43d655dbcf873b 176
+  s_27a413bd486ecb::t_1ef3b9821ee56b 70,171,175,178
+internal/resume/live.go
+  s_27a413bd486ecb::t_1ef3b9821ee56b 200-202
+internal/intent/store.go
+  s_27a413bd486ecb::t_5bcf1d04724cc0 9,55-73
+  s_27a413bd486ecb::t_407e737282ed62 83
+internal/resume/context_test.go
+  s_27a413bd486ecb::t_66cdd23ae3f090 75-93
+cmd/intent_test.go
+  s_27a413bd486ecb::t_66cdd23ae3f090 6,72-82,84
+  s_27a413bd486ecb::t_1b506641a7d0d9 83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1c5113a2f49be365e5e9e1e51285f1e5db984e46",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
