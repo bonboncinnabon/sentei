@@ -1,0 +1,20 @@
+internal/testtmp/testtmp.go
+  s_27a413bd486ecb::t_f8a2c741a303af 79-80,104-107
+  s_27a413bd486ecb::t_5948f119e91b41 108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "59787bd7a041dc7df8c54a83e8ce47437e05db69",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
