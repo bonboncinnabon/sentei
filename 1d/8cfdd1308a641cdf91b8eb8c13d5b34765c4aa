@@ -1,0 +1,21 @@
+internal/statefile/store_test.go
+  s_27a413bd486ecb::t_78074b21921ae0 88-106
+internal/statefile/store.go
+  s_27a413bd486ecb::t_7556aed129353a 94-96,102-104,109-111,117-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1d8cfdd1308a641cdf91b8eb8c13d5b34765c4aa",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
