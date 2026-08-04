@@ -1,0 +1,27 @@
+internal/tui/inbox.go
+  s_27a413bd486ecb::t_529bbc636dc3da 21-25,138,142,162-166,171,183-193,195-196,207,213-221,293,299-306,329
+internal/tui/inbox_interaction_test.go
+  s_27a413bd486ecb::t_36a862a38ad798 151-192,299
+internal/tui/inbox_refresh.go
+  s_27a413bd486ecb::t_33c7b380c60667 21
+internal/tui/model.go
+  s_27a413bd486ecb::t_8bbf72277cd973 296-304
+internal/tui/testdata/TestGoldenInboxNarrow.golden
+  s_27a413bd486ecb::t_a4a82e7eb7b9dd 5-6,12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3bb56e3cbb5d461c4831d79981002458eb33750c",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
