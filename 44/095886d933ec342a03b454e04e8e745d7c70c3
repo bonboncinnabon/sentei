@@ -1,0 +1,28 @@
+internal/github/provider_test.go
+  s_27a413bd486ecb::t_0c1da39ee0a863 94-96
+  s_27a413bd486ecb::t_aade7876a449b0 85-93,97-98
+internal/github/provider.go
+  s_27a413bd486ecb::t_be76bb354f679d 182-183,185
+internal/resume/live_test.go
+  s_27a413bd486ecb::t_5205739cd51cd6 15,30,35-39,43,50
+  s_27a413bd486ecb::t_5c7bd634d6ebbb 31-34,40-42,44-49
+  s_27a413bd486ecb::t_b861f081df9846 51
+internal/resume/live.go
+  s_27a413bd486ecb::t_543a545261e7de 188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "44095886d933ec342a03b454e04e8e745d7c70c3",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
