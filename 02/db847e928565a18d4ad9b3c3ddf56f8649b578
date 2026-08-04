@@ -1,0 +1,73 @@
+cmd/remote.go
+  s_27a413bd486ecb::t_1b50ab9f25886e 1-10,14-15
+  s_27a413bd486ecb::t_037afd4d64e8ca 11-13
+internal/tui/list.go
+  s_27a413bd486ecb::t_037afd4d64e8ca 105-108,121-124
+internal/tui/github_test.go
+  s_27a413bd486ecb::t_ff17caffa1221c 89,111,125,130,145,147,171,176,190-191,193,197-199
+  s_27a413bd486ecb::t_add53e66b9cb6d 112-116
+  s_27a413bd486ecb::t_b406d6f58eb22a 194-196
+  s_27a413bd486ecb::t_b298ea71d3789b 192
+  s_27a413bd486ecb::t_c1d2c85905be18 186
+  s_27a413bd486ecb::t_7084d35716cd10 43-45,56-60,63,65-70,84-86
+  s_27a413bd486ecb::t_035ce930c1fea9 53
+  s_27a413bd486ecb::t_3688f4d95b32b2 46-52,54-55,61-62,64,71-83,87-88
+  s_27a413bd486ecb::t_908ef7f7b7fcb9 14,21,27-28,93-95,185,187,202-204
+  s_27a413bd486ecb::t_917b8e1cfd65cb 22-26
+internal/tui/progress.go
+  s_27a413bd486ecb::t_208991b394883c 116,144
+internal/tui/model.go
+  s_27a413bd486ecb::t_208991b394883c 386-388,393-394
+  s_27a413bd486ecb::t_9b8b4fdeb4d15b 269,384-385,780,784-786
+  s_27a413bd486ecb::t_037afd4d64e8ca 259-268,270,389-391,781-783
+internal/dashboard/capture.go
+  s_27a413bd486ecb::t_81cae7b9df550f 18,57,60,64,66,71
+  s_27a413bd486ecb::t_f6807bd43521cd 61-63,67-69
+  s_27a413bd486ecb::t_ee5452a8f00b5f 9-10
+internal/tui/github.go
+  s_27a413bd486ecb::t_037afd4d64e8ca 35-40,49-50,52-54,58-60,70-73,76,79
+  s_27a413bd486ecb::t_9b8b4fdeb4d15b 10,12,17-18,32-34,42,44-48,55-57,61-63,74
+internal/dashboard/snapshot.go
+  s_27a413bd486ecb::t_81cae7b9df550f 8,62-65,75,84-86,90-92
+  s_27a413bd486ecb::t_f6807bd43521cd 59-61,66-69,76-83,87-89,93-94
+  s_27a413bd486ecb::t_3abaaf0c04c64e 6,11
+  s_27a413bd486ecb::t_8400b76734eee4 73-74
+internal/tui/create_progress.go
+  s_27a413bd486ecb::t_208991b394883c 26
+main.go
+  s_27a413bd486ecb::t_037afd4d64e8ca 356-358,562-564
+  s_27a413bd486ecb::t_1b50ab9f25886e 355,362,561,568
+cmd/status.go
+  s_27a413bd486ecb::t_037afd4d64e8ca 23-25
+  s_27a413bd486ecb::t_1b50ab9f25886e 22,27
+internal/tui/integration_progress.go
+  s_27a413bd486ecb::t_208991b394883c 89
+internal/tui/palette.go
+  s_27a413bd486ecb::t_208991b394883c 128
+internal/dashboard/capture_test.go
+  s_27a413bd486ecb::t_9d6e87e7a114ea 8
+  s_27a413bd486ecb::t_7889c9d50e4d35 4,15,41-61
+internal/dashboard/snapshot_test.go
+  s_27a413bd486ecb::t_7a7b9200c69967 41-45
+  s_27a413bd486ecb::t_a31e354df751f3 50,54
+  s_27a413bd486ecb::t_5e645a129190c6 38
+  s_27a413bd486ecb::t_877ac5c85390ef 7
+internal/tui/contextual_actions.go
+  s_27a413bd486ecb::t_208991b394883c 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "02db847e928565a18d4ad9b3c3ddf56f8649b578",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
