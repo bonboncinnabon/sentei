@@ -1,0 +1,72 @@
+internal/closeout/plan_test.go
+  s_27a413bd486ecb::t_8987370d4b4cdf 29,63
+  s_27a413bd486ecb::t_d8401a18fcae02 224
+internal/closeout/lock.go
+  s_27a413bd486ecb::t_01d0de5b2b81c2 45,47-50
+  s_27a413bd486ecb::t_0c45aefa69a9c6 1-15,18-19,23-35,42,44,51-62
+  s_27a413bd486ecb::t_b496fbfa5347b2 16-17,20-22,36-41,43,46
+internal/closeout/driver_test.go
+  s_27a413bd486ecb::t_e749209dd80d7c 1-10,16-19,26-28,32-33,37-38
+  s_27a413bd486ecb::t_ece0f0f93dd180 11-15,20-25,29-31,34-36
+internal/operation/store.go
+  s_27a413bd486ecb::t_75ec545d5e7084 100-120,124,128,132-141
+  s_27a413bd486ecb::t_7fbf42b9383ec6 121-123,125-127,129-131
+internal/closeout/driver.go
+  s_27a413bd486ecb::t_7fbf42b9383ec6 30-32,34-36,47-49,53-55,60-62,65-67,70-72,83-85,87-89,97-99,103-105,108-110,121-123,128-130,132-134,136-138,146-148,155-157,159-164
+  s_27a413bd486ecb::t_03c1fc279dcd78 1-29,33,37-46,50-52,56-59,63-64,68-69,73-82,86,90-96,100-102,106-107,111-120,124-127,131,135,139-145,149-154,158,165-166
+internal/git/protection.go
+  s_27a413bd486ecb::t_98b8cf1411aeb7 3-6,37-39,43-44,48-49,56,60,64-66,72-74
+  s_27a413bd486ecb::t_b6a178a959739e 40-42,45-47,50-55,57-59,61-63
+internal/closeout/executor.go
+  s_27a413bd486ecb::t_925c34d9725f05 68,113-115,154,158-161,168-169
+  s_27a413bd486ecb::t_e4eb18128592c2 173-178
+  s_27a413bd486ecb::t_7fbf42b9383ec6 162-167
+  s_27a413bd486ecb::t_0c45aefa69a9c6 1-67,69-91,95-103,107-112,116-143,149-153,155-157,170-172,179-186,190-192
+  s_27a413bd486ecb::t_01d0de5b2b81c2 92-94,104-106,144-148,187-189
+internal/git/protection_test.go
+  s_27a413bd486ecb::t_6e0c5f59a300d3 3-6,16,79-81,87-88,98-101,105
+  s_27a413bd486ecb::t_b17a3fb3cdd60a 8-15,17-21,82-86,89-97,102-104
+  s_27a413bd486ecb::t_1f7b287a0869c0 7
+internal/closeout/lock_test.go
+  s_27a413bd486ecb::t_7fbf42b9383ec6 26-28,30-32
+  s_27a413bd486ecb::t_197e6fb199756a 12,33-40,44-47
+  s_27a413bd486ecb::t_ece0f0f93dd180 41-43,48-52
+  s_27a413bd486ecb::t_8c5b644a1b499e 1-11,13-25,29,53
+internal/closeout/executor_test.go
+  s_27a413bd486ecb::t_925c34d9725f05 35,39-41,135-140,144,148,152-158,162-163,167-169,171-176,180-181,188-189,191,201-204,208-210
+  s_27a413bd486ecb::t_8987370d4b4cdf 66,93
+  s_27a413bd486ecb::t_7fbf42b9383ec6 30-34,36-38,141-143,145-147,149-151,159-161,164-166,177-179,182-187,190,192-200,205-207,211-213
+  s_27a413bd486ecb::t_6abcffe2d5420c 1-10,23-24,27-28,42-43,50-62,76,80-86,96,100-105,112-114,121,125-132,214
+  s_27a413bd486ecb::t_0502458d84f5fe 11-22,25-26,29,44-49,63-65,67-75,77-79,87-92,94-95,97-99,106-111,115-120,122-124,133-134,170
+internal/closeout/revalidate_test.go
+  s_27a413bd486ecb::t_ece0f0f93dd180 59-61
+  s_27a413bd486ecb::t_197e6fb199756a 57-58
+internal/closeout/git_state_test.go
+  s_27a413bd486ecb::t_ece0f0f93dd180 9,14-16,19-21
+  s_27a413bd486ecb::t_197e6fb199756a 1-8,10-13,17-18,22
+internal/closeout/plan.go
+  s_27a413bd486ecb::t_d8401a18fcae02 196,253
+internal/closeout/git_state.go
+  s_27a413bd486ecb::t_02f8c83c65dc03 8,44,46,86-105,110-129
+  s_27a413bd486ecb::t_98b8cf1411aeb7 43,45
+  s_27a413bd486ecb::t_16d6abc6629607 130-131
+internal/operation/store_test.go
+  s_27a413bd486ecb::t_d3f171e9a36dc1 42-44,51,58-59,63-64
+  s_27a413bd486ecb::t_29f24f1ce90643 45-50,52-57,60-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ddca1871c314dcae2f266d416ac7895ed18f4d09",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
