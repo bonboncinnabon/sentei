@@ -1,0 +1,20 @@
+internal/tui/palette_test.go
+  s_27a413bd486ecb::t_d3912f40ffefd8 132-133,137
+  s_27a413bd486ecb::t_727b2bfaaee53d 150-161,163-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6f13ac93d88e7f8b3bfc73fe3a3ce9b3fedfe3b2",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}

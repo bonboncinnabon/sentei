@@ -1,0 +1,37 @@
+internal/tui/inbox_closeout_progress_test.go
+  s_27a413bd486ecb::t_727b2bfaaee53d 13,193-195,225-229,233-238
+  s_27a413bd486ecb::t_d880fa636a0605 5
+  s_27a413bd486ecb::t_beccaf2a369921 103-138
+internal/tui/inbox_refresh.go
+  s_27a413bd486ecb::t_b7dc171b77d46a 22-24,61-63,70-74,76
+internal/tui/inbox_refresh_test.go
+  s_27a413bd486ecb::t_16a7926811f939 179
+  s_27a413bd486ecb::t_260c4adab62f9a 11,173-178,180-196
+  s_27a413bd486ecb::t_1af786c342910c 197-198
+internal/tui/inbox_closeout_test.go
+  s_27a413bd486ecb::t_beccaf2a369921 91-129
+internal/tui/inbox_closeout.go
+  s_27a413bd486ecb::t_2c1392e5e0e86f 98,128,154-156
+  s_27a413bd486ecb::t_b7dc171b77d46a 49,306,310-321,327-330,333
+internal/tui/keys.go
+  s_27a413bd486ecb::t_9ece3551c73eb4 265-266
+internal/tui/inbox.go
+  s_27a413bd486ecb::t_9ece3551c73eb4 381,384,388-392
+  s_27a413bd486ecb::t_b7dc171b77d46a 415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4092a878d82676a08c7d8291d78d93a31c06c415",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}

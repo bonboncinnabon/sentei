@@ -1,0 +1,37 @@
+.demos/obligation-engine/attention-inbox.tape
+  s_27a413bd486ecb::t_8f8306ba631e82 19-21
+  s_27a413bd486ecb::t_fed1bbce67a135 8
+.demos/obligation-engine/setup-fixture_test.sh
+  s_27a413bd486ecb::t_ee1e1486646483 75,95,114,128
+  s_27a413bd486ecb::t_a18f346d174388 72-74,96-113,115-122
+  s_27a413bd486ecb::t_d7767455c085b8 123-124
+.demos/obligation-engine/attention-inbox-light.tape
+  s_27a413bd486ecb::t_fed1bbce67a135 1-18,22-28
+  s_27a413bd486ecb::t_8f8306ba631e82 19-21
+.demos/obligation-engine/render.sh
+  s_27a413bd486ecb::t_fed1bbce67a135 18-26,33
+.demos/obligation-engine/README.md
+  s_27a413bd486ecb::t_fed1bbce67a135 13-16,53-56
+.demos/obligation-engine/attention-inbox-narrow.tape
+  s_27a413bd486ecb::t_fed1bbce67a135 1-18,22-30
+  s_27a413bd486ecb::t_8f8306ba631e82 19-21
+.demos/obligation-engine/attention-inbox-reduced-motion.tape
+  s_27a413bd486ecb::t_fed1bbce67a135 1-18,22-30
+  s_27a413bd486ecb::t_8f8306ba631e82 19-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "90b8fa2579829bc149087f445a7a244e9b8c3427",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}

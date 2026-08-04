@@ -1,0 +1,62 @@
+main_closeout_test.go
+  s_27a413bd486ecb::t_f48c37916e6c7b 11,25-28
+internal/tui/help.go
+  s_27a413bd486ecb::t_6ba6bea4749e98 208-210
+internal/tui/inbox_closeout_progress_test.go
+  s_27a413bd486ecb::t_c23e03d074d244 1-6,8-37,39-91,93-104,106,108-109,111-117,119-148,187-189,206-213
+  s_27a413bd486ecb::t_8ffcbd1dac8a6a 7,149-186
+  s_27a413bd486ecb::t_9ca5efad480e33 38,92
+  s_27a413bd486ecb::t_223173f2b911ec 105,107,110,118
+  s_27a413bd486ecb::t_7060cb958dcc1a 190-205
+internal/tui/inbox_closeout.go
+  s_27a413bd486ecb::t_f48c37916e6c7b 340
+  s_27a413bd486ecb::t_8ffcbd1dac8a6a 345
+  s_27a413bd486ecb::t_0b1f8aa455ea0d 30,48,142-144,192,194,197-205,221,285-286,332
+  s_27a413bd486ecb::t_343ed3b217803f 7,9,14,19-21,47,59-63,67-85,136-137,140-141,145-176,180,183-186,191,211-212,217-220,222-223,225-247
+  s_27a413bd486ecb::t_e94513b81067ab 131,335
+  s_27a413bd486ecb::t_49c1b6bc05e2dd 35-46,248,264-272,275,278-281,283-284,289,291,294,297-300,304-319,321-325,328-331,333,338,342,347,350-351,353-355,357
+  s_27a413bd486ecb::t_7060cb958dcc1a 213-216,224
+  s_27a413bd486ecb::t_1c4b3a0c69572e 249
+internal/tui/model.go
+  s_27a413bd486ecb::t_9f52b35b6c21c8 732
+  s_27a413bd486ecb::t_343ed3b217803f 305
+  s_27a413bd486ecb::t_6ba6bea4749e98 659,662-664,800,802-804,1236-1238
+  s_e3edc16be477e8::t_9177e266eed282 296-304,306
+cmd/closeout_cli_test.go
+  s_27a413bd486ecb::t_6e6994b3c38e28 13,220-242
+  s_27a413bd486ecb::t_bda51bcb8f9a1c 243-244
+internal/tui/inbox.go
+  s_27a413bd486ecb::t_7060cb958dcc1a 86-88
+  s_27a413bd486ecb::t_6ba6bea4749e98 372-374
+main.go
+  s_27a413bd486ecb::t_f48c37916e6c7b 655,681-682
+internal/tui/progress_layout.go
+  s_27a413bd486ecb::t_6ba6bea4749e98 287-289,300-302
+cmd/closeout.go
+  s_27a413bd486ecb::t_f48c37916e6c7b 20,221-222
+  s_e3edc16be477e8::t_556fe39690c504 223-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3ae696d5f0f2ff7e5ba7eaf6ed1c489aa5f05efe",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    },
+    "s_e3edc16be477e8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8a9-3fd4-7d10-bdde-7f08ed0e90b5",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
