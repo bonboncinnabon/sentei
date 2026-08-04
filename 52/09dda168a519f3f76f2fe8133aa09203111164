@@ -1,0 +1,59 @@
+internal/tui/inbox_refresh.go
+  s_27a413bd486ecb::t_f212a4310d7c2e 72-83,85-88
+internal/tui/testdata/TestGoldenInboxNarrow.golden
+  s_27a413bd486ecb::t_808d275d9c2b9c 3,5-6,9-11
+  s_27a413bd486ecb::t_fec28f31ced7c5 8
+internal/tui/inbox_interaction_test.go
+  s_27a413bd486ecb::t_08509d747aea57 294,300,305-315
+internal/tui/inbox_consolidation_test.go
+  s_27a413bd486ecb::t_03080c2b518d68 191-199,203-207,209,228-230
+  s_27a413bd486ecb::t_db4e68eb93e4d2 1-37,39-47,56-67,69-129,131-160,177-190
+  s_27a413bd486ecb::t_4cb40cd558fc49 51-52,54-55,200-202,208,221-222
+  s_27a413bd486ecb::t_fc310ab77de14f 161-176
+  s_27a413bd486ecb::t_85cf581e77a208 210-220,223-227
+  s_27a413bd486ecb::t_5a48a39f498860 68
+  s_27a413bd486ecb::t_464c0abdfe8085 130
+  s_27a413bd486ecb::t_c69378048af078 38,49
+  s_27a413bd486ecb::t_99f861760f9c50 48,50,53
+internal/tui/testdata/TestGoldenInboxWide.golden
+  s_27a413bd486ecb::t_808d275d9c2b9c 3,5-6,10-11
+  s_27a413bd486ecb::t_fec28f31ced7c5 8-9
+internal/tui/inbox.go
+  s_27a413bd486ecb::t_385bfc13f421b8 350-352
+  s_27a413bd486ecb::t_464c0abdfe8085 300
+  s_27a413bd486ecb::t_ed40538c3e3411 349,552-553
+  s_27a413bd486ecb::t_85cf581e77a208 464,520,522-532,538-551,554-555,567-568,578-579,586-592,594
+  s_27a413bd486ecb::t_095ee490d37fe5 501-505
+  s_27a413bd486ecb::t_51e856442ff995 119,155-156,159,176
+  s_27a413bd486ecb::t_f8e41349a3b4d9 13-14,254-259,272-277,298-299,301-306,309,312,315-316,322,324,327-330,333-336,338,346,348,358-362,364,387-444,447-463,466-500,506-519
+  s_27a413bd486ecb::t_03080c2b518d68 289-293
+  s_27a413bd486ecb::t_99f861760f9c50 445-446
+  s_27a413bd486ecb::t_c69378048af078 465
+  s_27a413bd486ecb::t_d1ff6aa7492d1f 533-537
+  s_27a413bd486ecb::t_667db0964da79b 556-566,569-577,580-585
+  s_27a413bd486ecb::t_36a40e913299e5 521
+internal/tui/inbox_projection.go
+  s_27a413bd486ecb::t_bdf6d86b8dbf31 25,60
+internal/tui/help.go
+  s_27a413bd486ecb::t_667db0964da79b 110-112
+internal/tui/keys.go
+  s_27a413bd486ecb::t_666df31ef83782 34-37,153-168,251-252,259
+  s_27a413bd486ecb::t_464c0abdfe8085 262
+  s_27a413bd486ecb::t_0a014191ab10dc 263-264
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5209dda168a519f3f76f2fe8133aa09203111164",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
