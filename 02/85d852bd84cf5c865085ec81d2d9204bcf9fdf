@@ -1,0 +1,20 @@
+internal/acceptance/process_state_test.go
+  s_27a413bd486ecb::t_8bfcbe284c4233 135-136
+  s_27a413bd486ecb::t_836173c07430e8 1-134,137-247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0285d852bd84cf5c865085ec81d2d9204bcf9fdf",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
