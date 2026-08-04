@@ -1,0 +1,39 @@
+internal/enrichment/scheduler_test.go
+  s_27a413bd486ecb::t_51f44c2892107c 269-271,276-281,284-288,290-293,295,297,302-304,306-308,310-315,321-323,325-327,329-336
+  s_27a413bd486ecb::t_1bb2d72300b711 265-268,272-275,282-283,289,298-301,305,309,316-320,324,328,337
+  s_27a413bd486ecb::t_edd617d0070b78 21,27,29,33-37,39,88,93,96-97,100,102,105-109,294,296
+internal/enrichment/store.go
+  s_27a413bd486ecb::t_0affdfdc4e1870 60-66
+  s_27a413bd486ecb::t_e8e755aa1586b1 58-59
+internal/enrichment/cache_test.go
+  s_27a413bd486ecb::t_546de005807dc1 121-127,131,138,142-143
+  s_27a413bd486ecb::t_f45f42b8eb0ec5 5
+  s_27a413bd486ecb::t_c0b3934eb63957 128-130,132-137,139-141
+internal/enrichment/github_adapter_test.go
+  s_27a413bd486ecb::t_47b05fae9ef583 29,33,39-40,61,70
+internal/enrichment/github_adapter.go
+  s_27a413bd486ecb::t_47b05fae9ef583 14-17,24-40,42,44-46,48-53,55-56,58-75,77
+internal/enrichment/model.go
+  s_27a413bd486ecb::t_0affdfdc4e1870 129,132-145
+internal/github/provider.go
+  s_27a413bd486ecb::t_0a047f94438ae0 95,98-117
+internal/enrichment/scheduler.go
+  s_27a413bd486ecb::t_3cc00ede9a1784 29-34,41-45,132-139,173-185,187,193-197,199,204-210,212-214,217-219,222-224,227-229,239-242,268-296,322,325-329,333-336,338-343,349,353-360,362,365,373
+  s_27a413bd486ecb::t_1a417149d5e91c 337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "cf03c7ccdf39c56911853300311a4dd12555caf2",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
