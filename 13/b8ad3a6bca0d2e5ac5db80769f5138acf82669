@@ -1,0 +1,26 @@
+internal/resume/live.go
+  s_27a413bd486ecb::t_e0040076724002 78-79,88-89,101,108-110
+  s_27a413bd486ecb::t_e0f7458926b40c 7,9,93-100,104,142,146,157,165-173,180-218,222,224-225
+  s_27a413bd486ecb::t_00cec983a318f9 90-91
+  s_27a413bd486ecb::t_f8aed715caf2c9 105
+internal/resume/live_test.go
+  s_27a413bd486ecb::t_b839413032c9a9 168,171-203,205-211,218-229,276,279-281
+  s_27a413bd486ecb::t_5936eafce76cf4 169-170,204,212-217,230-275,277-278
+  s_27a413bd486ecb::t_b667654b336450 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "13b8ad3a6bca0d2e5ac5db80769f5138acf82669",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
