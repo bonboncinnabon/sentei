@@ -1,0 +1,21 @@
+internal/securelock/lock_test.go
+  s_27a413bd486ecb::t_4076613e2a83a9 1-34
+internal/securelock/lock.go
+  s_27a413bd486ecb::t_80ab5c19267d30 39-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5b0b1f528f7f41a760aecb42422cc678ea88b6dc",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
