@@ -1,0 +1,28 @@
+internal/resume/remote_projection.go
+  s_27a413bd486ecb::t_c11dfcc525292d 5-6,12,22-25,42-45,58-99,101-102
+  s_27a413bd486ecb::t_c31bf18d914ab9 100
+  s_27a413bd486ecb::t_3aba28eea9fbc8 103
+internal/resume/live.go
+  s_27a413bd486ecb::t_c11dfcc525292d 190
+internal/resume/remote_projection_test.go
+  s_27a413bd486ecb::t_c5d14e58ab3e56 125-128
+  s_27a413bd486ecb::t_73f65157c865e7 152-165
+  s_27a413bd486ecb::t_e1ccdd6d77283c 11,107-124,129-151,166-167
+  s_27a413bd486ecb::t_4e55a2d0e7b521 168-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "7cea1e2e898a0c4de4242cd04954f4cb19e0da32",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
