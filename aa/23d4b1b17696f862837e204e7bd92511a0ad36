@@ -1,0 +1,35 @@
+openspec/changes/consolidate-obligation-tui/proposal.md
+  s_27a413bd486ecb::t_ee3358ab53a195 1-65
+openspec/changes/consolidate-obligation-tui/specs/recovery-closeout/spec.md
+  s_27a413bd486ecb::t_8385efcc853236 1-46
+openspec/changes/consolidate-obligation-tui/specs/tui-design-system/spec.md
+  s_27a413bd486ecb::t_8385efcc853236 1-34
+openspec/changes/consolidate-obligation-tui/design.md
+  s_27a413bd486ecb::t_8385efcc853236 1-167
+openspec/changes/consolidate-obligation-tui/.openspec.yaml
+  s_27a413bd486ecb::t_5b6120c52b4d76 1-2
+openspec/changes/consolidate-obligation-tui/specs/attention-inbox/spec.md
+  s_27a413bd486ecb::t_8385efcc853236 1-53
+openspec/changes/consolidate-obligation-tui/specs/tui-chrome/spec.md
+  s_27a413bd486ecb::t_8385efcc853236 1-27
+openspec/changes/consolidate-obligation-tui/specs/tui-portal/spec.md
+  s_27a413bd486ecb::t_8385efcc853236 1-16
+openspec/changes/consolidate-obligation-tui/tasks.md
+  s_27a413bd486ecb::t_99b12dbf46afa8 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "aa23d4b1b17696f862837e204e7bd92511a0ad36",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
