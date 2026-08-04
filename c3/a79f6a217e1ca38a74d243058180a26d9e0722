@@ -1,0 +1,35 @@
+internal/closeout/recovery_test.go
+  s_27a413bd486ecb::t_ff124322a49916 1-56,58-76,80-86,88-90,92-93,99-119,123-142,158-159
+  s_27a413bd486ecb::t_d5fb026c20b923 87,91,143-157
+  s_27a413bd486ecb::t_35c7fe674c9407 57
+  s_27a413bd486ecb::t_61205656f1abb9 77-79,94-98
+  s_27a413bd486ecb::t_88d741847207e6 120-122
+internal/closeout/recovery.go
+  s_27a413bd486ecb::t_88d741847207e6 37,102
+  s_27a413bd486ecb::t_61205656f1abb9 265,296-321,325-327
+  s_27a413bd486ecb::t_c72af6571ad637 1-36,38-101,103-264,266-295,322-324,328-354
+internal/closeout/store.go
+  s_27a413bd486ecb::t_c72af6571ad637 1-229
+internal/closeout/store_test.go
+  s_27a413bd486ecb::t_ff124322a49916 1-7,9-12,15-66,68-78,157,159-171,176-217,221-226,234-250,258-276
+  s_27a413bd486ecb::t_90cfcd2a60c15b 218-220,227-233,251-257
+  s_27a413bd486ecb::t_d5fb026c20b923 67
+  s_27a413bd486ecb::t_61205656f1abb9 8,13-14,79-156,158
+  s_27a413bd486ecb::t_88d741847207e6 172-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c3a79f6a217e1ca38a74d243058180a26d9e0722",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
