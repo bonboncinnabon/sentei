@@ -1,0 +1,35 @@
+docs/operator-cockpit.md
+  s_27a413bd486ecb::t_39960e0620d7ae 87-90
+.demos/obligation-engine/README.md
+  s_27a413bd486ecb::t_55e25bd987fbab 1-40
+.demos/obligation-engine/render.sh
+  s_27a413bd486ecb::t_55e25bd987fbab 1-35
+.demos/obligation-engine/intent-resume.tape
+  s_27a413bd486ecb::t_55e25bd987fbab 1-31
+openspec/changes/add-obligation-engine/evidence/tui-recordings.md
+  s_27a413bd486ecb::t_39960e0620d7ae 1-61
+openspec/changes/add-obligation-engine/tasks.md
+  s_27a413bd486ecb::t_39960e0620d7ae 123-130
+.demos/obligation-engine/attention-inbox.tape
+  s_27a413bd486ecb::t_55e25bd987fbab 1-37
+.demos/obligation-engine/closeout-recovery.tape
+  s_27a413bd486ecb::t_55e25bd987fbab 1-26
+.demos/obligation-engine/closeout-success.tape
+  s_27a413bd486ecb::t_55e25bd987fbab 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3e051b9740e4f48c8037768028e3396a1695fa73",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
