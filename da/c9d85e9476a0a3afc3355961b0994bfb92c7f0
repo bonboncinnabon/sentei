@@ -1,0 +1,25 @@
+.demos/obligation-engine/setup-fixture.sh
+  s_27a413bd486ecb::t_6255c7e2414dd3 1-125,128-168,174-177,179-195,197-292
+  s_27a413bd486ecb::t_684b2aff0e0da8 178,196
+  s_27a413bd486ecb::t_e167126bd3152a 169-173
+  s_27a413bd486ecb::t_0562ec5c755e0c 126-127
+.demos/obligation-engine/setup-fixture_test.sh
+  s_27a413bd486ecb::t_c36196a9f8c5af 1-84,89-94
+  s_27a413bd486ecb::t_684b2aff0e0da8 85-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "dac9d85e9476a0a3afc3355961b0994bfb92c7f0",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
