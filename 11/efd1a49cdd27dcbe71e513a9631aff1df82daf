@@ -1,0 +1,27 @@
+cmd/attention.go
+  s_27a413bd486ecb::t_60d80359f8a636 77-80,86,90-95
+cmd/attention_catalog.go
+  s_27a413bd486ecb::t_60d80359f8a636 50-51,53,59
+cmd/remote.go
+  s_27a413bd486ecb::t_60d80359f8a636 14-17
+cmd/attention_test.go
+  s_27a413bd486ecb::t_4c54e3ea1f6352 112
+  s_27a413bd486ecb::t_0d2d8ffd13dbeb 32-51,63-111,113-128
+  s_27a413bd486ecb::t_73ac49192cb76a 129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "11efd1a49cdd27dcbe71e513a9631aff1df82daf",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
