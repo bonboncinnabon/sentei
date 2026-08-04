@@ -1,11 +1,16 @@
 internal/intent/projection.go
   s_27a413bd486ecb::t_9874c57b9d2533 22-30,33,35-45,54-55
+  s_27a413bd486ecb::t_7d313999c19693 22-30,33,35-45,54-55
 internal/intent/projection_test.go
   s_27a413bd486ecb::t_a0d32de360b71a 50-67
+  s_27a413bd486ecb::t_3c8c19fbf1f6db 50-67
 internal/resume/live.go
   s_27a413bd486ecb::t_78f8ff46f67b90 132,223,259,261,263
+  s_27a413bd486ecb::t_3ec5d427745de3 132,223
+  s_27a413bd486ecb::t_45e5eb42f3aea8 259,261,263
 internal/resume/live_test.go
   s_27a413bd486ecb::t_d5de04a911698a 61,78
+  s_27a413bd486ecb::t_8c728fe4edff83 61,78
 ---
 {
   "schema_version": "authorship/3.0.0",
