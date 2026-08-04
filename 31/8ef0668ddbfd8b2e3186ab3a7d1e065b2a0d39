@@ -1,0 +1,22 @@
+openspec/changes/add-obligation-engine/evidence/integrated-review.md
+  s_27a413bd486ecb::t_fd9826afe90311 1-51,53,55-63
+  s_27a413bd486ecb::t_28f21e770a7cf7 52,54
+openspec/changes/add-obligation-engine/tasks.md
+  s_27a413bd486ecb::t_fd9826afe90311 114-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "318ef0668ddbfd8b2e3186ab3a7d1e065b2a0d39",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
