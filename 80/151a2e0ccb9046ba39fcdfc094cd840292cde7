@@ -1,0 +1,29 @@
+cmd/attention_catalog.go
+  s_27a413bd486ecb::t_66b92728aec090 51-55
+main_test.go
+  s_27a413bd486ecb::t_67c7c0c5c15b11 172-175,177
+  s_27a413bd486ecb::t_fa2959700eaa19 176
+cmd/attention_test.go
+  s_27a413bd486ecb::t_66b92728aec090 63-73
+docs/operator-cockpit.md
+  s_27a413bd486ecb::t_66b92728aec090 42-45
+cmd/attention.go
+  s_27a413bd486ecb::t_66b92728aec090 64-74,88-93,118-119,133-134,143-154
+  s_27a413bd486ecb::t_9866d16703853f 155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "80151a2e0ccb9046ba39fcdfc094cd840292cde7",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
