@@ -1,0 +1,20 @@
+openspec/changes/add-obligation-engine/evidence/milestone-7.md
+  s_27a413bd486ecb::t_c9289883f9dde6 9,12,20-22,30-31,34,36,38,40,52,54-55,61,80-84
+  s_27a413bd486ecb::t_e6ca7029574878 62,85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "56a2d41e9505f69a170fb22067f6699313a5dd7a",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
