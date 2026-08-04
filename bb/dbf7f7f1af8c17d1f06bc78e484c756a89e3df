@@ -1,0 +1,36 @@
+internal/tui/testdata/TestGoldenConfirmView.golden
+  s_27a413bd486ecb::t_5955cb7b3d1638 1
+internal/tui/testdata/TestGoldenListView.golden
+  s_27a413bd486ecb::t_5955cb7b3d1638 1
+internal/tui/testdata/TestGoldenInboxNarrow.golden
+  s_27a413bd486ecb::t_5955cb7b3d1638 1
+internal/tui/chrome.go
+  s_27a413bd486ecb::t_9ead95cbb35982 22-23,25-33,37
+internal/tui/testdata/TestGoldenSummaryView.golden
+  s_27a413bd486ecb::t_5955cb7b3d1638 1
+internal/tui/testdata/TestGoldenCleanupResultView.golden
+  s_27a413bd486ecb::t_5955cb7b3d1638 1
+internal/tui/chrome_test.go
+  s_27a413bd486ecb::t_c805ecbf1961cd 12
+  s_27a413bd486ecb::t_ee0e4f921218d3 27-45
+internal/tui/testdata/TestGoldenInboxWide.golden
+  s_27a413bd486ecb::t_5955cb7b3d1638 1
+internal/tui/testdata/TestGoldenCreateInputView.golden
+  s_27a413bd486ecb::t_5955cb7b3d1638 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "bbdbf7f7f1af8c17d1f06bc78e484c756a89e3df",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
