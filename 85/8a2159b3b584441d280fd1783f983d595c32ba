@@ -1,0 +1,23 @@
+cmd/history.go
+  s_27a413bd486ecb::t_b68149a20f23ff 10,54,56,64-71,134-138,154-163,169-175,184-185,187-203,213
+  s_27a413bd486ecb::t_508a6e0ff3cebf 176-183,186
+cmd/history_test.go
+  s_27a413bd486ecb::t_86cfacefae2913 57-71,114-117
+  s_27a413bd486ecb::t_b68149a20f23ff 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "858a2159b3b584441d280fd1783f983d595c32ba",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
