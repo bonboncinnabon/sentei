@@ -1,0 +1,19 @@
+internal/closeout/executor_test.go
+  s_27a413bd486ecb::t_5a2857baf6e1ea 316,319-323,326-330,332-339,344-346,349,352,355,363-368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d55847ec40aec65241f40cede55037e6804d125e",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
