@@ -1,0 +1,32 @@
+internal/intent/projection_test.go
+  s_27a413bd486ecb::t_3c8c19fbf1f6db 50-67
+internal/intent/projection.go
+  s_27a413bd486ecb::t_7d313999c19693 22-30,33,35-45,54-55
+internal/resume/live.go
+  s_27a413bd486ecb::t_3ec5d427745de3 132,223
+  s_27a413bd486ecb::t_45e5eb42f3aea8 259,261,263
+main_intent_test.go
+  s_27a413bd486ecb::t_ae3d8181e8372e 1-30
+cmd/intent.go
+  s_27a413bd486ecb::t_91588774c191b7 24-52
+internal/resume/live_test.go
+  s_27a413bd486ecb::t_8c728fe4edff83 61,78
+main.go
+  s_27a413bd486ecb::t_91588774c191b7 75-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b91ada436d1c1abf89484bce0ab76faa8c07fd46",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
