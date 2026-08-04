@@ -1,0 +1,47 @@
+internal/enrichment/store.go
+  s_27a413bd486ecb::t_65d19f82bcf94f 12,83,137-138,144
+  s_27a413bd486ecb::t_e59cfc3f4811d5 70,109,145-167
+  s_27a413bd486ecb::t_24e486b090b29c 127-129,139-143
+  s_27a413bd486ecb::t_dce721111ff6fd 168
+internal/enrichment/github_adapter.go
+  s_27a413bd486ecb::t_a521910603bae9 66
+internal/resume/live.go
+  s_27a413bd486ecb::t_81cae7b9df550f 63
+internal/enrichment/github_adapter_test.go
+  s_27a413bd486ecb::t_ae306bc567c905 37-39
+  s_27a413bd486ecb::t_d9f5d69354c850 27
+internal/enrichment/cache_test.go
+  s_27a413bd486ecb::t_cb2db60eda396b 144-148,152,156,163
+  s_27a413bd486ecb::t_ae890410331531 164-178
+  s_27a413bd486ecb::t_c2b834d40a6402 149-151,153-155,157-162
+  s_27a413bd486ecb::t_77fe3a238f1ea5 179-190
+internal/enrichment/scheduler_test.go
+  s_27a413bd486ecb::t_cb2db60eda396b 338-342,346-347,351,358
+  s_27a413bd486ecb::t_c2b834d40a6402 343-345,348-350,352-357
+internal/enrichment/scheduler.go
+  s_27a413bd486ecb::t_65d19f82bcf94f 162-163,168-170
+  s_27a413bd486ecb::t_2ec0d1f93363c9 171-172
+internal/catalog/resolve.go
+  s_27a413bd486ecb::t_81cae7b9df550f 1-10,14-17,21-22
+  s_27a413bd486ecb::t_037afd4d64e8ca 11-13,18-20
+internal/enrichment/model.go
+  s_27a413bd486ecb::t_a521910603bae9 82-85,89-103,112-119,203
+  s_27a413bd486ecb::t_00c1267cf15f77 120,176,192-194,196-198,200-202
+  s_27a413bd486ecb::t_17086d24282691 78-81,86-88,195,199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d9eed12753ac2410f399dc2c88e410eb49bc735a",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
