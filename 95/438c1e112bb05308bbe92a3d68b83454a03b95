@@ -1,0 +1,38 @@
+internal/closeout/executor.go
+  s_27a413bd486ecb::t_2f45ccf97ce8f8 70-84
+  s_27a413bd486ecb::t_8af819949e1c78 50-53
+  s_27a413bd486ecb::t_650b855c4f58e2 54,58,101-107,151-161
+internal/closeout/executor_test.go
+  s_27a413bd486ecb::t_650b855c4f58e2 9,30-104,231
+  s_27a413bd486ecb::t_3e8159d35eb486 105,114-121,215-230,232
+  s_27a413bd486ecb::t_92173325c33efe 106
+  s_27a413bd486ecb::t_c129516d4d67cb 233
+internal/closeout/revalidate.go
+  s_27a413bd486ecb::t_2f45ccf97ce8f8 16,100-101
+  s_27a413bd486ecb::t_620a81407e01b3 12-15,102
+internal/closeout/git_state.go
+  s_27a413bd486ecb::t_2f45ccf97ce8f8 44-46
+internal/closeout/git_state_test.go
+  s_27a413bd486ecb::t_e007809a90116a 114
+  s_27a413bd486ecb::t_8b133b284f1204 131-134,136,145
+  s_27a413bd486ecb::t_73207c4042d9f0 9,92-113,115-130,135,137-144,146-173
+  s_27a413bd486ecb::t_c018922dd1cf05 174
+internal/closeout/revalidate_test.go
+  s_27a413bd486ecb::t_e6aab0feddbe17 62-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "95438c1e112bb05308bbe92a3d68b83454a03b95",
+  "prompts": {},
+  "sessions": {
+    "s_27a413bd486ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fc8e5-347f-7de1-9854-b96a0e5114ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
