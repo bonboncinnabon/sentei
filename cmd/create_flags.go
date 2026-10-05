@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/cli"
+	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
 // CreateOptions holds parsed flags for the create command.

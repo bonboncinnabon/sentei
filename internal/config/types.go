@@ -1,6 +1,6 @@
 package config
 
-import "github.com/abiswas97/sentei/internal/worktreefile"
+import "github.com/bonboncinnabon/sentei/internal/worktreefile"
 
 // Config is the top-level configuration for sentei.
 type Config struct {

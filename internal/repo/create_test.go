@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/progress"
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 type mockGhRunner struct {
@@ -76,12 +76,12 @@ func TestCreate_WithGitHub(t *testing.T) {
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                          {Output: ""},
 		fmt.Sprintf("%s/main:[commit -m Initial commit]", repoPath):                                        {Output: ""},
 		// GitHub phase (git commands) — gh git_protocol is https (gh default).
-		fmt.Sprintf("%s/.bare:[remote set-url origin https://github.com/abiswas97/my-project.git]", repoPath): {Output: ""},
-		fmt.Sprintf("%s/main:[push -u origin main]", repoPath):                                                {Output: ""},
-		fmt.Sprintf("%s/.bare:[remote set-head origin main]", repoPath):                                       {Output: ""},
+		fmt.Sprintf("%s/.bare:[remote set-url origin https://github.com/bonboncinnabon/my-project.git]", repoPath): {Output: ""},
+		fmt.Sprintf("%s/main:[push -u origin main]", repoPath):                                                     {Output: ""},
+		fmt.Sprintf("%s/.bare:[remote set-head origin main]", repoPath):                                            {Output: ""},
 	}}
 	ghRunner := &mockGhRunner{responses: map[string]mock.Response{
-		fmt.Sprintf("%s:gh[api user --jq .login]", repoPath):             {Output: "abiswas97"},
+		fmt.Sprintf("%s:gh[api user --jq .login]", repoPath):             {Output: "bonboncinnabon"},
 		fmt.Sprintf("%s:gh[repo create my-project --private]", repoPath): {Output: ""},
 		fmt.Sprintf("%s:gh[config get git_protocol]", repoPath):          {Output: "https"},
 	}}
@@ -200,16 +200,16 @@ func TestCreate_PushFailure_ReportsOrphanedRepo(t *testing.T) {
 	pushErr := fmt.Errorf("Permission denied (publickey)")
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                       {Output: ""},
-		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath):    {Output: ""},
-		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                                  {Output: ""},
-		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                             {Output: ""},
-		fmt.Sprintf("%s/main:[commit -m Initial commit]", repoPath):                                           {Output: ""},
-		fmt.Sprintf("%s/.bare:[remote set-url origin https://github.com/abiswas97/my-project.git]", repoPath): {Output: ""},
-		fmt.Sprintf("%s/main:[push -u origin main]", repoPath):                                                {Output: "", Err: pushErr},
+		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                            {Output: ""},
+		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath):         {Output: ""},
+		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                                       {Output: ""},
+		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                                  {Output: ""},
+		fmt.Sprintf("%s/main:[commit -m Initial commit]", repoPath):                                                {Output: ""},
+		fmt.Sprintf("%s/.bare:[remote set-url origin https://github.com/bonboncinnabon/my-project.git]", repoPath): {Output: ""},
+		fmt.Sprintf("%s/main:[push -u origin main]", repoPath):                                                     {Output: "", Err: pushErr},
 	}}
 	ghRunner := &mockGhRunner{responses: map[string]mock.Response{
-		fmt.Sprintf("%s:gh[api user --jq .login]", repoPath):             {Output: "abiswas97"},
+		fmt.Sprintf("%s:gh[api user --jq .login]", repoPath):             {Output: "bonboncinnabon"},
 		fmt.Sprintf("%s:gh[repo create my-project --private]", repoPath): {Output: ""},
 		fmt.Sprintf("%s:gh[config get git_protocol]", repoPath):          {Output: "https"},
 	}}

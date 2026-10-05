@@ -57,7 +57,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 type Mode string
@@ -670,7 +670,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 func PruneRemoteRefs(runner git.CommandRunner, repoPath string, opts Options, emit func(Event)) (int, error) {
@@ -876,7 +876,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 type BranchCleanResult struct {
@@ -1468,8 +1468,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/abiswas97/sentei/internal/cleanup"
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 const (
@@ -1552,7 +1552,7 @@ if len(os.Args) > 1 && os.Args[1] == "cleanup" {
 }
 ```
 
-Add the import: `"github.com/abiswas97/sentei/cmd"`
+Add the import: `"github.com/bonboncinnabon/sentei/cmd"`
 
 - [ ] **Step 3: Verify it compiles and runs**
 
@@ -1586,7 +1586,7 @@ In `internal/tui/model.go`, add to the `Model` struct:
 cleanupResult *cleanup.Result
 ```
 
-Add import: `"github.com/abiswas97/sentei/internal/cleanup"`
+Add import: `"github.com/bonboncinnabon/sentei/internal/cleanup"`
 
 - [ ] **Step 2: Add cleanup messages and chain to progress.go**
 
@@ -1681,7 +1681,7 @@ git commit -m "feat(cleanup): integrate cleanup into TUI post-deletion flow"
 if command -v sentei >/dev/null 2>&1; then
     exec sentei cleanup "$@"
 else
-    echo "sentei not found. Install: go install github.com/abiswas97/sentei@latest" >&2
+    echo "sentei not found. Install: go install github.com/bonboncinnabon/sentei@latest" >&2
     exit 1
 fi
 ```

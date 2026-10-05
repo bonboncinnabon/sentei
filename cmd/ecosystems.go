@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/ecosystem"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/ecosystem"
 )
 
 func RunEcosystems(args []string) {

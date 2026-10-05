@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/creator"
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/progress"
-	"github.com/abiswas97/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/creator"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
 // RunCreate executes the create worktree command in non-interactive mode.

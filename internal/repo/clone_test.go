@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/progress"
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func TestDeriveRepoName(t *testing.T) {

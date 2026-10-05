@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/git"
 	"gopkg.in/yaml.v3"
 )
 

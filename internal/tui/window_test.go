@@ -3,7 +3,7 @@ package tui
 import (
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 func makeSteps(statuses ...progress.StepStatus) []progress.StepState {

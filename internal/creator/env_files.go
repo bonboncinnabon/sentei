@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/fileutil"
+	"github.com/bonboncinnabon/sentei/internal/fileutil"
 )
 
 func uniqueEnvFiles(opts Options) []string {

@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/integration"
-	"github.com/abiswas97/sentei/internal/progress"
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func TestRun_FullPipeline(t *testing.T) {

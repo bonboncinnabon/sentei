@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/abiswas97/sentei/internal/cli"
+	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
 // CloneOptions holds the parsed flags for the clone command.

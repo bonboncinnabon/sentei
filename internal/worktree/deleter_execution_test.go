@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 func TestDeleteWorktrees_DeliveryFailurePopulatesErr(t *testing.T) {

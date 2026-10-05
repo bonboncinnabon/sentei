@@ -3,9 +3,9 @@ package tui
 import (
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/progress"
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 // Spec "Teardown counts are real": the running Teardown phase displays the

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 func TestWorktreeLabel_DetachedUsesShortHash(t *testing.T) {

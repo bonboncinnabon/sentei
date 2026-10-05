@@ -3,7 +3,7 @@ package cleanup
 import (
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func TestPruneRemoteRefs(t *testing.T) {

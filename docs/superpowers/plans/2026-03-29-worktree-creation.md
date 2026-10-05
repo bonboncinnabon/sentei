@@ -299,9 +299,9 @@ Create `internal/creator/creator.go`:
 package creator
 
 import (
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 type StepStatus int
@@ -400,7 +400,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 func SanitizeBranchPath(branch string) string {
@@ -582,7 +582,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/config"
 )
 
 func boolPtr(b bool) *bool {
@@ -756,9 +756,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/ecosystem"
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/ecosystem"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 const maxDepsConcurrency = 5
@@ -896,7 +896,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 func TestRunIntegrations_NoIntegrations(t *testing.T) {
@@ -1113,8 +1113,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 func runIntegrations(runner git.CommandRunner, wtPath string, opts Options, emit func(Event)) Phase {
@@ -1340,7 +1340,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 func TestScanArtifacts(t *testing.T) {
@@ -1543,8 +1543,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 type ArtifactInfo struct {
@@ -1673,8 +1673,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 func TestRun_FullPipeline(t *testing.T) {
@@ -2023,12 +2023,12 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/cleanup"
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/creator"
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/integration"
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/creator"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 type viewState int
@@ -2340,7 +2340,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 const (
@@ -2783,7 +2783,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 func (m Model) updateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -2881,9 +2881,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/cleanup"
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 const (
@@ -3261,8 +3261,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 type worktreeContextMsg struct {
@@ -3459,9 +3459,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/creator"
-	"github.com/abiswas97/sentei/internal/ecosystem"
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/creator"
+	"github.com/bonboncinnabon/sentei/internal/ecosystem"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 type branchValidationError struct {
@@ -3655,9 +3655,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/creator"
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/creator"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 type optionItem struct {
@@ -3938,7 +3938,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/creator"
+	"github.com/bonboncinnabon/sentei/internal/creator"
 )
 
 type phaseDisplay struct {
@@ -4129,7 +4129,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/creator"
+	"github.com/bonboncinnabon/sentei/internal/creator"
 )
 
 func (m Model) updateCreateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -4265,9 +4265,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/creator"
-	"github.com/abiswas97/sentei/internal/integration"
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/internal/creator"
+	"github.com/bonboncinnabon/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 type teardownCompleteMsg struct {
@@ -4419,7 +4419,7 @@ func (m Model) viewConfirm() string {
 
 Note: We need to add the `git` import since `runTeardownPhase` uses `git.Worktree`. Add to the import block:
 ```go
-"github.com/abiswas97/sentei/internal/git"
+"github.com/bonboncinnabon/sentei/internal/git"
 ```
 
 - [ ] **Step 2: Verify build and tests pass**
@@ -4530,7 +4530,7 @@ func (m Model) viewProgress() string {
 Also add the `creator` import to the import block in `progress.go`:
 
 ```go
-"github.com/abiswas97/sentei/internal/creator"
+"github.com/bonboncinnabon/sentei/internal/creator"
 ```
 
 - [ ] **Step 2: Verify build and tests pass**
@@ -4563,13 +4563,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/cmd"
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/dryrun"
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/playground"
-	"github.com/abiswas97/sentei/internal/tui"
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/cmd"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/dryrun"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/playground"
+	"github.com/bonboncinnabon/sentei/internal/tui"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 var (
@@ -4721,8 +4721,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 func TestE2E_CreateWorktree(t *testing.T) {
@@ -4889,7 +4889,7 @@ func TestE2E_Teardown(t *testing.T) {
 Note: The E2E teardown test needs the `integration` import. Add to the import block:
 
 ```go
-"github.com/abiswas97/sentei/internal/integration"
+"github.com/bonboncinnabon/sentei/internal/integration"
 ```
 
 - [ ] **Step 2: Run unit tests (not E2E)**

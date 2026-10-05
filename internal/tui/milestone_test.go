@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/state"
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/state"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 func TestCrossedPowerOfTen(t *testing.T) {

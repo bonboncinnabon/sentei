@@ -9,11 +9,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/progress"
-	"github.com/abiswas97/sentei/internal/testtmp"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/testtmp"
 )
 
 func collectEvents(ch <-chan progress.Event) []progress.Event {

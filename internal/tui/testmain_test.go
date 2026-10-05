@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/testtmp"
+	"github.com/bonboncinnabon/sentei/internal/testtmp"
 )
 
 // TestMain isolates TMPDIR to a Spotlight-excluded dir so real-git tests don't

@@ -9,9 +9,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/repo"
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 func TestViewSummary_BoundsEveryLineAndOffersFullWidthOmissions(t *testing.T) {

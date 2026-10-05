@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/testtmp"
+	"github.com/bonboncinnabon/sentei/internal/testtmp"
 )
 
 // mustGit runs a git command in dir, failing the test on error.

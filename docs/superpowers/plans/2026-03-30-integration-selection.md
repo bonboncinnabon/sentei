@@ -615,7 +615,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 // ManagerEvent is emitted during enable/disable operations.
@@ -1002,8 +1002,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/integration"
-	"github.com/abiswas97/sentei/internal/state"
+	"github.com/bonboncinnabon/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/state"
 )
 
 type integrationStateLoadedMsg struct {
@@ -1590,8 +1590,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/integration"
-	"github.com/abiswas97/sentei/internal/state"
+	"github.com/bonboncinnabon/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/state"
 )
 
 func (m Model) updateIntegrationProgress(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -1769,8 +1769,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/abiswas97/sentei/internal/integration"
-	"github.com/abiswas97/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
 type migrateIntegrationDetectedMsg struct {
@@ -2367,7 +2367,7 @@ func copyIntegrationIndex(sourceWT, targetWT, indexDir string) error {
 }
 ```
 
-Add `"github.com/abiswas97/sentei/internal/fileutil"` to the import block.
+Add `"github.com/bonboncinnabon/sentei/internal/fileutil"` to the import block.
 ```
 
 - [ ] **Step 4: Integrate copy into setupIntegration**
@@ -2452,7 +2452,7 @@ func enableOnWorktree(shell git.ShellRunner, repoPath, mainWTPath, wtPath string
 
 Use `fileutil.CopyDir` from `internal/fileutil/copy.go` (shared helper, created in Task 12 Step 3a).
 Replace `copyDirManager(srcDir, dstDir)` with `fileutil.CopyDir(srcDir, dstDir)`.
-Add import: `"github.com/abiswas97/sentei/internal/fileutil"`
+Add import: `"github.com/bonboncinnabon/sentei/internal/fileutil"`
 
 - [ ] **Step 6: Update all callers of EnableIntegration to pass mainWTPath**
 

@@ -182,7 +182,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 type RepoContext int
@@ -351,9 +351,9 @@ func TestCreate_WithGitHub(t *testing.T) {
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                          {output: ""},
 		fmt.Sprintf("%s/main:[commit -m Initial commit]", repoPath):        {output: ""},
 		// GitHub phase
-		fmt.Sprintf("%s:shell[gh api user --jq .login]", repoPath):         {output: "abiswas97"},
+		fmt.Sprintf("%s:shell[gh api user --jq .login]", repoPath):         {output: "bonboncinnabon"},
 		fmt.Sprintf("%s/main:shell[gh repo create my-project --private --description \"\" --source . --push]", repoPath): {output: ""},
-		fmt.Sprintf("%s/.bare:[remote set-url origin git@github.com:abiswas97/my-project.git]", repoPath): {output: ""},
+		fmt.Sprintf("%s/.bare:[remote set-url origin git@github.com:bonboncinnabon/my-project.git]", repoPath): {output: ""},
 		fmt.Sprintf("%s/main:[push -u origin main]", repoPath):             {output: ""},
 		fmt.Sprintf("%s/.bare:[remote set-head origin main]", repoPath):    {output: ""},
 	}}
@@ -460,7 +460,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 type CreateOptions struct {
@@ -841,7 +841,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 type CloneOptions struct {
@@ -1216,7 +1216,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 type MigrateOptions struct {
@@ -2146,7 +2146,7 @@ For create:
 
     Path     /Users/dev/code/personal/my-project
     Branch   main
-    GitHub   github.com/abiswas97/my-project ●
+    GitHub   github.com/bonboncinnabon/my-project ●
 
   ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
 
@@ -2260,7 +2260,7 @@ model := tui.NewMenuModel(tuiRunner, shell, repoPath, cfg, context)
 
 - [ ] **Step 4: Add repo import**
 
-Add `"github.com/abiswas97/sentei/internal/repo"` to `main.go` imports.
+Add `"github.com/bonboncinnabon/sentei/internal/repo"` to `main.go` imports.
 
 - [ ] **Step 5: Verify build and basic startup**
 
@@ -2303,7 +2303,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 func TestE2E_CreateRepo(t *testing.T) {

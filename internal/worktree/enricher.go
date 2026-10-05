@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 func ParseStatusPorcelain(output string) (hasUncommitted bool, hasUntracked bool) {

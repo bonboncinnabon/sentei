@@ -11,7 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 // ProgressLayout renders the standard progress view shared by every

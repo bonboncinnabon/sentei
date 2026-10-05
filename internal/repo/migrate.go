@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/abiswas97/sentei/internal/fileutil"
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/fileutil"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 type MigrateOptions struct {

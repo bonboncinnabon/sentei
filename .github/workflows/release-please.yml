@@ -49,7 +49,7 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: abiswas97
+          owner: bonboncinnabon
           repositories: sentei,homebrew-tap
 
       - name: Probe release API with the app token

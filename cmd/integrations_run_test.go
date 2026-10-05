@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 func TestDetectStatus(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 func TestProgressLayout_WithSubtitle(t *testing.T) {

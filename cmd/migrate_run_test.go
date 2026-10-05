@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
 func TestMigrateResultErrorPropagatesContractError(t *testing.T) {

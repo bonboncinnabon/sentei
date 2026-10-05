@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/worktreefile"
+	"github.com/bonboncinnabon/sentei/internal/worktreefile"
 	"gopkg.in/yaml.v3"
 )
 

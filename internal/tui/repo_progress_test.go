@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/progress"
-	"github.com/abiswas97/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
 // drainRepoPipeline executes wait commands until the repo pipeline goroutine

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/fileutil"
+	"github.com/bonboncinnabon/sentei/internal/fileutil"
 )
 
 const (

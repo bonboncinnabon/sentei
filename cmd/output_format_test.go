@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/cleanup"
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 func TestPrintEvent(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abiswas97/sentei/internal/cli"
+	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
 // RemoveOptions holds parsed flags for the remove command.

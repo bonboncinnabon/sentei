@@ -6,8 +6,8 @@ import (
 
 	progressbar "charm.land/bubbles/v2/progress"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 func TestProgressLayout_Overall(t *testing.T) {

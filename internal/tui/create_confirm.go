@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/abiswas97/sentei/internal/cli"
+	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
 // SetCreateOpts sets the create options and starts at the appropriate view.
