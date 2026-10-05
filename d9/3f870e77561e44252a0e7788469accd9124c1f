@@ -1,0 +1,397 @@
+.github/workflows/release-please.yml
+  s_4d505973cdba96::t_599249047f20c3 52
+.goreleaser.yaml
+  s_4d505973cdba96::t_2a08b8c55b1943 45,48
+README.md
+  s_4d505973cdba96::t_bd665c76e8f947 3,20,26
+cmd/cleanup.go
+  s_4d505973cdba96::t_f4219039588993 6-7
+cmd/cleanup_flags.go
+  s_4d505973cdba96::t_1d4ca6c5fc2b35 7-8
+cmd/cleanup_flags_test.go
+  s_4d505973cdba96::t_771c541775343f 7
+cmd/cleanup_run_test.go
+  s_4d505973cdba96::t_0792095e727ffc 8-9
+cmd/cli_e2e_test.go
+  s_4d505973cdba96::t_59ae498ae09017 10
+cmd/clone.go
+  s_4d505973cdba96::t_cc8f2c739c7473 8-10
+cmd/clone_flags.go
+  s_4d505973cdba96::t_2e01bcd59ebb30 7
+cmd/clone_run_test.go
+  s_4d505973cdba96::t_c0edf110a51a71 10
+cmd/create.go
+  s_4d505973cdba96::t_58a5daf42eb496 9-13
+cmd/create_flags.go
+  s_4d505973cdba96::t_29e5dbb5165399 8
+cmd/create_run_test.go
+  s_4d505973cdba96::t_9b347b8dd91e5a 11-13
+cmd/ecosystems.go
+  s_4d505973cdba96::t_18317bac7fec20 8-9
+cmd/fixtures_test.go
+  s_4d505973cdba96::t_02bfd0f4ef966b 9
+cmd/integrations.go
+  s_4d505973cdba96::t_19d967802d5976 9
+cmd/integrations_run_test.go
+  s_4d505973cdba96::t_97b88be48a2052 7
+cmd/migrate.go
+  s_4d505973cdba96::t_0800e59aa229a6 8-10
+cmd/migrate_run_test.go
+  s_4d505973cdba96::t_523a780e742507 10
+cmd/output_format_test.go
+  s_4d505973cdba96::t_598748c49bc617 8-9
+cmd/remove.go
+  s_4d505973cdba96::t_beebbeeff2f062 10-13
+cmd/remove_filter.go
+  s_4d505973cdba96::t_b4a33367094a99 9
+cmd/remove_flags.go
+  s_4d505973cdba96::t_eb2c409646804e 10
+cmd/remove_flags_test.go
+  s_4d505973cdba96::t_dad70a679f7b94 8
+cmd/remove_protection_test.go
+  s_4d505973cdba96::t_5056fbf2cb7ffd 9-11
+cmd/testmain_test.go
+  s_4d505973cdba96::t_b4600950e45655 7
+docs/superpowers/plans/2026-03-21-cleanup-command.md
+  s_4d505973cdba96::t_b678d08382beaa 60,673,879,1471-1472,1555,1589,1684
+docs/superpowers/plans/2026-03-29-config-ecosystem-integration.md
+  s_4d505973cdba96::t_b5c2cb90909662 1013,1158,1994-1995,2056,2297
+docs/superpowers/plans/2026-03-29-worktree-creation.md
+  s_4d505973cdba96::t_631ccea6e2149f 302-304,403,585,759-761,899,1116-1117,1343,1546-1547,1676-1677,2026-2031,2343,2786,2884-2886,3264-3265,3462-3464,3658-3660,3941,4132,4268-4270,4422,4533,4566-4572,4724-4725,4892
+docs/superpowers/plans/2026-03-30-integration-selection.md
+  s_4d505973cdba96::t_2ddf2508c4a61e 618,1005-1006,1593-1594,1772-1773,2370,2455
+docs/superpowers/plans/2026-03-30-repo-operations.md
+  s_4d505973cdba96::t_ff6cc613d00cd9 185,354,356,463,844,1219,2149,2263,2306
+docs/superpowers/specs/2026-03-21-cleanup-command-design.md
+  s_4d505973cdba96::t_d019c905ff24e6 372
+docs/superpowers/specs/2026-03-30-repo-operations-design.md
+  s_4d505973cdba96::t_84cb3153853e53 169
+go.mod
+  s_4d505973cdba96::t_34bdea4d626823 1
+internal/cleanup/branches.go
+  s_4d505973cdba96::t_3c6ebfa581fcb1 7
+internal/cleanup/branches_test.go
+  s_4d505973cdba96::t_1a73d715fc91d7 7
+internal/cleanup/cleanup.go
+  s_4d505973cdba96::t_8fbb18e95404a2 8
+internal/cleanup/cleanup_test.go
+  s_4d505973cdba96::t_1e5d75cee27e8d 10
+internal/cleanup/config.go
+  s_4d505973cdba96::t_8566fc18de7718 9
+internal/cleanup/config_test.go
+  s_4d505973cdba96::t_e2bb481833ab78 8
+internal/cleanup/dryrun.go
+  s_4d505973cdba96::t_5a46d9310c1cda 7
+internal/cleanup/dryrun_test.go
+  s_4d505973cdba96::t_c20cbbaa976fa0 10
+internal/cleanup/refs.go
+  s_4d505973cdba96::t_7d1060ef7a94b1 7
+internal/cleanup/refs_test.go
+  s_4d505973cdba96::t_f6354497adde75 6
+internal/config/config.go
+  s_4d505973cdba96::t_253a7896baf503 12
+internal/config/types.go
+  s_4d505973cdba96::t_cd1d723de485af 3
+internal/creator/contract_test.go
+  s_4d505973cdba96::t_cb5a3948bb877a 12-15
+internal/creator/creator.go
+  s_4d505973cdba96::t_26d130a0b9d8f9 7-11
+internal/creator/creator_test.go
+  s_4d505973cdba96::t_e2d26246897b4c 9-12
+internal/creator/e2e_test.go
+  s_4d505973cdba96::t_d9dfed98cc39f2 11-13
+internal/creator/env_files.go
+  s_4d505973cdba96::t_23b51d37cf78cf 11
+internal/creator/preflight.go
+  s_4d505973cdba96::t_3da1cc142146a4 10-11
+internal/creator/preflight_test.go
+  s_4d505973cdba96::t_1357fa0f49225f 9-11
+internal/creator/prepared.go
+  s_4d505973cdba96::t_4543499865ef32 10-13
+internal/creator/teardown.go
+  s_4d505973cdba96::t_6b176e32d9b855 8
+internal/creator/teardown_test.go
+  s_4d505973cdba96::t_440f1d3062f57e 8
+internal/creator/testmain_test.go
+  s_4d505973cdba96::t_473d853416619b 7
+internal/creator/worktree_files.go
+  s_4d505973cdba96::t_b0d216bcd4dc7b 7-8
+internal/creator/worktree_files_test.go
+  s_4d505973cdba96::t_99d80f276e0289 11-15
+internal/dryrun/dryrun.go
+  s_4d505973cdba96::t_90f68eda7a1b21 11
+internal/dryrun/dryrun_test.go
+  s_4d505973cdba96::t_061aa78fc988ab 9
+internal/ecosystem/ecosystem.go
+  s_4d505973cdba96::t_7f9754ecbea24f 7
+internal/ecosystem/ecosystem_e2e_test.go
+  s_4d505973cdba96::t_0dfa4c8ff3b169 9-10
+internal/ecosystem/ecosystem_test.go
+  s_4d505973cdba96::t_b50ac0b7c3d56c 8
+internal/git/commands_test.go
+  s_4d505973cdba96::t_38f3671a6b8800 9
+internal/git/paths_test.go
+  s_4d505973cdba96::t_cadc518ca1e62a 8
+internal/git/testmain_test.go
+  s_4d505973cdba96::t_a36169b2e2ebfd 7
+internal/integration/apply.go
+  s_4d505973cdba96::t_8fda06ba68e644 11-13
+internal/integration/apply_test.go
+  s_4d505973cdba96::t_811d1085320130 13
+internal/playground/setup.go
+  s_4d505973cdba96::t_cb5943121dde88 12
+internal/playground/setup_test.go
+  s_4d505973cdba96::t_c9e1bf26ba76e0 10
+internal/playground/testmain_test.go
+  s_4d505973cdba96::t_a58d2b1e45e767 7
+internal/repo/clone.go
+  s_4d505973cdba96::t_f6383202ad1041 10-12
+internal/repo/clone_execution_test.go
+  s_4d505973cdba96::t_e00412e176fa7a 7-8
+internal/repo/clone_test.go
+  s_4d505973cdba96::t_5c749b98babc7a 9-10
+internal/repo/create.go
+  s_4d505973cdba96::t_d621b94af628df 12-13
+internal/repo/create_execution_test.go
+  s_4d505973cdba96::t_66c2141022401a 7-8
+internal/repo/create_test.go
+  s_4d505973cdba96::t_40054d45477117 11-12,79-81,84,203-209,212
+internal/repo/e2e_test.go
+  s_4d505973cdba96::t_eed0f1bc4bce9a 10-13
+internal/repo/migrate.go
+  s_4d505973cdba96::t_2bd1eea7f48c01 9-11
+internal/repo/migrate_execution_test.go
+  s_4d505973cdba96::t_c5d4ef5517da9b 7-8
+internal/repo/migrate_prepared.go
+  s_4d505973cdba96::t_dc62194af1f77c 12-14
+internal/repo/migrate_test.go
+  s_4d505973cdba96::t_aedeb5a615fdad 10-11
+internal/repo/repo.go
+  s_4d505973cdba96::t_7ade356c946188 6-7
+internal/repo/repo_test.go
+  s_4d505973cdba96::t_4c04e8e718dca6 8
+internal/state/state_test.go
+  s_4d505973cdba96::t_3bb9587fd1cafb 10
+internal/testutil/testutil.go
+  s_4d505973cdba96::t_e644ca5af34f26 13-17
+internal/tui/animated_progress_test.go
+  s_4d505973cdba96::t_cb3639bab89d57 9-10
+internal/tui/chrome_migration_test.go
+  s_4d505973cdba96::t_1d62a3c615c70a 8-12
+internal/tui/cleanup_confirm.go
+  s_4d505973cdba96::t_b40b56199dcd21 6-7
+internal/tui/cleanup_confirm_test.go
+  s_4d505973cdba96::t_725d08b8aa0171 9-11
+internal/tui/cleanup_e2e_test.go
+  s_4d505973cdba96::t_de17a568a0c890 14-19
+internal/tui/cleanup_preview.go
+  s_4d505973cdba96::t_edf1f22c6f0e9e 11
+internal/tui/cleanup_preview_test.go
+  s_4d505973cdba96::t_330acdab216ba6 11-13
+internal/tui/cleanup_result.go
+  s_4d505973cdba96::t_e929b48010229f 10
+internal/tui/cleanup_result_test.go
+  s_4d505973cdba96::t_1506735f15beb8 10-12
+internal/tui/cleanup_truth_test.go
+  s_4d505973cdba96::t_98fdd7d2fc7ef0 9-11
+internal/tui/clone_confirm.go
+  s_4d505973cdba96::t_04bceaf2acbcf8 8-9
+internal/tui/clone_confirm_test.go
+  s_4d505973cdba96::t_b3e727a5a1bad1 9-10
+internal/tui/clone_input.go
+  s_4d505973cdba96::t_cc23baac58855b 13
+internal/tui/clone_input_test.go
+  s_4d505973cdba96::t_94f9466ea78c08 11-12
+internal/tui/confirm.go
+  s_4d505973cdba96::t_9a718791baad56 16-20
+internal/tui/confirm_test.go
+  s_4d505973cdba96::t_b20efb538c7677 14-20
+internal/tui/confirmation.go
+  s_4d505973cdba96::t_3535a97fef648f 9
+internal/tui/create_branch.go
+  s_4d505973cdba96::t_1c47d3b24fea30 12-14
+internal/tui/create_branch_test.go
+  s_4d505973cdba96::t_a1a09f06f7c784 9-11
+internal/tui/create_confirm.go
+  s_4d505973cdba96::t_29ce3f2bb6a8f1 9
+internal/tui/create_confirm_test.go
+  s_4d505973cdba96::t_64461511f2d82f 9-10
+internal/tui/create_options.go
+  s_4d505973cdba96::t_866f908c7ae048 11-15
+internal/tui/create_options_test.go
+  s_4d505973cdba96::t_fd1f80c2a46ac3 9-12
+internal/tui/create_progress.go
+  s_4d505973cdba96::t_abb254149600d7 9
+internal/tui/create_progress_test.go
+  s_4d505973cdba96::t_c4b8ac684cc788 10-11
+internal/tui/create_reset_test.go
+  s_4d505973cdba96::t_69a472e89ecdf2 8-10
+internal/tui/create_summary.go
+  s_4d505973cdba96::t_39e07be5912b97 12-13
+internal/tui/create_summary_test.go
+  s_4d505973cdba96::t_ee731fec515405 10-11
+internal/tui/errpeek_test.go
+  s_4d505973cdba96::t_f1c49a455d1434 9-10
+internal/tui/golden_test.go
+  s_4d505973cdba96::t_7fe9a4773d7ecf 9-11
+internal/tui/help.go
+  s_4d505973cdba96::t_97b793f83a9dc4 10-12
+internal/tui/helpers.go
+  s_4d505973cdba96::t_37cda0b08af58b 10
+internal/tui/helpers_test.go
+  s_4d505973cdba96::t_ca362fb71adecf 13
+internal/tui/integration_list.go
+  s_4d505973cdba96::t_3491178604cbf3 14-16
+internal/tui/integration_list_test.go
+  s_4d505973cdba96::t_07dffd95acc949 11-14
+internal/tui/integration_plan_test.go
+  s_4d505973cdba96::t_f61eb8a23dc028 7-9
+internal/tui/integration_progress.go
+  s_4d505973cdba96::t_f82a2752dca490 12-15
+internal/tui/integration_progress_test.go
+  s_4d505973cdba96::t_008132873620c8 13-17
+internal/tui/integration_summary.go
+  s_4d505973cdba96::t_ef1be5d28862e0 11
+internal/tui/integration_summary_test.go
+  s_4d505973cdba96::t_8ad6b5b12f8bb3 13
+internal/tui/list.go
+  s_4d505973cdba96::t_863ac1e225452c 14
+internal/tui/list_test.go
+  s_4d505973cdba96::t_d522a5293d6311 11
+internal/tui/menu.go
+  s_4d505973cdba96::t_8b76887d62d864 11-13
+internal/tui/menu_test.go
+  s_4d505973cdba96::t_79bb46bc7ff8d8 9-12
+internal/tui/migrate_confirm.go
+  s_4d505973cdba96::t_77a805dfc9fa96 11-12
+internal/tui/migrate_confirm_test.go
+  s_4d505973cdba96::t_aa07411bade840 9-10
+internal/tui/migrate_integrations.go
+  s_4d505973cdba96::t_9f2eadd2d5fc7a 12-14
+internal/tui/migrate_integrations_test.go
+  s_4d505973cdba96::t_10f717ea43ad03 12-15
+internal/tui/migrate_summary.go
+  s_4d505973cdba96::t_2cf336fd1e6d7c 11-13
+internal/tui/migrate_summary_test.go
+  s_4d505973cdba96::t_c44b8a36df863f 10-12
+internal/tui/milestone.go
+  s_4d505973cdba96::t_202e5e2cb6b1b1 6
+internal/tui/milestone_test.go
+  s_4d505973cdba96::t_79af40bc8855b8 7-9
+internal/tui/model.go
+  s_4d505973cdba96::t_249893cc02a484 17-23
+internal/tui/motion_preference_test.go
+  s_4d505973cdba96::t_b8cb0e4d551dd2 12-15
+internal/tui/motion_test.go
+  s_4d505973cdba96::t_2e3ceca0880960 9-11
+internal/tui/mouse_test.go
+  s_4d505973cdba96::t_716df3756ac315 9
+internal/tui/narrow_test.go
+  s_4d505973cdba96::t_8dcf40c8323bbe 9
+internal/tui/portal_test.go
+  s_4d505973cdba96::t_69357929bc5b3d 10-11
+internal/tui/progress.go
+  s_4d505973cdba96::t_4a0f9461995e65 9-12
+internal/tui/progress_detail_test.go
+  s_4d505973cdba96::t_92fe30b3934f7a 11
+internal/tui/progress_endings_test.go
+  s_4d505973cdba96::t_f779864f1fece8 8-12
+internal/tui/progress_layout.go
+  s_4d505973cdba96::t_e35a1f5b8a0044 14
+internal/tui/progress_layout_test.go
+  s_4d505973cdba96::t_4614412dd68968 7
+internal/tui/progress_live_region_test.go
+  s_4d505973cdba96::t_bfc3a8bb1fffe4 11
+internal/tui/progress_teatest_test.go
+  s_4d505973cdba96::t_9f4af33f621818 14-15
+internal/tui/progress_test.go
+  s_4d505973cdba96::t_d8143971afddb6 12-16
+internal/tui/progress_viewport.go
+  s_4d505973cdba96::t_7811932500f0bf 3
+internal/tui/reindex_test.go
+  s_4d505973cdba96::t_30495a6b5fa9ca 7
+internal/tui/removal_e2e_test.go
+  s_4d505973cdba96::t_49854e990bb832 9-11
+internal/tui/removal_plan_test.go
+  s_4d505973cdba96::t_f0d438bdee10b1 6-8
+internal/tui/removal_preparation_test.go
+  s_4d505973cdba96::t_4ca99ec2403eb2 10-12
+internal/tui/remove_filter_test.go
+  s_4d505973cdba96::t_1ac0bea00a4500 10-12
+internal/tui/remove_run.go
+  s_4d505973cdba96::t_46ef7323623f1f 4-7
+internal/tui/remove_run_test.go
+  s_4d505973cdba96::t_7343d3557b6a03 10-13
+internal/tui/repo_name_test.go
+  s_4d505973cdba96::t_0eacbc91cfe1c7 10-11
+internal/tui/repo_options.go
+  s_4d505973cdba96::t_1ee9f6c958dc49 12-13
+internal/tui/repo_options_test.go
+  s_4d505973cdba96::t_fa5238a321ad91 11-13
+internal/tui/repo_progress.go
+  s_4d505973cdba96::t_6a5ec3f33895be 7-8
+internal/tui/repo_progress_test.go
+  s_4d505973cdba96::t_d16549264f4f14 8-10
+internal/tui/repo_summary.go
+  s_4d505973cdba96::t_507a6d9a275be6 11-13
+internal/tui/repo_summary_test.go
+  s_4d505973cdba96::t_fea82977a1bb96 10-12
+internal/tui/repostate.go
+  s_4d505973cdba96::t_0b6a22015cc653 4-5
+internal/tui/spinner_test.go
+  s_4d505973cdba96::t_eaae23cb4711f7 7-8
+internal/tui/summary.go
+  s_4d505973cdba96::t_2b5af30b372b6e 10
+internal/tui/summary_test.go
+  s_4d505973cdba96::t_9034838e6c272b 12-14
+internal/tui/tab_presence_test.go
+  s_4d505973cdba96::t_bffbaf85c3f647 9
+internal/tui/testmain_test.go
+  s_4d505973cdba96::t_e34f781c594ce8 7
+internal/tui/weight_test.go
+  s_4d505973cdba96::t_c1c7ce50579ae9 7
+internal/tui/window.go
+  s_4d505973cdba96::t_b457a3d4bc7e22 3
+internal/tui/window_test.go
+  s_4d505973cdba96::t_f32b31b2261906 6
+internal/tui/worktree_files_test.go
+  s_4d505973cdba96::t_f1bccf888cc88f 7-9
+internal/worktree/deleter.go
+  s_4d505973cdba96::t_ff737c2ea5f6c8 9-10
+internal/worktree/deleter_execution_test.go
+  s_4d505973cdba96::t_1cbf85d97e9655 9-10
+internal/worktree/deleter_test.go
+  s_4d505973cdba96::t_dd50fe7b1a4054 12,14-16
+internal/worktree/enricher.go
+  s_4d505973cdba96::t_0da1ca8669ddf9 9
+internal/worktree/enricher_test.go
+  s_4d505973cdba96::t_7fcf69bc32e6a0 8-9
+internal/worktree/testmain_test.go
+  s_4d505973cdba96::t_8dbdd37f414657 7
+internal/worktreefile/copy.go
+  s_4d505973cdba96::t_437c8e994fb586 10
+main.go
+  s_4d505973cdba96::t_3b396796519e1e 14-24
+openspec/specs/automated-releases/spec.md
+  s_4d505973cdba96::t_0fe1dd85824b44 55,59,62
+openspec/specs/readme/spec.md
+  s_4d505973cdba96::t_2b59d6d9098aae 18
+scripts/git-repo-cleanup.sh
+  s_4d505973cdba96::t_21149535b1a107 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d93f870e77561e44252a0e7788469accd9124c1f",
+  "prompts": {},
+  "sessions": {
+    "s_4d505973cdba96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10bd729f-6128-4549-9440-3637cae67e97",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
