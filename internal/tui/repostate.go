@@ -1,8 +1,8 @@
 package tui
 
 import (
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/state"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/state"
 )
 
 // loadRepoState resolves the repo's bare directory via git and loads sentei

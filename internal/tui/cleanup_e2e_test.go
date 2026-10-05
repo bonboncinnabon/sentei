@@ -11,12 +11,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/teatest/v2"
 
-	"github.com/abiswas97/sentei/internal/cleanup"
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/repo"
-	"github.com/abiswas97/sentei/internal/testtmp"
-	"github.com/abiswas97/sentei/internal/worktree"
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/testtmp"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 const testTimeout = 10 * time.Second

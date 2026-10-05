@@ -1,6 +1,6 @@
 # sentei
 
-[![codecov](https://codecov.io/gh/abiswas97/sentei/branch/main/graph/badge.svg)](https://codecov.io/gh/abiswas97/sentei)
+[![codecov](https://codecov.io/gh/bonboncinnabon/sentei/branch/main/graph/badge.svg)](https://codecov.io/gh/bonboncinnabon/sentei)
 
 A TUI tool for cleaning up stale git worktrees. Scan, select, and bulk-delete worktrees with parallel execution and clear progress feedback.
 
@@ -17,13 +17,13 @@ A TUI tool for cleaning up stale git worktrees. Scan, select, and bulk-delete wo
 ### go install
 
 ```bash
-go install github.com/abiswas97/sentei@latest
+go install github.com/bonboncinnabon/sentei@latest
 ```
 
 ### Build from source
 
 ```bash
-git clone https://github.com/abiswas97/sentei.git
+git clone https://github.com/bonboncinnabon/sentei.git
 cd sentei
 go build -ldflags "-X main.version=$(git describe --tags --always)" -o sentei .
 ```

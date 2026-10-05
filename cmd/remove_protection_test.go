@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/repo"
-	"github.com/abiswas97/sentei/internal/testtmp"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/testtmp"
 )
 
 // TestRemove_DefaultBranchProtectedFromWorktree builds a real sentei bare repo

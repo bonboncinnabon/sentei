@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 func TestErrorPeekLines_Bounds(t *testing.T) {

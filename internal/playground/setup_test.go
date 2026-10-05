@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/testtmp"
+	"github.com/bonboncinnabon/sentei/internal/testtmp"
 )
 
 func TestSetup_CreatesExpectedWorktrees(t *testing.T) {

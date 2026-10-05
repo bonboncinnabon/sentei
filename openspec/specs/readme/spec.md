@@ -15,7 +15,7 @@ The README SHALL document at least two installation methods: `go install` and bu
 
 #### Scenario: User installs via go install
 - **WHEN** user reads the installation section
-- **THEN** they find a `go install github.com/abiswas97/sentei@latest` command
+- **THEN** they find a `go install github.com/bonboncinnabon/sentei@latest` command
 
 #### Scenario: User wants to build from source
 - **WHEN** user reads the installation section

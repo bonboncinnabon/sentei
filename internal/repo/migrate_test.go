@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/progress"
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 // alwaysOkShell is a ShellRunner that succeeds for all calls.

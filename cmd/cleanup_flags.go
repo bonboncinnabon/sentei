@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/abiswas97/sentei/internal/cleanup"
-	"github.com/abiswas97/sentei/internal/cli"
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
 // ParseCleanupFlags parses cleanup-specific flags and returns CleanupOptions.

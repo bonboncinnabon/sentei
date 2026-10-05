@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 func TestScanArtifacts(t *testing.T) {

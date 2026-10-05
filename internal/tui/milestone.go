@@ -3,7 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/abiswas97/sentei/internal/state"
+	"github.com/bonboncinnabon/sentei/internal/state"
 )
 
 // milestoneMsg reports the lifetime counter after a removal run was

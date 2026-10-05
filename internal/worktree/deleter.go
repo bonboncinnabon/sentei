@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 // RemovalPhaseName is the canonical phase under which worktree deletions

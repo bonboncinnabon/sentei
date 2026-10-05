@@ -10,7 +10,7 @@ import (
 	"charm.land/bubbles/v2/stopwatch"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 // bareDirRunner returns a runner that answers `git rev-parse --git-common-dir`

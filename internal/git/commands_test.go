@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func TestRunShell_EmptyStderr_PreservesExitError(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 // ArtifactInfo describes the artifact directories found for an integration.

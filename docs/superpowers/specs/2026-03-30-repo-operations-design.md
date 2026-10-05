@@ -166,7 +166,7 @@ func Create(shell git.ShellRunner, opts CreateOptions, emit func(Event)) CreateR
 
     Path     /Users/dev/code/personal/my-project
     Branch   main
-    GitHub   github.com/abiswas97/my-project ●
+    GitHub   github.com/bonboncinnabon/my-project ●
 
   ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
 

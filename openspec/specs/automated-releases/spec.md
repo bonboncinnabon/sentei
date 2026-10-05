@@ -52,14 +52,14 @@ GoReleaser SHALL generate a `checksums.txt` file containing SHA256 hashes of all
 - **THEN** a `checksums.txt.sigstore.json` bundle is included in the GitHub Release assets
 
 ### Requirement: GoReleaser pushes Homebrew cask to tap
-GoReleaser SHALL generate a Homebrew cask and push it to the `abiswas97/homebrew-tap` repository. The cask SHALL include the project homepage and description.
+GoReleaser SHALL generate a Homebrew cask and push it to the `bonboncinnabon/homebrew-tap` repository. The cask SHALL include the project homepage and description.
 
 #### Scenario: Homebrew cask is updated on release
 - **WHEN** GoReleaser completes a release
-- **THEN** the Homebrew cask in `abiswas97/homebrew-tap` is created or updated
+- **THEN** the Homebrew cask in `bonboncinnabon/homebrew-tap` is created or updated
 
 #### Scenario: User installs via Homebrew
-- **WHEN** a user runs `brew tap abiswas97/tap && brew install sentei`
+- **WHEN** a user runs `brew tap bonboncinnabon/tap && brew install sentei`
 - **THEN** the latest release binary is installed
 
 ### Requirement: release-please configuration files exist

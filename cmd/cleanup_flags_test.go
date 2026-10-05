@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
 )
 
 func TestParseCleanupFlags_ModeOnly(t *testing.T) {

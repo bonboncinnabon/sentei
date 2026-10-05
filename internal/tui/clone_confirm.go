@@ -5,8 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/abiswas97/sentei/internal/cli"
-	"github.com/abiswas97/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/cli"
+	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
 // SetCloneOpts sets the clone options and starts at the appropriate view.

@@ -6,8 +6,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/ecosystem"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/ecosystem"
 )
 
 func TestDetect_E2E_GoProject(t *testing.T) {

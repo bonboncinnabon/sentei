@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 func TestParseStaleDuration_Days(t *testing.T) {

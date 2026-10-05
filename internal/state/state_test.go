@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/state"
+	"github.com/bonboncinnabon/sentei/internal/state"
 )
 
 func TestSave_LeavesNoTempFileAndRoundTrips(t *testing.T) {

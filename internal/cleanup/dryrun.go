@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 // DryRunResult is one scan's answer to "what would cleanup do?", structured

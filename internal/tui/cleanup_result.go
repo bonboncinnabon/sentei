@@ -7,7 +7,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/abiswas97/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
 )
 
 type standaloneCleanupDoneMsg struct {

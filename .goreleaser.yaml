@@ -42,10 +42,10 @@ signs:
 
 brews:
   - repository:
-      owner: abiswas97
+      owner: bonboncinnabon
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/abiswas97/sentei
+    homepage: https://github.com/bonboncinnabon/sentei
     description: A TUI tool for cleaning up stale git worktrees
     license: MIT
 

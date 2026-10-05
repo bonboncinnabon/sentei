@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 func PruneRemoteRefs(runner git.CommandRunner, repoPath string, opts Options, emit func(Event)) (int, error) {

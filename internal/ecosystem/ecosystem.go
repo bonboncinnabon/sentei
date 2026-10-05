@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/abiswas97/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/config"
 )
 
 // Ecosystem is a detected or registered ecosystem instance.

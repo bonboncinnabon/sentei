@@ -1,4 +1,4 @@
-module github.com/abiswas97/sentei
+module github.com/bonboncinnabon/sentei
 
 go 1.25.8
 

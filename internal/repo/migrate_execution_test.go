@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/progress"
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func TestPrepareMigrate_FreezesOriginBeforeExecution(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/config"
 )
 
 // boolPtr is a helper to get a pointer to a bool literal.

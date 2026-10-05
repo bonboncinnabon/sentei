@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 type applyShell struct {

@@ -1010,7 +1010,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/config"
 )
 
 func TestDetect(t *testing.T) {
@@ -1155,7 +1155,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/abiswas97/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/config"
 )
 
 // Ecosystem represents a detected package manager / build tool.
@@ -1991,8 +1991,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/config"
-	"github.com/abiswas97/sentei/internal/ecosystem"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/ecosystem"
 )
 
 func RunEcosystems(args []string) {
@@ -2053,7 +2053,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/abiswas97/sentei/internal/integration"
+	"github.com/bonboncinnabon/sentei/internal/integration"
 )
 
 func RunIntegrations() {
@@ -2294,7 +2294,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abiswas97/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/config"
 )
 
 func TestDetect_E2E_GoProject(t *testing.T) {

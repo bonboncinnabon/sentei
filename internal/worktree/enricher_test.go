@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abiswas97/sentei/internal/git"
-	"github.com/abiswas97/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func TestParseStatusPorcelain(t *testing.T) {

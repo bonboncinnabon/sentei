@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/abiswas97/sentei/internal/progress"
+import "github.com/bonboncinnabon/sentei/internal/progress"
 
 // WindowStats summarizes a windowed step list for the stat line.
 type WindowStats struct {
