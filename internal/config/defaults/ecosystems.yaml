@@ -3,50 +3,40 @@ ecosystems:
     detect:
       files: ["pnpm-lock.yaml"]
     install:
-      command: "pnpm install"
-      workspace_detect: "pnpm-workspace.yaml"
-      workspace_install: "pnpm install --filter {dir}"
-      parallel: true
+      # One install at the worktree root covers every workspace member.
+      # --frozen-lockfile keeps a fresh worktree clean (the lockfile is never
+      # rewritten); --prefer-offline resolves from the shared pnpm store and
+      # only touches the network for packages the store does not have.
+      command: "pnpm install --frozen-lockfile --prefer-offline"
     env_files: [".env", ".env.local"]
   - name: yarn
     detect:
       files: ["yarn.lock"]
     install:
       command: "yarn install"
-      workspace_detect: "package.json"
-      workspace_install: "yarn workspace {dir} install"
-      parallel: true
     env_files: [".env", ".env.local"]
   - name: npm
     detect:
       files: ["package-lock.json"]
     install:
       command: "npm install"
-      workspace_detect: "package.json"
-      workspace_install: "npm install --workspace {dir}"
-      parallel: true
     env_files: [".env", ".env.local"]
   - name: bun
     detect:
-      files: ["bun.lockb"]
+      files: ["bun.lock", "bun.lockb"]
     install:
       command: "bun install"
-      workspace_detect: "package.json"
-      workspace_install: "bun install --filter {dir}"
-      parallel: true
     env_files: [".env", ".env.local"]
   - name: cargo
     detect:
       files: ["Cargo.toml"]
     install:
       command: "cargo build"
-      workspace_detect: "Cargo.toml"
   - name: go
     detect:
       files: ["go.mod"]
     install:
       command: "go mod download"
-      workspace_detect: "go.work"
   - name: uv
     detect:
       files: ["uv.lock"]

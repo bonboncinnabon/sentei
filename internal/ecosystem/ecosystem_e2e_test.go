@@ -3,7 +3,7 @@ package ecosystem_test
 import (
 	"os"
 	"path/filepath"
-	"sort"
+	"strings"
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
@@ -87,27 +87,9 @@ func TestDetect_E2E_PnpmMonorepo(t *testing.T) {
 		t.Fatalf("pnpm not detected, got: %v", namesOf(detected))
 	}
 
-	workspaceDetect := pnpmEco.Config.Install.WorkspaceDetect
-	if workspaceDetect == "" {
-		t.Fatal("pnpm WorkspaceDetect is empty")
-	}
-
-	workspaces, err := ecosystem.DetectWorkspaces(repoDir, workspaceDetect)
-	if err != nil {
-		t.Fatalf("DetectWorkspaces() error: %v", err)
-	}
-	if len(workspaces) != 3 {
-		t.Fatalf("expected 3 workspaces, got %d: %v", len(workspaces), workspaces)
-	}
-
-	sorted := make([]string, len(workspaces))
-	copy(sorted, workspaces)
-	sort.Strings(sorted)
-	want := []string{"apps/web", "packages/core", "packages/utils"}
-	for i, w := range want {
-		if sorted[i] != w {
-			t.Errorf("workspaces[%d]: got %q, want %q", i, sorted[i], w)
-		}
+	// A workspace repo gets one install at the root, which covers every member.
+	if command := pnpmEco.Config.Install.Command; strings.Contains(command, "--filter") || strings.Contains(command, "{dir}") {
+		t.Errorf("pnpm install command %q must be a root install", command)
 	}
 }
 
