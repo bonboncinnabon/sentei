@@ -1,0 +1,26 @@
+internal/tui/list_height_test.go
+  s_b5d41ab2ae0f4c::t_71fc5979508d21 1-63,65-79,81-89
+  s_b5d41ab2ae0f4c::t_de642688539a18 64,80
+internal/tui/constants.go
+  s_b5d41ab2ae0f4c::t_4fca68141c4cf2 41-45
+internal/tui/list.go
+  s_b5d41ab2ae0f4c::t_c997ef8f100403 154-155,158-159,228-229,236-237,292
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_a6e6452bbf1bbb 587,898-899,901-915
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a49b28e340ff0c2371edd7973422e9b88f736fda",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
