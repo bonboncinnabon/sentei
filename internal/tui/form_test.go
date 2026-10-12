@@ -5,6 +5,10 @@ import (
 
 	"charm.land/bubbles/v2/cursor"
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 // Messages that reach a form without changing its text: the virtual cursor's
@@ -70,5 +74,28 @@ func TestCloneForm_BlinkOnTheNameFieldIsNotAManualEdit(t *testing.T) {
 	}
 	if got := model.repo.cloneNameInput.Value(); got != "myrepo" {
 		t.Errorf("clone name = %q, want it derived from the URL", got)
+	}
+}
+
+// Create repository, clone and migrate share one error field. Whatever one of
+// them left there used to show up on the next screen opened from the menu.
+func TestMenu_RepoFlowsOpenWithoutAnotherScreensError(t *testing.T) {
+	menu := NewMenuModel(&mock.Runner{}, &mock.Runner{}, "/repo", &config.Config{}, repo.ContextNonBareRepo)
+	for cursor, item := range menu.menuItems {
+		t.Run(item.label, func(t *testing.T) {
+			m := menu
+			m.menuCursor = cursor
+			m.repo.validationErr = "left by another screen"
+
+			updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			model := updated.(Model)
+
+			if model.view == menuView {
+				t.Fatalf("%q did not open a screen", item.label)
+			}
+			if model.repo.validationErr != "" {
+				t.Errorf("%q opened showing %q", item.label, model.repo.validationErr)
+			}
+		})
 	}
 }
