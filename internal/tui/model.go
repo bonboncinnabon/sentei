@@ -226,6 +226,10 @@ type Model struct {
 	repo   repoState
 	portal DetailPortal
 
+	// quitPrompt is set by the first quit key during a running operation:
+	// the footer asks for a second one. Any key answers and clears it.
+	quitPrompt bool
+
 	// motionTick is the one animation clock: star frames and shimmer band
 	// positions derive from it as pure functions. The tick chain runs only
 	// while a working surface is visible (motionActive).
@@ -644,11 +648,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Quitting is decided here, before the portal and the views see the key.
 	// Bubble Tea delivers ctrl+c as an ordinary key press, so it quits only
-	// where something handles it. Handling it here covers every view, the
-	// portal and every focused text input.
-	if keyMsg, ok := msg.(tea.KeyPressMsg); ok && key.Matches(keyMsg, keys.Interrupt) {
-		return m, tea.Quit
+	// where something handles it: this covers every view, the portal and
+	// every focused text input. While an operation runs, a quit would stop
+	// it where it stands, so the first quit key only asks.
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		inFlight := m.operationInFlight()
+		prompted := inFlight && m.quitPrompt
+		m.quitPrompt = false
+		switch {
+		case prompted:
+			if key.Matches(keyMsg, keys.Quit) {
+				return m, tea.Quit
+			}
+			return m, nil
+		case inFlight && key.Matches(keyMsg, keys.Quit):
+			m.quitPrompt = true
+			m.portal = m.portal.Close()
+			return m, nil
+		case key.Matches(keyMsg, keys.Interrupt):
+			return m, tea.Quit
+		}
 	}
 
 	if m.portal.Visible() {
@@ -785,7 +806,20 @@ func (m Model) View() tea.View {
 	return v
 }
 
+// operationInFlight reports whether work is running that a quit would stop
+// midway: a progress flow whose result has not arrived, or a cleanup run.
+func (m Model) operationInFlight() bool {
+	if layout, ok := m.activeProgressLayout(); ok {
+		return !layout.Completed
+	}
+	return m.view == cleanupResultView && m.cleanupResult == nil
+}
+
 func (m Model) viewContent() string {
+	if m.view == cleanupResultView && m.quitPrompt && m.operationInFlight() {
+		// The running-cleanup frame has no footer of its own to replace.
+		return m.viewCleanupResult() + "\n" + fitProgressLine(viewFooterDanger(m.width, quitPromptFooter), m.width) + "\n"
+	}
 	switch m.view {
 	case menuView:
 		return m.viewMenu()

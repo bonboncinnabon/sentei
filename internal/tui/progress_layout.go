@@ -44,6 +44,9 @@ type ProgressLayout struct {
 	// Completed marks a flow whose result has arrived: phases that never
 	// discovered work render as skipped and stop counting as outstanding.
 	Completed bool
+
+	// QuitPrompt replaces the hint footer with the quit confirmation.
+	QuitPrompt bool
 }
 
 func (m Model) withProgressDetails(layout ProgressLayout) ProgressLayout {
@@ -92,6 +95,9 @@ func (l ProgressLayout) View() string {
 	viewport := BuildProgressViewport(l.Phases, height, l.Completed)
 	bar := fitProgressLine(l.barLine(), width)
 	footer := fitProgressLine(viewFooter(width, l.Hints), width)
+	if l.QuitPrompt {
+		footer = fitProgressLine(viewFooterDanger(width, quitPromptFooter), width)
+	}
 	title := fitProgressLine(viewTitle(l.Title), width)
 
 	if viewport.Tier == progressViewportEmergency {
@@ -379,5 +385,6 @@ func (m Model) renderProgressLayout(l ProgressLayout) string {
 	if m.motionPreference == MotionFull {
 		l.Motion = m.motion()
 	}
+	l.QuitPrompt = m.quitPrompt && !l.Completed
 	return l.View()
 }

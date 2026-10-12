@@ -63,25 +63,6 @@ func TestE2E_RemovalFlowChrome(t *testing.T) {
 	}
 }
 
-func TestE2E_ProgressViewsQuitOnKeys(t *testing.T) {
-	m := NewModel(nil, nil, "/repo")
-	m.remove.run = removalRun{}
-
-	for _, view := range []viewState{progressView, createProgressView, repoProgressView} {
-		m.view = view
-		for _, k := range []tea.KeyPressMsg{{Code: 'q', Text: "q"}, {Code: 'c', Mod: tea.ModCtrl}} {
-			_, cmd := m.Update(k)
-			if cmd == nil {
-				t.Errorf("view %d: expected quit Cmd for %v", view, k)
-				continue
-			}
-			if _, ok := cmd().(tea.QuitMsg); !ok {
-				t.Errorf("view %d: expected tea.Quit for %v", view, k)
-			}
-		}
-	}
-}
-
 func TestUpdateProgress_WindowSizeUpdatesWindowing(t *testing.T) {
 	worktrees := make([]git.Worktree, 30)
 	for i := range worktrees {

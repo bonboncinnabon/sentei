@@ -223,8 +223,15 @@ var (
 
 	progressFooter   = []key.Binding{keys.Quit}
 	progressSections = []keySection{{name: "Actions", bindings: []key.Binding{
-		hintOnly("q / ctrl+c", "quit (operation keeps running in git)"),
+		hintOnly("q / ctrl+c", "quit (asks first: quitting leaves the operation unfinished)"),
 	}}}
+	// quitPromptFooter replaces a view's footer after the first quit key
+	// during a running operation. The danger hint leads, as on every
+	// destructive footer.
+	quitPromptFooter = []key.Binding{
+		withDesc(keys.Quit, "quit now, leaving the operation unfinished"),
+		hintOnly("any other key", "keep going"),
+	}
 
 	confirmationSections = []keySection{{name: "Actions", bindings: []key.Binding{
 		withDesc(keys.Confirm, "confirm"),
