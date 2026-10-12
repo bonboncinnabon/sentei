@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // footerHelp renders footers from key bindings; its styles are wired to the
@@ -97,22 +98,16 @@ func footerHints(budget int, bindings []key.Binding) string {
 	return out
 }
 
-// truncateWithEllipsis cuts s to fit width, replacing the overflow with a
-// trailing `…`. The only sanctioned way to fit overflowing paths, branch
-// names, and error text — chrome content must never hard-clip at the
-// terminal edge.
+// truncateWithEllipsis cuts s to fit width display cells, replacing the
+// overflow with a trailing `…`. It measures what the terminal draws: styled
+// text keeps its escape sequences whole and wide runes count as two cells.
+// The only sanctioned way to fit overflowing paths, branch names, and error
+// text. Chrome content must never hard-clip at the terminal edge.
 func truncateWithEllipsis(s string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) <= width {
-		return s
-	}
-	if width == 1 {
-		return "…"
-	}
-	return string(runes[:width-1]) + "…"
+	return ansi.Truncate(s, width, "…")
 }
 
 // viewStatLine renders the windowing legend: per-status counts (zero counts

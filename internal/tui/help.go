@@ -224,7 +224,7 @@ func writeProgressDetailValue(b *strings.Builder, prefix, value string, width in
 	const minInlineValueWidth = 4
 	if prefix != "" && width-prefixWidth < minInlineValueWidth {
 		label := strings.TrimRight(prefix, " ")
-		b.WriteString(fitProgressLine(label, width))
+		b.WriteString(truncateWithEllipsis(label, width))
 		b.WriteString("\n")
 
 		leading := len(prefix) - len(strings.TrimLeft(prefix, " "))

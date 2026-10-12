@@ -120,7 +120,7 @@ func boundRemovalSummary(summary string, width, height int) string {
 	lines := strings.Split(strings.TrimSuffix(summary, "\n"), "\n")
 	widthOmitted := false
 	for i, line := range lines {
-		if fit := fitProgressLine(line, width); fit != line {
+		if fit := truncateWithEllipsis(line, width); fit != line {
 			widthOmitted = true
 			lines[i] = fit
 		}
@@ -128,7 +128,7 @@ func boundRemovalSummary(summary string, width, height int) string {
 	if widthOmitted {
 		const footerRows = 4
 		at := max(len(lines)-footerRows, 0)
-		hint := fitProgressLine("  ? details for omitted text", width)
+		hint := truncateWithEllipsis("  ? details for omitted text", width)
 		lines = append(lines, "")
 		copy(lines[at+1:], lines[at:])
 		lines[at] = hint
@@ -146,7 +146,7 @@ func boundRemovalSummary(summary string, width, height int) string {
 	previewRows := height - footerRows - 1
 	omitted := len(lines) - previewRows - footerRows
 	visible := append([]string(nil), lines[:previewRows]...)
-	visible = append(visible, fitProgressLine(fmt.Sprintf("  ? details for %d omitted %s", omitted, pluralize(omitted, "line", "lines")), width))
+	visible = append(visible, truncateWithEllipsis(fmt.Sprintf("  ? details for %d omitted %s", omitted, pluralize(omitted, "line", "lines")), width))
 	visible = append(visible, lines[len(lines)-footerRows:]...)
 	return strings.Join(visible, "\n")
 }
@@ -156,7 +156,7 @@ func (m Model) removalSummaryDetailContent() (string, string) {
 	lines := strings.Split(strings.TrimSuffix(full, "\n"), "\n")
 	omitted := m.progressHeight() > 0 && len(lines) > m.progressHeight()
 	for _, line := range lines {
-		omitted = omitted || fitProgressLine(line, m.width) != line
+		omitted = omitted || truncateWithEllipsis(line, m.width) != line
 	}
 	if !omitted {
 		return "", ""

@@ -853,7 +853,7 @@ func (m Model) operationInFlight() bool {
 func (m Model) viewContent() string {
 	if m.view == cleanupResultView && m.quitPrompt && m.operationInFlight() {
 		// The running-cleanup frame has no footer of its own to replace.
-		return m.viewCleanupResult() + "\n" + fitProgressLine(viewFooterDanger(m.width, quitPromptFooter), m.width) + "\n"
+		return m.viewCleanupResult() + "\n" + truncateWithEllipsis(viewFooterDanger(m.width, quitPromptFooter), m.width) + "\n"
 	}
 	switch m.view {
 	case menuView:

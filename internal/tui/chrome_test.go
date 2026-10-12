@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"charm.land/bubbles/v2/key"
+	"charm.land/lipgloss/v2"
+
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 func TestViewTitle_Standard(t *testing.T) {
@@ -135,6 +138,46 @@ func TestTruncateWithEllipsis(t *testing.T) {
 				t.Errorf("truncateWithEllipsis(%q, %d) = %q, want %q", tc.in, tc.width, got, tc.want)
 			}
 		})
+	}
+}
+
+// Truncation measures what the terminal draws. Counting runes cut a styled
+// string inside its escape sequence and let wide runes through at twice the
+// budget.
+func TestTruncateWithEllipsis_MeasuresDisplayWidth(t *testing.T) {
+	styled := styleWarning.Render("uncommitted changes") + ", " + styleStatusLocked.Render("locked: on a USB disk")
+	got := truncateWithEllipsis(styled, 12)
+	if plain := stripANSI(got); plain != "uncommitted…" {
+		t.Errorf("styled text truncated to %q, want %q", plain, "uncommitted…")
+	}
+	if width := lipgloss.Width(got); width > 12 {
+		t.Errorf("styled text is %d cells wide after truncating to 12", width)
+	}
+
+	wide := truncateWithEllipsis("界界界界界", 6)
+	if wide != "界界…" || lipgloss.Width(wide) > 6 {
+		t.Errorf("wide runes truncated to %q (%d cells), want %q within 6 cells", wide, lipgloss.Width(wide), "界界…")
+	}
+}
+
+// The worktree details portal truncates a status that is already styled.
+func TestWorktreeDetails_StyledStatusFitsThePortal(t *testing.T) {
+	m := NewModel([]git.Worktree{{
+		Path: "/work/a", Branch: "refs/heads/a",
+		HasUncommittedChanges: true, HasUntrackedFiles: true, IsLocked: true,
+		LockReason: "kept on an external disk that is not always mounted",
+	}}, nil, "/repo")
+	m.view = listView
+	m.portal = m.portal.SetSize(50, 24)
+
+	_, content := m.detailContent()
+	for _, line := range strings.Split(content, "\n") {
+		if width := lipgloss.Width(line); width > m.portal.contentWidth() {
+			t.Errorf("detail line is %d cells, portal content is %d: %q", width, m.portal.contentWidth(), stripANSI(line))
+		}
+	}
+	if !strings.Contains(stripANSI(content), "uncommitted changes") {
+		t.Errorf("status row lost its text:\n%s", stripANSI(content))
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
@@ -168,7 +169,7 @@ func (m Model) viewConfirm() string {
 	// "anything risky?", names aligned after it, notes only on at-risk rows.
 	nameWidth := 0
 	for _, wt := range selected {
-		nameWidth = max(nameWidth, len([]rune(worktreeLabel(wt))))
+		nameWidth = max(nameWidth, lipgloss.Width(worktreeLabel(wt)))
 	}
 	nameWidth = min(nameWidth, confirmNameWidthCap)
 
@@ -202,8 +203,8 @@ func (m Model) viewConfirm() string {
 			badgeStyle = styleWarning
 		}
 		name := truncateWithEllipsis(worktreeLabel(wt), nameWidth)
-		// Pad by rune count: fmt's %-*s pads by bytes and drifts on …
-		pad := strings.Repeat(" ", max(nameWidth-len([]rune(name)), 0))
+		// Pad by display width: fmt's %-*s pads by bytes and drifts on …
+		pad := strings.Repeat(" ", max(nameWidth-lipgloss.Width(name), 0))
 		line := fmt.Sprintf("    %s  %s%s", badgeStyle.Render(fmt.Sprintf("%-4s", badge)), name, pad)
 		if risky {
 			line += "  " + styleWarning.Render(note)

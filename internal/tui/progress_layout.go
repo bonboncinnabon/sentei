@@ -10,7 +10,6 @@ import (
 	"charm.land/bubbles/v2/stopwatch"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
@@ -93,12 +92,12 @@ func (l ProgressLayout) View() string {
 	}
 	width := max(l.Width, 1)
 	viewport := BuildProgressViewport(l.Phases, height, l.Completed)
-	bar := fitProgressLine(l.barLine(), width)
-	footer := fitProgressLine(viewFooter(width, l.Hints), width)
+	bar := truncateWithEllipsis(l.barLine(), width)
+	footer := truncateWithEllipsis(viewFooter(width, l.Hints), width)
 	if l.QuitPrompt {
-		footer = fitProgressLine(viewFooterDanger(width, quitPromptFooter), width)
+		footer = truncateWithEllipsis(viewFooterDanger(width, quitPromptFooter), width)
 	}
-	title := fitProgressLine(viewTitle(l.Title), width)
+	title := truncateWithEllipsis(viewTitle(l.Title), width)
 
 	if viewport.Tier == progressViewportEmergency {
 		switch height {
@@ -117,11 +116,11 @@ func (l ProgressLayout) View() string {
 	case progressViewportNormal:
 		lines = append(lines, title)
 		if l.Subtitle != "" {
-			lines = append(lines, fitProgressLine(styleAccent.Render("  "+l.Subtitle), width))
+			lines = append(lines, truncateWithEllipsis(styleAccent.Render("  "+l.Subtitle), width))
 		} else {
 			lines = append(lines, "")
 		}
-		lines = append(lines, fitProgressLine(viewSeparator(width), width), "")
+		lines = append(lines, truncateWithEllipsis(viewSeparator(width), width), "")
 		liveRows := viewport.DetailRows + len(viewport.History)
 		if viewport.HistoryOmitted > 0 {
 			liveRows++
@@ -130,9 +129,9 @@ func (l ProgressLayout) View() string {
 			liveRows++
 		}
 		lines = append(lines, padProgressLines(live, liveRows)...)
-		lines = append(lines, fitProgressLine(viewSeparator(width), width), "", bar, "", footer)
+		lines = append(lines, truncateWithEllipsis(viewSeparator(width), width), "", bar, "", footer)
 	case progressViewportCompact:
-		lines = append(lines, title, fitProgressLine(viewSeparator(width), width))
+		lines = append(lines, title, truncateWithEllipsis(viewSeparator(width), width))
 		lines = append(lines, padProgressLines(live, liveRegionRows(height, viewport.Tier))...)
 		lines = append(lines, bar, footer)
 	case progressViewportMinimal:
@@ -152,16 +151,16 @@ func (l ProgressLayout) View() string {
 func (l ProgressLayout) liveRegionLines(viewport ProgressViewport, width int) []string {
 	var lines []string
 	if viewport.HistoryOmitted > 0 {
-		lines = append(lines, fitProgressLine(styleDim.Render(fmt.Sprintf("  … %d earlier phases", viewport.HistoryOmitted)), width))
+		lines = append(lines, truncateWithEllipsis(styleDim.Render(fmt.Sprintf("  … %d earlier phases", viewport.HistoryOmitted)), width))
 	}
 	for _, phase := range viewport.History {
-		lines = append(lines, fitProgressLine(l.phaseHeadline(phase), width))
+		lines = append(lines, truncateWithEllipsis(l.phaseHeadline(phase), width))
 	}
 	if viewport.Focus != nil && viewport.DetailRows > 0 {
 		lines = append(lines, l.focusLines(*viewport.Focus, viewport.DetailRows, width)...)
 	}
 	if viewport.Queued > 0 {
-		lines = append(lines, fitProgressLine(styleDim.Render(fmt.Sprintf("  · %d %s waiting", viewport.Queued, pluralize(viewport.Queued, "phase", "phases"))), width))
+		lines = append(lines, truncateWithEllipsis(styleDim.Render(fmt.Sprintf("  · %d %s waiting", viewport.Queued, pluralize(viewport.Queued, "phase", "phases"))), width))
 	}
 	return lines
 }
@@ -170,13 +169,13 @@ func (l ProgressLayout) focusLines(phase progress.PhaseState, rows, width int) [
 	if rows <= 0 {
 		return nil
 	}
-	lines := []string{fitProgressLine(l.phaseHeadline(phase), width)}
+	lines := []string{truncateWithEllipsis(l.phaseHeadline(phase), width)}
 	window := WindowSteps(phase.Steps, rows-1)
 	for _, step := range window.Steps {
-		lines = append(lines, fitProgressLine(l.stepLine(step), width))
+		lines = append(lines, truncateWithEllipsis(l.stepLine(step), width))
 	}
 	if window.Windowed && len(lines) < rows {
-		lines = append(lines, fitProgressLine(viewStatLine(window.Stats, l.activeGlyph()), width))
+		lines = append(lines, truncateWithEllipsis(viewStatLine(window.Stats, l.activeGlyph()), width))
 	}
 	return lines[:min(len(lines), rows)]
 }
@@ -251,16 +250,6 @@ func (l ProgressLayout) barLine() string {
 		return fmt.Sprintf("  %d%%", pct)
 	}
 	return renderProgressBar(done, total, l.Width-2-progressBarPercentReserve)
-}
-
-func fitProgressLine(line string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if lipgloss.Width(line) <= width {
-		return line
-	}
-	return ansi.Truncate(line, width, "…")
 }
 
 func padProgressLines(lines []string, rows int) []string {
