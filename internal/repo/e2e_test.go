@@ -16,7 +16,6 @@ import (
 func TestE2E_CreateRepo(t *testing.T) {
 	dir := testtmp.RobustTempDir(t)
 	runner := &git.GitRunner{}
-	shell := &git.DefaultShellRunner{}
 
 	ec := &mock.EventCollector[progress.Event]{}
 	opts := CreateOptions{
@@ -24,7 +23,7 @@ func TestE2E_CreateRepo(t *testing.T) {
 		Location:      dir,
 		PublishGitHub: false,
 	}
-	result := Create(runner, shell, opts, ec.Emit)
+	result := Create(runner, opts, ec.Emit)
 
 	repoPath := filepath.Join(dir, "test-repo")
 

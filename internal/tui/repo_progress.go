@@ -22,12 +22,11 @@ func (m *Model) startRepoPipeline(opts interface{}) tea.Cmd {
 	m.repo.resultCh = resultCh
 
 	runner := m.runner
-	shell := m.shell
 
 	switch o := opts.(type) {
 	case repo.CreateOptions:
 		go func() {
-			result := repo.Create(runner, shell, o, func(e progress.Event) { ch <- e })
+			result := repo.Create(runner, o, func(e progress.Event) { ch <- e })
 			close(ch)
 			resultCh <- result
 		}()

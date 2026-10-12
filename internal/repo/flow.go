@@ -161,3 +161,7 @@ func stepResult(phases []progress.Phase, phaseID progress.PhaseID, stepID progre
 	}
 	return progress.StepResult{}
 }
+
+func stepDone(phases []progress.Phase, phaseID progress.PhaseID, stepID progress.StepID) bool {
+	return stepResult(phases, phaseID, stepID).Status == progress.StepDone
+}

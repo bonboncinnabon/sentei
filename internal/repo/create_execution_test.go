@@ -8,51 +8,53 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
-func TestPreparedCreate_FailurePolicyAtEveryDeclaredOperation(t *testing.T) {
-	prepared := prepareCreate(&mock.Runner{}, &mockGhRunner{}, CreateOptions{
-		Name: "project", Location: "/tmp", PublishGitHub: true, Visibility: "private",
-	})
-	if len(prepared.operations) != 11 {
-		t.Fatalf("operations = %d, want six local plus five GitHub", len(prepared.operations))
+func TestPrepareCreate_FailurePolicyAtEveryDeclaredStep(t *testing.T) {
+	opts := CreateOptions{Name: "project", Location: "/tmp", PublishGitHub: true, Visibility: "private"}
+	declared, _ := prepareCreate(&mock.Runner{}, &mockGhRunner{}, opts)
+	if len(declared.steps) != 11 {
+		t.Fatalf("steps = %d, want six local plus five GitHub", len(declared.steps))
 	}
-	for failedAt := range prepared.operations {
-		t.Run(prepared.operations[failedAt].label, func(t *testing.T) {
-			candidate := prepared
-			candidate.operations = append([]createOperation(nil), prepared.operations...)
-			for i := range candidate.operations {
-				candidate.operations[i].run = func() (string, error) { return "", nil }
+	for failedAt, failing := range declared.steps {
+		t.Run(failing.label, func(t *testing.T) {
+			create, finish := prepareCreate(&mock.Runner{}, &mockGhRunner{}, opts)
+			for i := range create.steps {
+				create.steps[i].run = func() (string, error) { return "", nil }
 			}
-			candidate.operations[failedAt].run = func() (string, error) { return "", errors.New("injected") }
-			result := candidate.run(func(progress.Event) {})
+			create.steps[failedAt].run = func() (string, error) { return "", errors.New("injected") }
+
+			result := finish(create.run(nil))
+
 			if result.Err != nil {
-				t.Fatalf("Err = %v, operation failure must remain a step failure", result.Err)
+				t.Fatalf("Err = %v, a step failure must remain a step failure", result.Err)
 			}
-			for i, op := range candidate.operations {
-				step := resultStepByID(t, result.Phases, op.phaseID, op.stepID)
+			for i, declaredStep := range create.steps {
 				want := progress.StepDone
 				switch {
 				case i == failedAt:
 					want = progress.StepFailed
-				case i > failedAt && op.phaseID == candidate.operations[failedAt].phaseID:
-					want = progress.StepSkipped
-				case i > failedAt && candidate.operations[failedAt].phaseID == createSetupPhaseID:
+				case i > failedAt:
 					want = progress.StepSkipped
 				}
-				if step.Status != want {
-					t.Fatalf("%s status = %v, want %v", op.label, step.Status, want)
+				if got := stepResult(result.Phases, declaredStep.phaseID, declaredStep.id); got.Status != want {
+					t.Fatalf("%s status = %v, want %v", declaredStep.label, got.Status, want)
 				}
+			}
+			if hard, _ := result.SetupFailed(); hard != (failedAt < 6) {
+				t.Errorf("SetupFailed() = %v with a failure at step %d", hard, failedAt)
 			}
 			if failedAt >= 6 && result.WorktreePath == "" {
 				t.Fatal("GitHub failure discarded usable local worktree")
+			}
+			if result.GitHubURL != "" {
+				t.Errorf("GitHubURL = %q for a create that did not publish", result.GitHubURL)
 			}
 		})
 	}
 }
 
-func TestPreparedCreate_CallbackPanicPopulatesErr(t *testing.T) {
+func TestCreate_CallbackPanicPopulatesErr(t *testing.T) {
 	want := errors.New("delivery")
-	prepared := prepareCreate(&mock.Runner{}, &mockGhRunner{}, CreateOptions{Name: "project", Location: "/tmp"})
-	result := prepared.run(func(progress.Event) { panic(want) })
+	result := CreateWithGh(&mock.Runner{}, &mockGhRunner{}, CreateOptions{Name: "project", Location: "/tmp"}, func(progress.Event) { panic(want) })
 	if !errors.Is(result.Err, want) {
 		t.Fatalf("Err = %v, want wrapped callback failure", result.Err)
 	}
@@ -71,48 +73,4 @@ func TestCreateResult_ContractErrorIsHardFailure(t *testing.T) {
 	if !failed || !errors.Is(err, want) {
 		t.Fatalf("SetupFailed() = %v, %v; want hard contract failure", failed, err)
 	}
-}
-
-func TestPreparedCreate_ResultMatchesCompletedStream(t *testing.T) {
-	prepared := prepareCreate(&mock.Runner{}, &mockGhRunner{}, CreateOptions{Name: "project", Location: "/tmp", PublishGitHub: true})
-	for i := range prepared.operations {
-		prepared.operations[i].run = func() (string, error) { return "", nil }
-	}
-	var events []progress.Event
-	result := prepared.run(func(event progress.Event) { events = append(events, event) })
-	if result.Err != nil {
-		t.Fatal(result.Err)
-	}
-	if err := progress.ValidateStream(events); err != nil {
-		t.Fatalf("invalid completed stream: %v", err)
-	}
-	for _, phase := range result.Phases {
-		for _, step := range phase.Steps {
-			last := progress.Event{}
-			for _, event := range events {
-				if event.Phase == phase.ID && event.Step == step.ID && !event.Close {
-					last = event
-				}
-			}
-			if last.Status != step.Status {
-				t.Fatalf("%s/%s result=%v stream=%v", phase.ID, step.ID, step.Status, last.Status)
-			}
-		}
-	}
-}
-
-func resultStepByID(t *testing.T, phases []progress.Phase, phaseID progress.PhaseID, stepID progress.StepID) progress.StepResult {
-	t.Helper()
-	for _, phase := range phases {
-		if phase.ID != phaseID {
-			continue
-		}
-		for _, step := range phase.Steps {
-			if step.ID == stepID {
-				return step
-			}
-		}
-	}
-	t.Fatalf("missing result %s/%s", phaseID, stepID)
-	return progress.StepResult{}
 }

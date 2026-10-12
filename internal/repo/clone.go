@@ -27,34 +27,10 @@ type CloneResult struct {
 	Err           error
 }
 
-const cloneRollbackPhaseID progress.PhaseID = "clone:rollback"
-
-type cloneOperationKind uint8
-
 const (
-	cloneRegular cloneOperationKind = iota
-	cloneValidation
-	cloneBare
-	cloneDetect
-	cloneWorktree
-	cloneTracking
-	cloneRollback
+	cloneWorktreePhaseID progress.PhaseID = "clone:worktree"
+	cloneRollbackPhaseID progress.PhaseID = "clone:rollback"
 )
-
-type cloneOperation struct {
-	phaseID progress.PhaseID
-	stepID  progress.StepID
-	label   string
-	kind    cloneOperationKind
-	run     progress.StepFunc
-}
-
-type preparedClone struct {
-	result     CloneResult
-	plan       progress.Plan
-	operations []cloneOperation
-	branch     *string
-}
 
 func DeriveRepoName(url string) string {
 	url = strings.TrimSpace(url)
@@ -73,23 +49,18 @@ func DeriveRepoName(url string) string {
 }
 
 func Clone(runner git.CommandRunner, opts CloneOptions, emit func(progress.Event)) CloneResult {
-	return prepareClone(runner, opts).run(emit)
+	clone, finish := prepareClone(runner, opts)
+	return finish(clone.run(emit))
 }
 
-func prepareClone(runner git.CommandRunner, opts CloneOptions) preparedClone {
+// prepareClone declares the clone flow and returns the function that turns
+// its outcome into a CloneResult.
+func prepareClone(runner git.CommandRunner, opts CloneOptions) (flow, func([]progress.Phase, error) CloneResult) {
 	repoPath := filepath.Join(opts.Location, opts.Name)
 	barePath := filepath.Join(repoPath, ".bare")
 	branch := ""
-	prepared := preparedClone{result: CloneResult{OriginURL: opts.URL, RepoPath: repoPath}, branch: &branch}
-	add := func(phaseID, phaseLabel, stepID, label string, kind cloneOperationKind, run progress.StepFunc) {
-		if len(prepared.plan.Phases) == 0 || prepared.plan.Phases[len(prepared.plan.Phases)-1].ID != phaseID {
-			prepared.plan.Phases = append(prepared.plan.Phases, progress.PlannedPhase{ID: phaseID, Label: phaseLabel})
-		}
-		phase := &prepared.plan.Phases[len(prepared.plan.Phases)-1]
-		phase.Steps = append(phase.Steps, progress.PlannedStep{ID: stepID, Label: label})
-		prepared.operations = append(prepared.operations, cloneOperation{phaseID: phaseID, stepID: stepID, label: label, kind: kind, run: run})
-	}
-	add("clone:validate", "Validate", "target", "Validate target", cloneValidation, func() (string, error) {
+	clone := flow{name: "repository clone"}
+	clone.add("clone:validate", "Validate", step{id: "target", label: "Validate target", run: func() (string, error) {
 		switch {
 		case opts.Name == "":
 			return "", errors.New("could not derive a repository name from the URL; pass --name")
@@ -100,107 +71,58 @@ func prepareClone(runner git.CommandRunner, opts CloneOptions) preparedClone {
 			return "", fmt.Errorf("target already exists: %s", repoPath)
 		}
 		return "", nil
+	}})
+	clone.add("clone:bare", "Clone", step{
+		id: "bare-repository", label: "Clone bare repository",
+		run: func() (string, error) {
+			_, err := runner.Run(opts.Location, "clone", "--bare", opts.URL, barePath)
+			return "", err
+		},
+		undo: func() error { return fileutil.RemoveAllRetry(repoPath) },
 	})
-	add("clone:bare", "Clone", "bare-repository", "Clone bare repository", cloneBare, func() (string, error) {
-		_, err := runner.Run(opts.Location, "clone", "--bare", opts.URL, barePath)
-		return "", err
-	})
-	add("clone:structure", "Structure", "git-pointer", "Create .git pointer", cloneRegular, func() (string, error) {
+	clone.add("clone:structure", "Structure", step{id: "git-pointer", label: "Create .git pointer", run: func() (string, error) {
 		if err := os.MkdirAll(repoPath, 0755); err != nil {
 			return "", err
 		}
 		return "", os.WriteFile(filepath.Join(repoPath, ".git"), []byte("gitdir: .bare\n"), 0644)
-	})
-	add("clone:structure", "Structure", "refspec", "Configure refspec", cloneRegular, func() (string, error) {
+	}})
+	clone.add("clone:structure", "Structure", step{id: "refspec", label: "Configure refspec", run: func() (string, error) {
 		_, err := runner.Run(barePath, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
 		return "", err
-	})
-	add("clone:worktree", "Worktree", "default-branch", "Detect default branch", cloneDetect, func() (string, error) {
+	}})
+	clone.add(cloneWorktreePhaseID, "Worktree", step{id: "default-branch", label: "Detect default branch", run: func() (string, error) {
 		branch = git.DetectDefaultBranch(runner, barePath)
 		return branch, nil
-	})
-	add("clone:worktree", "Worktree", "checkout", "Create worktree", cloneWorktree, func() (string, error) {
+	}})
+	clone.add(cloneWorktreePhaseID, "Worktree", step{id: "checkout", label: "Create worktree", run: func() (string, error) {
 		if !git.BranchExists(runner, barePath, branch) {
 			return "", fmt.Errorf("remote has no commits on %q yet (nothing to check out)", branch)
 		}
 		_, err := runner.Run(repoPath, "worktree", "add", git.WorktreePath(repoPath, branch), branch)
 		return "", err
+	}})
+	clone.add(cloneWorktreePhaseID, "Worktree", step{
+		id: "tracking", label: "Set upstream tracking", optional: true,
+		run: func() (string, error) {
+			if _, err := runner.Run(barePath, "fetch", "origin"); err != nil {
+				return "", fmt.Errorf("no tracking: %w", err)
+			}
+			if _, err := runner.Run(git.WorktreePath(repoPath, branch), "branch", fmt.Sprintf("--set-upstream-to=origin/%s", branch)); err != nil {
+				return "", fmt.Errorf("no tracking: %w", err)
+			}
+			return "", nil
+		},
 	})
-	add("clone:worktree", "Worktree", "tracking", "Set upstream tracking", cloneTracking, func() (string, error) {
-		if _, err := runner.Run(barePath, "fetch", "origin"); err != nil {
-			return "", err
-		}
-		_, err := runner.Run(git.WorktreePath(repoPath, branch), "branch", fmt.Sprintf("--set-upstream-to=origin/%s", branch))
-		return "", err
-	})
-	add(cloneRollbackPhaseID, "Rollback", "remove-partial-checkout", "Remove partial checkout", cloneRollback, func() (string, error) {
-		return "", fileutil.RemoveAllRetry(repoPath)
-	})
-	return prepared
-}
+	clone.addRollback(cloneRollbackPhaseID, "remove-partial-checkout", "Remove partial checkout")
 
-func (p preparedClone) run(emit func(progress.Event)) CloneResult {
-	result := p.result
-	execution, err := progress.Start(p.plan, emit)
-	if err != nil {
-		result.Err = fmt.Errorf("starting repository clone: %w", err)
+	return clone, func(phases []progress.Phase, err error) CloneResult {
+		result := CloneResult{OriginURL: opts.URL, RepoPath: repoPath, Phases: phases, Err: err}
+		if stepDone(phases, cloneWorktreePhaseID, "default-branch") {
+			result.DefaultBranch = branch
+		}
+		if stepDone(phases, cloneWorktreePhaseID, "checkout") {
+			result.WorktreePath = git.WorktreePath(repoPath, branch)
+		}
 		return result
 	}
-	failedBy := ""
-	touched := false
-	usable := false
-	for _, operation := range p.operations {
-		if operation.kind == cloneRollback {
-			if !touched || usable {
-				_, err = execution.Skip(operation.phaseID, operation.stepID, "rollback not required")
-			} else {
-				_, err = execution.Run(operation.phaseID, operation.stepID, operation.run)
-			}
-			if err != nil {
-				result.Err = errors.Join(result.Err, fmt.Errorf("executing rollback: %w", err))
-			}
-			continue
-		}
-		if failedBy != "" {
-			_, err = execution.Skip(operation.phaseID, operation.stepID, "blocked by "+failedBy)
-			if err != nil {
-				result.Err = errors.Join(result.Err, err)
-			}
-			continue
-		}
-		if operation.kind == cloneBare {
-			touched = true
-		}
-		if operation.kind == cloneTracking {
-			if err = execution.Running(operation.phaseID, operation.stepID, 0, ""); err == nil {
-				_, runErr := operation.run()
-				if runErr != nil {
-					_, err = execution.Skip(operation.phaseID, operation.stepID, "no tracking: "+runErr.Error())
-				} else {
-					_, err = execution.Done(operation.phaseID, operation.stepID, "")
-				}
-			}
-		} else {
-			var step progress.StepResult
-			step, err = execution.Run(operation.phaseID, operation.stepID, operation.run)
-			if err == nil && step.Status == progress.StepFailed {
-				failedBy = operation.label
-			}
-		}
-		if err != nil {
-			result.Err = errors.Join(result.Err, fmt.Errorf("executing %s: %w", operation.label, err))
-			failedBy = operation.label
-		}
-		if operation.kind == cloneDetect && failedBy == "" {
-			result.DefaultBranch = *p.branch
-		}
-		if operation.kind == cloneWorktree && failedBy == "" {
-			usable = true
-			result.WorktreePath = git.WorktreePath(result.RepoPath, result.DefaultBranch)
-		}
-	}
-	finishErr := execution.Finish("repository clone finished")
-	result.Phases = execution.Phases()
-	result.Err = errors.Join(result.Err, finishErr)
-	return result
 }

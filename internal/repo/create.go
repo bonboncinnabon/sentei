@@ -2,7 +2,6 @@ package repo
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -57,22 +56,6 @@ type CreateResult struct {
 const createSetupPhaseID progress.PhaseID = "create:setup"
 const createGitHubPhaseID progress.PhaseID = "create:github"
 
-type createOperation struct {
-	phaseID progress.PhaseID
-	stepID  progress.StepID
-	label   string
-	run     progress.StepFunc
-}
-
-type preparedCreate struct {
-	result     CreateResult
-	plan       progress.Plan
-	operations []createOperation
-	publish    bool
-	name       string
-	githubUser *string
-}
-
 // SetupFailed reports whether a non-GitHub phase failed (the local repo itself is
 // broken, not merely unpublished) and the first such error.
 func (r CreateResult) SetupFailed() (bool, error) {
@@ -88,26 +71,35 @@ func (r CreateResult) SetupFailed() (bool, error) {
 	return false, nil
 }
 
-func Create(runner git.CommandRunner, shell git.ShellRunner, opts CreateOptions, emit func(progress.Event)) CreateResult {
-	return CreateWithGh(runner, shell, &DefaultGhRunner{}, opts, emit)
+func Create(runner git.CommandRunner, opts CreateOptions, emit func(progress.Event)) CreateResult {
+	return CreateWithGh(runner, &DefaultGhRunner{}, opts, emit)
 }
 
-func CreateWithGh(runner git.CommandRunner, _ git.ShellRunner, gh GhRunner, opts CreateOptions, emit func(progress.Event)) CreateResult {
-	return prepareCreate(runner, gh, opts).run(emit)
+func CreateWithGh(runner git.CommandRunner, gh GhRunner, opts CreateOptions, emit func(progress.Event)) CreateResult {
+	create, finish := prepareCreate(runner, gh, opts)
+	return finish(create.run(emit))
 }
 
-func prepareCreate(runner git.CommandRunner, gh GhRunner, opts CreateOptions) preparedCreate {
+// prepareCreate declares the create flow and returns the function that turns
+// its outcome into a CreateResult.
+func prepareCreate(runner git.CommandRunner, gh GhRunner, opts CreateOptions) (flow, func([]progress.Phase, error) CreateResult) {
 	repoPath := filepath.Join(opts.Location, opts.Name)
 	barePath := filepath.Join(repoPath, ".bare")
 	mainPath := git.WorktreePath(repoPath, "main")
 	ghUser := ""
-	prepared := preparedCreate{result: CreateResult{RepoPath: repoPath}, publish: opts.PublishGitHub, name: opts.Name, githubUser: &ghUser}
+	create := flow{name: "repository create"}
 	add := func(phaseID progress.PhaseID, phaseLabel, id, label string, run progress.StepFunc) {
-		if len(prepared.plan.Phases) == 0 || prepared.plan.Phases[len(prepared.plan.Phases)-1].ID != phaseID {
-			prepared.plan.Phases = append(prepared.plan.Phases, progress.PlannedPhase{ID: phaseID, Label: phaseLabel})
+		create.add(phaseID, phaseLabel, step{id: id, label: label, run: run})
+	}
+	finish := func(phases []progress.Phase, err error) CreateResult {
+		result := CreateResult{RepoPath: repoPath, Phases: phases, Err: err}
+		if stepDone(phases, createSetupPhaseID, "initial-commit") {
+			result.WorktreePath = mainPath
 		}
-		prepared.plan.Phases[len(prepared.plan.Phases)-1].Steps = append(prepared.plan.Phases[len(prepared.plan.Phases)-1].Steps, progress.PlannedStep{ID: id, Label: label})
-		prepared.operations = append(prepared.operations, createOperation{phaseID: phaseID, stepID: id, label: label, run: run})
+		if opts.PublishGitHub && !result.HasFailures() {
+			result.GitHubURL = fmt.Sprintf("github.com/%s/%s", ghUser, opts.Name)
+		}
+		return result
 	}
 	add(createSetupPhaseID, "Setup", "directory", "Create directory", func() (string, error) {
 		if err := os.MkdirAll(repoPath, 0755); err != nil {
@@ -154,7 +146,7 @@ func prepareCreate(runner git.CommandRunner, gh GhRunner, opts CreateOptions) pr
 		return "", err
 	})
 	if !opts.PublishGitHub {
-		return prepared
+		return create, finish
 	}
 	add(createGitHubPhaseID, PhaseGitHub, "github-user", "Look up GitHub user", func() (string, error) {
 		var err error
@@ -185,41 +177,7 @@ func prepareCreate(runner git.CommandRunner, gh GhRunner, opts CreateOptions) pr
 		_, err := runner.Run(barePath, "remote", "set-head", "origin", "main")
 		return "", err
 	})
-	return prepared
-}
-
-func (p preparedCreate) run(emit func(progress.Event)) CreateResult {
-	result := p.result
-	execution, err := progress.Start(p.plan, emit)
-	if err != nil {
-		result.Err = fmt.Errorf("starting repository create: %w", err)
-		return result
-	}
-	for index, operation := range p.operations {
-		step, transitionErr := execution.Run(operation.phaseID, operation.stepID, operation.run)
-		if transitionErr != nil {
-			result.Err = fmt.Errorf("executing %s: %w", operation.label, transitionErr)
-			break
-		}
-		if operation.phaseID == createSetupPhaseID && index == 5 && step.Status == progress.StepDone {
-			result.WorktreePath = git.WorktreePath(result.RepoPath, "main")
-		}
-		if step.Status != progress.StepFailed {
-			continue
-		}
-		_ = execution.SkipPending(operation.phaseID, "blocked by "+operation.label)
-		if operation.phaseID == createSetupPhaseID && p.publish {
-			_ = execution.SkipPending(createGitHubPhaseID, "blocked by "+operation.label)
-		}
-		break
-	}
-	finishErr := execution.Finish("repository create finished")
-	result.Phases = execution.Phases()
-	result.Err = errors.Join(result.Err, finishErr)
-	if result.Err == nil && result.WorktreePath != "" && p.publish && !progress.PhasesHaveFailures(result.Phases) {
-		result.GitHubURL = fmt.Sprintf("github.com/%s/%s", *p.githubUser, p.name)
-	}
-	return result
+	return create, finish
 }
 
 // ghRemoteURL returns the origin URL matching gh's configured git protocol, so

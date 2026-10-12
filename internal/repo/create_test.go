@@ -44,7 +44,7 @@ func TestCreate_LocalOnly(t *testing.T) {
 		Location:      dir,
 		PublishGitHub: false,
 	}
-	result := Create(runner, runner, opts, ec.Emit)
+	result := Create(runner, opts, ec.Emit)
 
 	if result.RepoPath != repoPath {
 		t.Errorf("RepoPath = %q, want %q", result.RepoPath, repoPath)
@@ -95,7 +95,7 @@ func TestCreate_WithGitHub(t *testing.T) {
 		Visibility:    "private",
 		Description:   "",
 	}
-	result := CreateWithGh(runner, runner, ghRunner, opts, ec.Emit)
+	result := CreateWithGh(runner, ghRunner, opts, ec.Emit)
 
 	if len(result.Phases) != 2 {
 		t.Errorf("want 2 phases (setup + github), got %d", len(result.Phases))
@@ -142,7 +142,7 @@ func TestCreate_DirAlreadyExists(t *testing.T) {
 		Name:     repoName,
 		Location: dir,
 	}
-	result := Create(runner, runner, opts, ec.Emit)
+	result := Create(runner, opts, ec.Emit)
 
 	if len(result.Phases) == 0 {
 		t.Fatal("expected at least one phase")
@@ -177,7 +177,7 @@ func TestCreate_GitHubPhaseFailure_LocalStillUsable(t *testing.T) {
 		PublishGitHub: true,
 		Visibility:    "private",
 	}
-	result := CreateWithGh(runner, runner, ghRunner, opts, ec.Emit)
+	result := CreateWithGh(runner, ghRunner, opts, ec.Emit)
 
 	// Local repo still usable despite GitHub failure
 	if result.RepoPath != repoPath {
@@ -217,7 +217,7 @@ func TestCreate_PushFailure_ReportsOrphanedRepo(t *testing.T) {
 
 	ec := &mock.EventCollector[progress.Event]{}
 	opts := CreateOptions{Name: repoName, Location: dir, PublishGitHub: true, Visibility: "private"}
-	result := CreateWithGh(runner, runner, ghRunner, opts, ec.Emit)
+	result := CreateWithGh(runner, ghRunner, opts, ec.Emit)
 
 	var pushStep *progress.StepResult
 	for i := range result.Phases {
@@ -280,7 +280,7 @@ func TestCreate_BareHEADNamesMainWithoutInitDefaultBranch(t *testing.T) {
 	}
 	dir := t.TempDir()
 
-	result := CreateWithGh(&git.GitRunner{}, nil, &mockGhRunner{}, CreateOptions{Name: "proj", Location: dir}, nil)
+	result := CreateWithGh(&git.GitRunner{}, &mockGhRunner{}, CreateOptions{Name: "proj", Location: dir}, nil)
 
 	if failed, err := result.SetupFailed(); failed {
 		t.Fatalf("create failed: %v", err)
