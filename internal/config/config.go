@@ -5,20 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 
+	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/worktreefile"
 	"gopkg.in/yaml.v3"
 )
-
-// RepoRootResolver resolves the git common dir for a repository path.
-// This mirrors git.CommandRunner but is defined here to avoid a circular
-// dependency between config and git packages.
-type RepoRootResolver interface {
-	Run(dir string, args ...string) (string, error)
-}
 
 //go:embed defaults/ecosystems.yaml
 var defaultEcosystemsYAML []byte
@@ -138,40 +130,28 @@ func globalConfigPath() string {
 	return filepath.Join(base, "sentei", "config.yaml")
 }
 
-// resolveRepoRoot resolves a git working directory to the root of the bare
-// repository (the directory containing the worktrees). It falls back to
-// repoPath on any error. When runner is nil, it falls back to exec.Command
-// directly (for use in contexts where a runner is not yet available).
-func resolveRepoRoot(repoPath string, runner RepoRootResolver) string {
-	var commonDir string
-	if runner != nil {
-		out, err := runner.Run(repoPath, "rev-parse", "--git-common-dir")
-		if err != nil {
-			return repoPath
-		}
-		commonDir = strings.TrimSpace(out)
-	} else {
-		out, err := exec.Command("git", "-C", repoPath, "rev-parse", "--git-common-dir").Output()
-		if err != nil {
-			return repoPath
-		}
-		commonDir = strings.TrimSpace(string(out))
+// repoRoot returns the directory whose .sentei.yaml belongs to the repository
+// at repoPath: the parent of git's common dir, which is the container of a
+// .bare layout or the top of a regular working tree. A plain bare repository
+// is its own root, because its parent may hold unrelated repositories. Outside
+// a repository the root is repoPath.
+func repoRoot(runner git.CommandRunner, repoPath string) string {
+	commonDir, err := git.CommonDir(runner, repoPath)
+	if err != nil || commonDir == filepath.Clean(repoPath) {
+		return repoPath
 	}
-	if filepath.IsAbs(commonDir) {
-		return filepath.Dir(commonDir)
-	}
-	return filepath.Dir(filepath.Join(repoPath, commonDir))
+	return filepath.Dir(commonDir)
 }
 
 // LoadOption configures optional behaviour of LoadConfig.
 type LoadOption func(*loadOptions)
 
 type loadOptions struct {
-	runner RepoRootResolver
+	runner git.CommandRunner
 }
 
-// WithRunner supplies a git command runner for resolving the repo root.
-func WithRunner(r RepoRootResolver) LoadOption {
+// WithRunner supplies the git command runner used to find the repo root.
+func WithRunner(r git.CommandRunner) LoadOption {
 	return func(o *loadOptions) { o.runner = r }
 }
 
@@ -181,7 +161,7 @@ func WithRunner(r RepoRootResolver) LoadOption {
 //  3. Resolves the repo root and merges .sentei.yaml from it.
 //  4. Validates the result.
 func LoadConfig(repoPath string, opts ...LoadOption) (*Config, error) {
-	var lo loadOptions
+	lo := loadOptions{runner: &git.GitRunner{}}
 	for _, opt := range opts {
 		opt(&lo)
 	}
@@ -203,8 +183,7 @@ func LoadConfig(repoPath string, opts ...LoadOption) (*Config, error) {
 		cfg = mergeConfigs(cfg, globalCfg, "global")
 	}
 
-	repoRoot := resolveRepoRoot(repoPath, lo.runner)
-	repoCfg, err := loadFile(filepath.Join(repoRoot, ".sentei.yaml"))
+	repoCfg, err := loadFile(filepath.Join(repoRoot(lo.runner, repoPath), ".sentei.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("loading repo config: %w", err)
 	}
