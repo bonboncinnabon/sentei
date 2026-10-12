@@ -73,7 +73,10 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 	gitDir := filepath.Join(root, ".git")
 	switch info, err := os.Lstat(gitDir); {
 	case errors.Is(err, fs.ErrNotExist):
-		return MigratePlan{}, fmt.Errorf("%s is not the root of a git repository (it has no .git directory); pass the repository root", root)
+		if top, err := runner.Run(root, "rev-parse", "--show-toplevel"); err == nil && top != "" {
+			return MigratePlan{}, fmt.Errorf("%s is inside a git repository, not at its root; migrate %s instead", root, top)
+		}
+		return MigratePlan{}, fmt.Errorf("%s is not a git repository (it has no .git directory); there is nothing to migrate", root)
 	case err != nil:
 		return MigratePlan{}, fmt.Errorf("reading %s: %w", gitDir, err)
 	case !info.IsDir():
@@ -202,7 +205,12 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 				if !exists(from) {
 					continue
 				}
-				if err := stateMoved.move(from, filepath.Join(adminDir, name)); err != nil {
+				// Not every git version creates logs/ for a fresh worktree.
+				to := filepath.Join(adminDir, name)
+				if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
+					return "", err
+				}
+				if err := stateMoved.move(from, to); err != nil {
 					return "", err
 				}
 			}

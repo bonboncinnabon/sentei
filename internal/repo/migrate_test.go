@@ -252,11 +252,20 @@ func TestMigrate_RefusalsLeaveTheRepositoryUntouched(t *testing.T) {
 		want  string
 	}{
 		{
-			name: "not a repository root",
+			name: "a directory inside the repository",
 			setup: func(t *testing.T, base, root string) string {
 				return filepath.Join(root, "src")
 			},
-			want: "not the root of a git repository",
+			want: "is inside a git repository, not at its root; migrate ",
+		},
+		{
+			name: "not a repository",
+			setup: func(t *testing.T, base, root string) string {
+				plain := filepath.Join(base, "plain")
+				mustWrite(t, filepath.Join(plain, "notes.txt"), "notes\n")
+				return plain
+			},
+			want: "is not a git repository",
 		},
 		{
 			name: ".git is a file",
@@ -569,5 +578,21 @@ func TestMigrate_PointsBareHEADAtTheDefaultBranch(t *testing.T) {
 				t.Errorf("the worktree is on %q, want it left on %q", got, current)
 			}
 		})
+	}
+}
+
+// From a subdirectory the refusal has to say where the root is: in the TUI
+// there is no path argument to correct.
+func TestPlanMigrate_NamesTheRootFromASubdirectory(t *testing.T) {
+	_, root := newCheckout(t)
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = PlanMigrate(realGit, filepath.Join(root, "src", "deep"))
+
+	if err == nil || !strings.Contains(err.Error(), "migrate "+resolved+" instead") {
+		t.Fatalf("err = %v, want it to point at %s", err, resolved)
 	}
 }
