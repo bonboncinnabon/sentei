@@ -3,11 +3,12 @@ package tui
 import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The entry screens (create worktree, create repository, clone) are forms of
-// two text inputs with a focus index. These two functions are the behaviour
-// they share.
+// two text inputs with a focus index. These functions are the behaviour they
+// share.
 
 // switchFormField moves focus to the other input, with the cursor at the end
 // of its text.
@@ -35,4 +36,20 @@ func editFormField(focused int, first, second *textinput.Model, msg tea.Msg) (te
 	var cmd tea.Cmd
 	*input, cmd = input.Update(msg)
 	return cmd, input.Value() != before
+}
+
+// fitPathTail fits a path into width cells by eliding its head. On these
+// screens the tail names what is being created, so it is the part to keep.
+func fitPathTail(path string, width int) string {
+	if over := ansi.StringWidth(path) - max(width, 1); over > 0 {
+		return ansi.TruncateLeft(path, over+1, "…")
+	}
+	return path
+}
+
+// destinationPreview is the dim line under a form that names the directory
+// about to be created.
+func destinationPreview(dest string, width int) string {
+	const indent = "    → "
+	return styleDim.Render(indent + fitPathTail(dest, max(width, 20)-ansi.StringWidth(indent)))
 }

@@ -8,6 +8,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/repo"
@@ -159,7 +160,9 @@ func (m Model) viewRepoOptions() string {
 
 	b.WriteString(viewTitle(titleCreateRepo))
 	b.WriteString("\n\n")
-	b.WriteString(styleDim.Render(fmt.Sprintf("  %s \u00b7 %s", name, filepath.Join(m.repoLocation(), name))))
+	header := fmt.Sprintf("  %s \u00b7 ", name)
+	dest := fitPathTail(filepath.Join(m.repoLocation(), name), max(m.width, 20)-ansi.StringWidth(header))
+	b.WriteString(styleDim.Render(header + dest))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
