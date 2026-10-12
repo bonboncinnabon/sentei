@@ -1,0 +1,22 @@
+internal/tui/removal_protection_test.go
+  s_b5d41ab2ae0f4c::t_c94796b2c8984d 169-172,191-193,210-231
+  s_b5d41ab2ae0f4c::t_f6cb3a56c1771c 232
+internal/tui/confirm.go
+  s_b5d41ab2ae0f4c::t_c94796b2c8984d 146-151,153,155-157,160-164,166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "bf842a5c8877728e1e74a76308a4d8e7e0540a1b",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
