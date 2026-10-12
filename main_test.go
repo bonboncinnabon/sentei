@@ -242,6 +242,9 @@ func TestParseDecision_FillsTheCommandsOptions(t *testing.T) {
 }
 
 func TestRun_UnknownCommand(t *testing.T) {
+	// An unknown name that is a directory opens the TUI there: run from an
+	// empty directory so no entry of the source tree can match.
+	t.Chdir(t.TempDir())
 	err := run(buildRegistry(), []string{"integrations"})
 	if !cli.IsUnknownCommand(err) {
 		t.Errorf("got %v, want an unknown-command error so main prints the command list", err)
@@ -282,6 +285,8 @@ func TestRun_OutputCommandRunsWithoutNonInteractive(t *testing.T) {
 // handler, whose validation errors come back to main unchanged.
 func TestRun_NonInteractiveFlagsReachTheCLIHandler(t *testing.T) {
 	dir := t.TempDir()
+	// clone takes no repository path and works in the current directory.
+	t.Chdir(dir)
 	tests := []struct {
 		name string
 		args []string
@@ -337,6 +342,9 @@ func TestRun_ForceReachesRemove(t *testing.T) {
 func TestRun_InteractiveCommandRejectsBadFlagsBeforeTheTUI(t *testing.T) {
 	bare := newBareRepo(t)
 	wtPath := addWorktree(t, bare, "feature")
+	// `cleanup --help` names no repository: if it ever got past flag parsing
+	// it would open the TUI on the current directory.
+	t.Chdir(t.TempDir())
 
 	err := run(buildRegistry(), []string{"remove", "--all", bare, "--dry-run"})
 	if err == nil || !strings.Contains(err.Error(), "flags must come before the path") {
