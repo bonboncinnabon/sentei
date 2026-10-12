@@ -1,0 +1,21 @@
+go.mod
+  s_b5d41ab2ae0f4c::t_247024248046c5 6-8,10-11,21,28-29,34-35
+go.sum
+  s_b5d41ab2ae0f4c::t_76fb2aa96ee072 1-6,17-20,39-42,55-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "81ae02fa4fdbb73697616fb08b70e547afbad9c4",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
