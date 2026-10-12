@@ -198,9 +198,7 @@ func TestSummaryVerdict_CrystallizedStar(t *testing.T) {
 }
 
 func TestCleanupPreview_WouldActUsesArrow(t *testing.T) {
-	var b strings.Builder
-	writePreviewLine(&b, 3, "stale remote %s pruned", "ref", "refs", "No stale remote refs")
-	if got := stripAnsi(b.String()); !strings.Contains(got, "▸ 3 stale remote refs pruned") {
+	if got := stripAnsi(safeChecks[0].line(3, false)); !strings.Contains(got, "▸ 3 stale remote refs would be pruned") {
 		t.Errorf("expected would-act arrow line, got %q", got)
 	}
 }

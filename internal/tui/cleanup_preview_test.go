@@ -359,11 +359,11 @@ func TestViewCleanupResult_SkippedBranchesSurfaced(t *testing.T) {
 	}
 
 	view := stripANSI(m.viewCleanupResult())
-	if !strings.Contains(view, "⚠ 1 branch skipped (not fully merged)") {
+	if !strings.Contains(view, "⚠ 1 branch skipped") {
 		t.Errorf("skips must be reported:\n%s", view)
 	}
-	if !strings.Contains(view, "old/unmerged") {
-		t.Errorf("skipped branch names must be listed:\n%s", view)
+	if !strings.Contains(view, "old/unmerged  not fully merged") {
+		t.Errorf("skipped branches must be listed with their reason:\n%s", view)
 	}
 	if !strings.Contains(view, "--mode aggressive --force") {
 		t.Errorf("tip must point at --force after an aggressive run with skips:\n%s", view)
