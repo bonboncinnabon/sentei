@@ -27,6 +27,8 @@ type Options struct {
 }
 
 type Result struct {
+	// WorktreePath is set once the worktree exists on disk, even when a later
+	// step failed. Empty means nothing was created.
 	WorktreePath string
 	Phases       []progress.Phase
 	Err          error

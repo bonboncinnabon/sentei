@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
@@ -38,49 +39,55 @@ func (m Model) viewCreateSummary() string {
 
 	result := m.create.result
 	wtPath := git.WorktreePath(m.repoPath, branch)
-	if result != nil && result.WorktreePath != "" {
+	if result != nil {
 		wtPath = result.WorktreePath
 	}
-
-	hasFailures := result != nil && result.HasFailures()
-	hasContractError := result != nil && result.Err != nil
+	// Nothing on disk: no "created" title, no path and no cd line to offer.
+	if wtPath == "" {
+		return m.viewCreateFailed(branch, result)
+	}
 
 	b.WriteString(viewTitle(titleWorktreeCreated))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 
-	if hasContractError {
-		fmt.Fprintf(&b, "  %s %s creation failed\n\n",
-			styleIndicatorFailed.Render(indicatorFailed), branch)
-		for _, line := range errorPeekLines(result.Err.Error(), max(m.width-8, 20)) {
-			fmt.Fprintf(&b, "      %s\n", styleError.Render(line))
-		}
-		b.WriteString("\n")
-	} else if hasFailures {
+	if result != nil && result.HasFailures() {
 		fmt.Fprintf(&b, "  %s %s created with issues\n\n",
 			styleIndicatorWarning.Render(indicatorWarning), branch)
 	} else {
 		fmt.Fprintf(&b, "  %s %s ready\n\n",
 			styleIndicatorDone.Render(indicatorDone), branch)
 	}
+	if result != nil && result.Err != nil {
+		for _, line := range errorPeekLines(result.Err.Error(), max(m.width-8, 20)) {
+			fmt.Fprintf(&b, "      %s\n", styleError.Render(line))
+		}
+		b.WriteString("\n")
+	}
 
 	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Path"), truncateWithEllipsis(wtPath, max(m.width-16, 20)))
 	fmt.Fprintf(&b, "    %-10s %s (from %s)\n", styleDim.Render("Branch"), branch, base)
 
+	// Dependency steps are always listed; a setup step only when it failed,
+	// so "with issues" names its cause.
 	if result != nil {
 		for _, phase := range result.Phases {
-			if phase.Name != "Dependencies" {
-				continue
+			label := "Setup"
+			if phase.Name == "Dependencies" {
+				label = "Deps"
 			}
-			label := "Deps"
 			for _, step := range phase.Steps {
+				failed := step.Status == progress.StepFailed
+				if !failed && label == "Setup" {
+					continue
+				}
 				status := styleIndicatorDone.Render(indicatorDone)
-				if step.Status == progress.StepFailed {
+				if failed {
 					status = styleIndicatorFailed.Render(indicatorFailed)
 				}
 				fmt.Fprintf(&b, "    %-10s %s %s\n", styleDim.Render(label), step.Name, status)
-				if step.Status == progress.StepFailed && step.Error != nil {
+				if failed && step.Error != nil {
 					peek := errorPeekLines(step.Error.Error(), max(m.width-8, 20))
 					for i, line := range peek {
 						style := styleDim
@@ -98,17 +105,51 @@ func (m Model) viewCreateSummary() string {
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 	// The cd line is the flow's one actionable artifact: never truncate it.
-	for _, line := range strings.Split(lipgloss.NewStyle().Width(max(m.width-8, 20)).Render("cd "+wtPath), "\n") {
+	for _, line := range m.wrapSummaryLine("cd " + wtPath) {
 		fmt.Fprintf(&b, "    %s\n", line)
 	}
 	b.WriteString("\n")
-
-	if m.menuItems != nil {
-		b.WriteString(viewFooter(m.width, summaryMenuFooter))
-	} else {
-		b.WriteString(viewFooter(m.width, createSummaryQuit))
-	}
-	b.WriteString("\n")
-
+	b.WriteString(m.createSummaryFooter())
 	return b.String()
+}
+
+// viewCreateFailed is the summary for a run that left no worktree behind. The
+// error is the screen's whole content, so it wraps instead of being clipped.
+func (m Model) viewCreateFailed(branch string, result *creator.Result) string {
+	var b strings.Builder
+
+	b.WriteString(viewTitle(titleCreateWorktree))
+	b.WriteString("\n\n")
+	b.WriteString(viewSeparator(m.width))
+	b.WriteString("\n\n")
+	fmt.Fprintf(&b, "  %s %s creation failed\n\n",
+		styleIndicatorFailed.Render(indicatorFailed), branch)
+
+	failure := result.Err
+	if failure == nil {
+		_, step, _ := progress.FirstFailure(result.Phases)
+		failure = step.Error
+	}
+	if failure != nil {
+		for _, line := range m.wrapSummaryLine(failure.Error()) {
+			fmt.Fprintf(&b, "    %s\n", styleError.Render(line))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString(viewSeparator(m.width))
+	b.WriteString("\n\n")
+	b.WriteString(m.createSummaryFooter())
+	return b.String()
+}
+
+func (m Model) wrapSummaryLine(text string) []string {
+	return strings.Split(lipgloss.NewStyle().Width(max(m.width-8, 20)).Render(text), "\n")
+}
+
+func (m Model) createSummaryFooter() string {
+	if m.menuItems != nil {
+		return viewFooter(m.width, summaryMenuFooter) + "\n"
+	}
+	return viewFooter(m.width, createSummaryQuit) + "\n"
 }

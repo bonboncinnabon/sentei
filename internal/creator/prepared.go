@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
@@ -107,25 +109,15 @@ func validateEcosystemIdentities(opts Options) error {
 }
 
 func (p preparedCreation) run(execution *progress.Execution, runner git.CommandRunner, shell git.ShellRunner, result *Result) error {
-	createResult, err := execution.Run(setupPhaseID, p.createStepID, func() (string, error) {
-		args := []string{"worktree", "add", p.worktreePath}
-		if git.BranchExists(runner, p.opts.RepoPath, p.opts.BranchName) {
-			args = append(args, p.opts.BranchName)
-		} else {
-			args = append(args, "-b", p.opts.BranchName, p.opts.BaseBranch)
-		}
-		if _, err := runner.Run(p.opts.RepoPath, args...); err != nil {
-			return "", fmt.Errorf("creating worktree: %w", err)
-		}
-		return p.worktreePath, nil
+	_, err := execution.Run(setupPhaseID, p.createStepID, func() (string, error) {
+		return p.addWorktree(runner, result)
 	})
 	if err != nil {
 		return fmt.Errorf("executing worktree creation: %w", err)
 	}
-	if createResult.Status == progress.StepFailed {
+	if result.WorktreePath == "" {
 		return p.skipBlocked(execution, "blocked by Create worktree")
 	}
-	result.WorktreePath = p.worktreePath
 
 	if p.mergeStepID != "" {
 		_, err := execution.Run(setupPhaseID, p.mergeStepID, func() (string, error) {
@@ -154,6 +146,33 @@ func (p preparedCreation) run(execution *progress.Execution, runner git.CommandR
 		runErr = errors.Join(runErr, p.runDependencies(execution, shell))
 	}
 	return runErr
+}
+
+// addWorktree runs git worktree add and records on result what now exists on
+// disk.
+func (p preparedCreation) addWorktree(runner git.CommandRunner, result *Result) (string, error) {
+	args := []string{"worktree", "add", p.worktreePath}
+	if git.BranchExists(runner, p.opts.RepoPath, p.opts.BranchName) {
+		args = append(args, p.opts.BranchName)
+	} else {
+		args = append(args, "-b", p.opts.BranchName, p.opts.BaseBranch)
+	}
+	_, statErr := os.Lstat(p.worktreePath)
+	pathWasFree := errors.Is(statErr, os.ErrNotExist)
+
+	_, err := runner.Run(p.opts.RepoPath, args...)
+	if err == nil {
+		result.WorktreePath = p.worktreePath
+		return p.worktreePath, nil
+	}
+	// git removes a worktree it could not check out, but keeps one whose
+	// post-checkout hook failed and still exits non-zero. A .git entry in a
+	// directory that was absent before the command is that worktree.
+	if _, gitErr := os.Stat(filepath.Join(p.worktreePath, ".git")); pathWasFree && gitErr == nil {
+		result.WorktreePath = p.worktreePath
+		return "", fmt.Errorf("worktree created, but git reported an error (a post-checkout hook may have failed): %w", err)
+	}
+	return "", fmt.Errorf("creating worktree: %w", err)
 }
 
 func (p preparedCreation) skipBlocked(execution *progress.Execution, reason string) error {

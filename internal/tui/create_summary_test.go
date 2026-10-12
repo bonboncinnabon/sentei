@@ -125,3 +125,53 @@ func TestViewCreateSummary_DirectLaunchHintsQuit(t *testing.T) {
 		t.Errorf("direct launch should hint enter quits:\n%s", view)
 	}
 }
+
+// A failed `git worktree add` leaves nothing behind. The summary used to say
+// "created with issues" and offer a cd line for a directory that did not exist.
+func TestViewCreateSummary_FailedWorktreeAddClaimsNothing(t *testing.T) {
+	m := createOptionsModel()
+	m.create.result = &creator.Result{Phases: []progress.Phase{
+		{Name: "Setup", Steps: []progress.StepResult{
+			{Name: "Create worktree", Status: progress.StepFailed, Error: errors.New("creating worktree: fatal: invalid reference: nope")},
+			{Name: "Merge base branch", Status: progress.StepSkipped},
+		}},
+		{Name: "Dependencies", Steps: []progress.StepResult{{Name: "pnpm", Status: progress.StepSkipped}}},
+	}}
+
+	view := stripANSI(m.viewCreateSummary())
+
+	for _, want := range []string{"feature/x creation failed", "fatal: invalid reference: nope", "enter menu"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("view missing %q:\n%s", want, view)
+		}
+	}
+	for _, lie := range []string{"Worktree created", "created with issues", "ready", "cd ", "Path", "pnpm"} {
+		if strings.Contains(view, lie) {
+			t.Errorf("nothing was created, so the view must not show %q:\n%s", lie, view)
+		}
+	}
+}
+
+// The worktree exists but its create step failed (a post-checkout hook): the
+// summary keeps the path and names the step that had the issue.
+func TestViewCreateSummary_CreatedWithFailedSetupStepNamesIt(t *testing.T) {
+	m := createOptionsModel()
+	m.create.result = &creator.Result{
+		WorktreePath: "/repo/feature-x",
+		Phases: []progress.Phase{{Name: "Setup", Steps: []progress.StepResult{
+			{Name: "Create worktree", Status: progress.StepFailed, Error: errors.New("worktree created, but git reported an error\nhook-says-no")},
+			{Name: "Merge base branch", Status: progress.StepDone},
+		}}},
+	}
+
+	view := stripANSI(m.viewCreateSummary())
+
+	for _, want := range []string{"created with issues", "Setup", "Create worktree", "hook-says-no", "cd /repo/feature-x"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("view missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "Merge base branch") {
+		t.Errorf("setup steps that succeeded must stay out of the summary:\n%s", view)
+	}
+}
