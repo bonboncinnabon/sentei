@@ -643,6 +643,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Bubble Tea delivers ctrl+c as an ordinary key press, so it quits only
+	// where something handles it. Handling it here covers every view, the
+	// portal and every focused text input.
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok && key.Matches(keyMsg, keys.Interrupt) {
+		return m, tea.Quit
+	}
+
 	if m.portal.Visible() {
 		if _, ok := msg.(tea.PasteMsg); ok {
 			return m, nil

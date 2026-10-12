@@ -12,6 +12,7 @@ type keyMap struct {
 	Confirm     key.Binding
 	QuickCreate key.Binding
 	Quit        key.Binding
+	Interrupt   key.Binding
 	Yes         key.Binding
 	No          key.Binding
 	Back        key.Binding
@@ -59,6 +60,12 @@ var keys = keyMap{
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
 		key.WithHelp("q", "quit"),
+	),
+	// Interrupt quits from every view, text inputs included, where q is
+	// just a letter. The model handles it before any view sees the key.
+	Interrupt: key.NewBinding(
+		key.WithKeys("ctrl+c"),
+		key.WithHelp("ctrl+c", "quit"),
 	),
 	Yes: key.NewBinding(
 		key.WithKeys("y"),
