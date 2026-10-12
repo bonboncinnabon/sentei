@@ -50,7 +50,6 @@ const (
 	migrateConfirmView
 	migrateProgressView
 	migrateSummaryView
-	migrateNextView
 	cleanupConfirmView
 	cleanupPreviewView
 	cleanupResultView
@@ -76,8 +75,7 @@ type RemovePreSelection struct {
 // MigrateOpts holds migrate options passed to the TUI from the CLI layer.
 // This mirrors cmd.MigrateOptions without creating a dependency on cmd.
 type MigrateOpts struct {
-	DeleteBackup bool
-	RepoPath     string
+	RepoPath string
 }
 
 // CreateOpts holds create options passed to the TUI from the CLI layer.
@@ -149,12 +147,6 @@ type createState struct {
 	resultCh chan creator.Result
 	events   []progress.Event
 	result   *creator.Result
-}
-
-// MigrateInfo holds pre-loaded info about the repo being migrated.
-type MigrateInfo struct {
-	Branch  string
-	IsDirty bool
 }
 
 // repoState holds all state for repo create/clone/migrate flows.
@@ -745,8 +737,6 @@ func (m Model) dispatchByView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateMigrateConfirm(msg)
 	case migrateSummaryView:
 		return m.updateMigrateSummary(msg)
-	case migrateNextView:
-		return m.updateMigrateNext(msg)
 	case cleanupConfirmView:
 		return m.updateCleanupConfirm(msg)
 	case cleanupPreviewView:
@@ -811,8 +801,6 @@ func (m Model) viewContent() string {
 		return m.viewMigrateConfirm()
 	case migrateSummaryView:
 		return m.viewMigrateSummary()
-	case migrateNextView:
-		return m.viewMigrateNext()
 	case cleanupConfirmView:
 		return m.viewCleanupConfirm()
 	case cleanupPreviewView:

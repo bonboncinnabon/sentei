@@ -39,7 +39,7 @@ func (m *Model) startRepoPipeline(opts interface{}) tea.Cmd {
 		}()
 	case repo.MigrateOptions:
 		go func() {
-			result := repo.Migrate(runner, shell, o, func(e progress.Event) { ch <- e })
+			result := repo.Migrate(runner, o, func(e progress.Event) { ch <- e })
 			close(ch)
 			resultCh <- result
 		}()

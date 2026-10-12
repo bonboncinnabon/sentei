@@ -229,7 +229,7 @@ var (
 	// hints would be dead keys.
 	portalFooterStatic = []key.Binding{withDesc(keys.Back, "close")}
 
-	migrateConfirmFooter = []key.Binding{withDesc(keys.Yes, "delete"), withDesc(keys.No, "keep"), keys.Quit}
+	migrateBlockedFooter = []key.Binding{keys.Back, keys.Quit}
 	migrateOpenFooter    = []key.Binding{withDesc(keys.Confirm, "open in sentei"), withDesc(keys.Quit, "exit")}
 	cleanupSafeHint      = withDesc(keys.Confirm, "safe cleanup")
 )

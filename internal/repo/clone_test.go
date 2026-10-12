@@ -313,3 +313,12 @@ func TestClone_TrackingSkip_PreservesRepoDir(t *testing.T) {
 		t.Errorf("repo dir must be preserved on a tracking skip (not rolled back): %v", err)
 	}
 }
+
+func findPhase(phases []progress.Phase, name string) *progress.Phase {
+	for i := range phases {
+		if phases[i].Name == name {
+			return &phases[i]
+		}
+	}
+	return nil
+}

@@ -287,10 +287,7 @@ func launchInteractiveDecision(result cli.DispatchResult) {
 		}
 
 	case "migrate":
-		model.SetMigrateOpts(&tui.MigrateOpts{
-			DeleteBackup: parsed.migrate.DeleteBackup,
-			RepoPath:     repoPath,
-		})
+		model.SetMigrateOpts(&tui.MigrateOpts{RepoPath: repoPath})
 	}
 
 	p := tea.NewProgram(model)
