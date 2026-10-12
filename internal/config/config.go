@@ -171,12 +171,18 @@ func validate(cfg *Config) error {
 	return nil
 }
 
-// globalConfigPath returns the path to the global sentei config file, honouring
-// XDG_CONFIG_HOME and defaulting to ~/.config.
+// globalConfigPath returns the path to the global sentei config file:
+// $XDG_CONFIG_HOME/sentei/config.yaml, defaulting to ~/.config. It returns ""
+// when neither variable names an absolute directory (the XDG specification
+// says to ignore a relative value), so the path is never resolved against the
+// working directory.
 func globalConfigPath() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
+	if !filepath.IsAbs(base) {
 		home, _ := os.UserHomeDir()
+		if !filepath.IsAbs(home) {
+			return ""
+		}
 		base = filepath.Join(home, ".config")
 	}
 	return filepath.Join(base, "sentei", "config.yaml")
@@ -226,13 +232,14 @@ func LoadConfig(repoPath string, opts ...LoadOption) (*Config, error) {
 		cfg.Ecosystems[i].Source = "embedded"
 	}
 
-	globalPath := globalConfigPath()
-	globalCfg, err := loadFile(globalPath)
-	if err != nil {
-		return nil, fmt.Errorf("loading global config: %w", err)
-	}
-	if globalCfg != nil {
-		cfg = mergeConfigs(cfg, globalCfg, "global")
+	if globalPath := globalConfigPath(); globalPath != "" {
+		globalCfg, err := loadFile(globalPath)
+		if err != nil {
+			return nil, fmt.Errorf("loading global config: %w", err)
+		}
+		if globalCfg != nil {
+			cfg = mergeConfigs(cfg, globalCfg, "global")
+		}
 	}
 
 	repoCfg, err := loadFile(filepath.Join(repoRoot(lo.runner, repoPath), ".sentei.yaml"))
