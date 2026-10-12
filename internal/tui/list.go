@@ -278,6 +278,13 @@ func (m Model) viewList() string {
 		fmt.Fprintf(&b, "  %s\n", shimmerLine(starFrame(m.motionTick)+" Loading worktrees…", rampDim, m.motionTick))
 		return b.String()
 	}
+	if err := m.remove.loadErr; err != nil && len(m.remove.worktrees) == 0 {
+		reason := errorPeekLast(err.Error(), max(m.width-32, 20))
+		fmt.Fprintf(&b, "  %s %s\n\n", styleIndicatorFailed.Render(indicatorFailed), styleError.Render("Could not load worktrees: "+reason))
+		b.WriteString(styleDim.Render("  Press esc for the menu, then choose Remove worktrees to try again."))
+		b.WriteString("\n")
+		return b.String()
+	}
 	if len(m.remove.worktrees) == 0 {
 		b.WriteString(styleDim.Render("  No worktrees found."))
 		b.WriteString("\n")

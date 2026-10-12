@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -108,7 +109,9 @@ type removeState struct {
 	selected     map[string]bool
 	// preSelect holds the paths a `sentei remove` filter chose. They are
 	// selected when the worktree load lands, then the set is dropped.
-	preSelect      map[string]bool
+	preSelect map[string]bool
+	// loadErr is why the last worktree load failed, nil once one succeeds.
+	loadErr        error
 	visibleIndices []int
 	cursor         int
 	offset         int
@@ -519,6 +522,16 @@ func (m *Model) applyPreSelection() {
 	}
 }
 
+// dropStaleSelections deselects every path that is no longer listed or may
+// no longer be removed, so the selection never counts rows that are not there.
+func (m *Model) dropStaleSelections() {
+	selectable := make(map[string]bool, len(m.remove.worktrees))
+	for _, wt := range m.remove.worktrees {
+		selectable[wt.Path] = !m.removalProtected(wt)
+	}
+	maps.DeleteFunc(m.remove.selected, func(path string, _ bool) bool { return !selectable[path] })
+}
+
 // worktreesLoading reports whether a worktree-context load is in flight.
 func (m Model) worktreesLoading() bool {
 	return m.loadedGeneration != m.worktreeGeneration
@@ -587,16 +600,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if ctx, ok := msg.(worktreeContextMsg); ok {
-		if ctx.generation == m.worktreeGeneration && ctx.err == nil {
-			m.loadedGeneration = ctx.generation
+		if ctx.generation != m.worktreeGeneration {
+			return m, nil
+		}
+		m.loadedGeneration = ctx.generation
+		m.remove.loadErr = ctx.err
+		if ctx.err == nil {
 			m.remove.worktrees = ctx.worktrees
 			m.remove.defaultBranch = ctx.defaultBranch
 			m.remove.launchedFrom = ctx.launchedFrom
 			m.applyPreSelection()
 			m.remove.preSelect = nil
+			m.dropStaleSelections()
 			m.reindex()
-			m.updateMenuHints()
 		}
+		m.updateMenuHints()
 		return m, nil
 	}
 

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"slices"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -68,6 +69,7 @@ func (m Model) updateProgress(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case removalEventsCompleteMsg:
 		m.remove.selected = make(map[string]bool)
+		m.dropRemovedWorktrees()
 		m.worktreeGeneration++
 		// Final spring target before the hold: all phases are complete, so
 		// the bar settles at full while the completion frame holds.
@@ -78,6 +80,21 @@ func (m Model) updateProgress(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	}
 	return m, nil
+}
+
+// dropRemovedWorktrees takes the worktrees this run removed off the list at
+// once. The reload that follows can take seconds, and until it lands they
+// would still be listed and selectable.
+func (m *Model) dropRemovedWorktrees() {
+	removed := make(map[string]bool)
+	for _, outcome := range m.remove.run.result.Outcomes {
+		if outcome.Success {
+			removed[outcome.Path] = true
+		}
+	}
+	m.remove.worktrees = slices.DeleteFunc(m.remove.worktrees, func(wt git.Worktree) bool { return removed[wt.Path] })
+	m.reindex()
+	m.updateMenuHints()
 }
 
 func (m Model) removalLayout() ProgressLayout {
