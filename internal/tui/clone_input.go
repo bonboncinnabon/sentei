@@ -39,44 +39,42 @@ func (m Model) updateCloneInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			name := strings.TrimSpace(m.repo.cloneNameInput.Value())
-			if name == "" {
-				name = repo.DeriveRepoName(url)
-			}
-
-			// Use the repo path as location (parent directory for non-bare)
-			location := m.repoPath
-			if location == "." {
-				var err error
-				location, err = os.Getwd()
-				if err != nil {
-					location = "."
-				}
-			}
-
-			dest := filepath.Join(location, name)
+			dest := filepath.Join(m.repoPath, m.cloneName())
 			if _, err := os.Stat(dest); err == nil {
 				m.repo.validationErr = fmt.Sprintf("directory already exists: %s", dest)
 				return m, nil
 			}
-
-			m.repo.validationErr = ""
-			opts := repo.CloneOptions{
-				URL:      url,
-				Location: location,
-				Name:     name,
-			}
-			m.repo.events = nil
-			m.repo.result = nil
-			m.repo.opType = "clone"
-			m.progressStartedAt = time.Now()
-			m.progressToken++
-			m.view = repoProgressView
-			return m, m.startRepoPipeline(opts)
+			return m.startClone()
 		}
 
 	}
 	return m.updateCloneTextInput(msg)
+}
+
+// cloneName is the directory the clone lands in: the name field, or the name
+// derived from the URL while that field is empty.
+func (m Model) cloneName() string {
+	if name := strings.TrimSpace(m.repo.cloneNameInput.Value()); name != "" {
+		return name
+	}
+	return repo.DeriveRepoName(m.repo.urlInput.Value())
+}
+
+// startClone runs the clone the URL and name fields describe. The input form
+// and the `sentei clone --url` confirmation both start it here.
+func (m Model) startClone() (tea.Model, tea.Cmd) {
+	m.repo.validationErr = ""
+	m.repo.events = nil
+	m.repo.result = nil
+	m.repo.opType = "clone"
+	m.progressStartedAt = time.Now()
+	m.progressToken++
+	m.view = repoProgressView
+	return m, m.startRepoPipeline(repo.CloneOptions{
+		URL:      strings.TrimSpace(m.repo.urlInput.Value()),
+		Location: m.repoPath,
+		Name:     m.cloneName(),
+	})
 }
 
 func (m Model) updateCloneTextInput(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -110,18 +108,7 @@ func (m Model) viewCloneInput() string {
 	b.WriteString("  " + m.repo.urlInput.View())
 	b.WriteString("\n\n")
 
-	// Derive clone location for display
-	location := m.repoPath
-	if location == "." {
-		if wd, err := os.Getwd(); err == nil {
-			location = wd
-		}
-	}
-	name := m.repo.cloneNameInput.Value()
-	if name == "" {
-		name = repo.DeriveRepoName(m.repo.urlInput.Value())
-	}
-	cloneDest := filepath.Join(location, name)
+	cloneDest := filepath.Join(m.repoPath, m.cloneName())
 
 	b.WriteString(inputFieldLabel("Clone to", m.repo.cloneFocusedField == 1))
 	b.WriteString("  " + m.repo.cloneNameInput.View())

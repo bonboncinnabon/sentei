@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -8,6 +10,7 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func makeCloneConfirmModel(opts *CloneOpts) Model {
@@ -194,5 +197,27 @@ func TestCloneConfirm_ViewDispatch(t *testing.T) {
 
 	if !strings.Contains(stripAnsi(output), "Confirm clone") {
 		t.Error("View() should dispatch to viewCloneConfirm")
+	}
+}
+
+// `sentei clone --url <url>` without --name went to the pipeline with an empty
+// name and always failed validation. The name comes from the URL, as it does
+// on the input screen and in the non-interactive command.
+func TestCloneConfirm_URLOnlyClonesIntoTheDerivedName(t *testing.T) {
+	location := t.TempDir()
+	runner := &mock.Runner{}
+	m := NewMenuModel(runner, nil, location, &config.Config{}, repo.ContextNoRepo)
+	m.SetCloneOpts(&CloneOpts{URL: "git@github.com:user/myrepo.git"})
+
+	if confirm := stripAnsi(m.viewCloneConfirm()); !strings.Contains(confirm, "myrepo") {
+		t.Errorf("confirm screen does not show the directory the clone lands in:\n%s", confirm)
+	}
+
+	updated, _ := m.updateCloneConfirm(ConfirmProceedMsg{})
+	drainRepoPipeline(t, updated.(Model))
+
+	want := location + ":[clone --bare git@github.com:user/myrepo.git " + filepath.Join(location, "myrepo", ".bare") + "]"
+	if !slices.Contains(runner.Calls, want) {
+		t.Errorf("git calls = %v, want the clone into the derived directory:\n%s", runner.Calls, want)
 	}
 }

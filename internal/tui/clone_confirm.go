@@ -1,12 +1,9 @@
 package tui
 
 import (
-	"time"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/cli"
-	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
 // SetCloneOpts sets the clone options and starts at the appropriate view.
@@ -33,7 +30,7 @@ func (m *Model) SetCloneOpts(opts *CloneOpts) {
 // cloneConfirmationVM builds the ConfirmationViewModel for the clone flow.
 func (m Model) cloneConfirmationVM() ConfirmationViewModel {
 	url := m.repo.urlInput.Value()
-	name := m.repo.cloneNameInput.Value()
+	name := m.cloneName()
 
 	items := []ConfirmationItem{
 		{Label: "URL:", Value: url},
@@ -61,23 +58,7 @@ func (m Model) cloneConfirmationVM() ConfirmationViewModel {
 func (m Model) updateCloneConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case ConfirmProceedMsg:
-		url := m.repo.urlInput.Value()
-		name := m.repo.cloneNameInput.Value()
-
-		m.repo.validationErr = ""
-		m.repo.events = nil
-		m.repo.result = nil
-		m.repo.opType = "clone"
-		m.progressStartedAt = time.Now()
-		m.progressToken++
-		m.view = repoProgressView
-
-		cloneOpts := repo.CloneOptions{
-			URL:      url,
-			Location: m.repoPath,
-			Name:     name,
-		}
-		return m, m.startRepoPipeline(cloneOpts)
+		return m.startClone()
 
 	case ConfirmBackMsg:
 		if m.cloneOpts != nil {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/creator"
@@ -71,7 +70,7 @@ func RunCreate(args []string) error {
 	if opts.CopyEnv {
 		worktrees, err := git.ListWorktrees(runner, repoPath)
 		if err == nil {
-			creatorOpts.SourceWorktree = findSource(worktrees)
+			creatorOpts.SourceWorktree = creator.SourceWorktree(worktrees)
 		}
 		if cfg != nil && creatorOpts.SourceWorktree != "" {
 			detected, _ := ecosystem.NewRegistry(cfg.Ecosystems).Detect(creatorOpts.SourceWorktree)
@@ -145,24 +144,4 @@ func matchEcosystems(available []config.EcosystemConfig, requested []string) []c
 		}
 	}
 	return matched
-}
-
-// findSource picks a source worktree for env file copying (prefers main/master).
-// The bare repo's own entry is listed first and holds no working files, so it
-// is never a source.
-func findSource(worktrees []git.Worktree) string {
-	fallback := ""
-	for _, wt := range worktrees {
-		if wt.IsBare || wt.IsPrunable {
-			continue
-		}
-		branch := strings.TrimPrefix(wt.Branch, "refs/heads/")
-		if branch == "main" || branch == "master" {
-			return wt.Path
-		}
-		if fallback == "" {
-			fallback = wt.Path
-		}
-	}
-	return fallback
 }

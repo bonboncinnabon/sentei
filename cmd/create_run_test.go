@@ -10,7 +10,6 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/creator"
-	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
@@ -46,47 +45,6 @@ func TestMatchEcosystems(t *testing.T) {
 			}
 			if !reflect.DeepEqual(names, tt.want) {
 				t.Errorf("matchEcosystems(%v) = %v, want %v", tt.requested, names, tt.want)
-			}
-		})
-	}
-}
-
-func TestFindSource(t *testing.T) {
-	tests := []struct {
-		name      string
-		worktrees []git.Worktree
-		want      string
-	}{
-		{
-			"prefers main",
-			[]git.Worktree{
-				{Path: "/wt/feature", Branch: "refs/heads/feature"},
-				{Path: "/wt/main", Branch: "refs/heads/main"},
-			},
-			"/wt/main",
-		},
-		{
-			"prefers master",
-			[]git.Worktree{
-				{Path: "/wt/feature", Branch: "refs/heads/feature"},
-				{Path: "/wt/master", Branch: "refs/heads/master"},
-			},
-			"/wt/master",
-		},
-		{
-			"falls back to first worktree",
-			[]git.Worktree{
-				{Path: "/wt/one", Branch: "refs/heads/one"},
-				{Path: "/wt/two", Branch: "refs/heads/two"},
-			},
-			"/wt/one",
-		},
-		{"no worktrees", nil, ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := findSource(tt.worktrees); got != tt.want {
-				t.Errorf("findSource() = %q, want %q", got, tt.want)
 			}
 		})
 	}

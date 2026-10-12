@@ -10,10 +10,12 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func createOptionsModel() Model {
-	m := NewMenuModel(nil, nil, "/repo", &config.Config{}, repo.ContextBareRepo)
+	// No canned responses: every git call fails, as in a repo with no worktrees.
+	m := NewMenuModel(&mock.Runner{}, nil, "/repo", &config.Config{}, repo.ContextBareRepo)
 	m.width, m.height = 80, 24
 	m.create.branchInput.SetValue("feature/x")
 	m.create.baseInput.SetValue("main")

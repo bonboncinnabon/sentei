@@ -9,7 +9,29 @@ import (
 	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/fileutil"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
+
+// SourceWorktree picks the worktree that env files are copied from and that
+// ecosystems are detected in: main or master when checked out, else the first
+// usable one. The bare repository's own entry holds no working files and a
+// prunable entry has no directory, so neither is ever a source.
+func SourceWorktree(worktrees []git.Worktree) string {
+	fallback := ""
+	for _, wt := range worktrees {
+		if wt.IsBare || wt.IsPrunable {
+			continue
+		}
+		branch := strings.TrimPrefix(wt.Branch, "refs/heads/")
+		if branch == "main" || branch == "master" {
+			return wt.Path
+		}
+		if fallback == "" {
+			fallback = wt.Path
+		}
+	}
+	return fallback
+}
 
 // uniqueEnvFiles returns the env files to copy: the explicit list plus those
 // declared by the ecosystems selected for install.
