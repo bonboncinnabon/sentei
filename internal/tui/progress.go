@@ -101,7 +101,7 @@ func (m Model) removalLayout() ProgressLayout {
 	return m.withProgressDetails(ProgressLayout{
 		Title:     titleRemoving,
 		Completed: m.remove.run.pruned,
-		Phases:    m.buildRemovalPhases(),
+		Phases:    progress.Snapshot(m.remove.run.events),
 		Width:     m.width,
 		Height:    m.progressHeight(),
 		Hints:     progressFooter,
@@ -110,10 +110,4 @@ func (m Model) removalLayout() ProgressLayout {
 
 func (m Model) viewProgress() string {
 	return m.renderProgressLayout(m.removalLayout())
-}
-
-// buildRemovalPhases maps the current removal run onto the shared phase
-// shape consumed by ProgressLayout.
-func (m Model) buildRemovalPhases() []progress.PhaseState {
-	return progress.Snapshot(m.remove.run.events)
 }

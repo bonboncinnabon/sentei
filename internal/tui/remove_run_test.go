@@ -66,7 +66,7 @@ func TestConfirmYes_SecondRunStartsFresh(t *testing.T) {
 	if !strings.Contains(view, "0%") {
 		t.Errorf("expected fresh run to start at 0%%, view:\n%s", view)
 	}
-	phases := model.buildRemovalPhases()
+	phases := progress.Snapshot(model.remove.run.events)
 	if len(phases) != 1 || phases[0].Name != worktree.RemovalPhaseName || phases[0].Done != 0 {
 		t.Errorf("expected only a pending removal phase on a fresh run, got %+v", phases)
 	}
