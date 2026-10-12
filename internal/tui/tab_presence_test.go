@@ -17,7 +17,7 @@ func TestWindowTitle_RestAndFlight(t *testing.T) {
 	}
 
 	m.view = progressView
-	m.remove.run = newRemovalRun(nil)
+	m.remove.run = removalRun{}
 	// removalLayout with no statuses yields counts; the verb must appear.
 	got := m.windowTitle()
 	if got == "sentei · repo" || !strings.Contains(got, "removing") {

@@ -87,9 +87,6 @@ func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []Ec
 		if len(over.EnvFiles) > 0 {
 			e.EnvFiles = over.EnvFiles
 		}
-		if len(over.PostInstall) > 0 {
-			e.PostInstall = over.PostInstall
-		}
 		e.Source = overlaySource
 		result[i] = e
 	}
@@ -97,24 +94,13 @@ func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []Ec
 	return result
 }
 
-// mergeConfigs merges overlay on top of base, returning a new Config. Scalar
-// lists (ProtectedBranches, IntegrationsEnabled) are replaced entirely when
-// the overlay provides them. Note: an empty list (e.g. `protected_branches: []`)
-// in the overlay will NOT clear the base list — only a non-empty overlay replaces.
-// This is intentional: YAML unmarshalling produces a nil slice for `[]`, which is
-// indistinguishable from an absent field.
+// mergeConfigs merges overlay on top of base, returning a new Config. The
+// worktree_files list is replaced entirely when the overlay provides one; an
+// empty overlay list does not clear the base list.
 func mergeConfigs(base, overlay *Config, overlaySource string) *Config {
 	result := &Config{
-		Ecosystems:          mergeEcosystems(base.Ecosystems, overlay.Ecosystems, overlaySource),
-		ProtectedBranches:   base.ProtectedBranches,
-		IntegrationsEnabled: base.IntegrationsEnabled,
-		WorktreeFiles:       base.WorktreeFiles,
-	}
-	if len(overlay.ProtectedBranches) > 0 {
-		result.ProtectedBranches = overlay.ProtectedBranches
-	}
-	if len(overlay.IntegrationsEnabled) > 0 {
-		result.IntegrationsEnabled = overlay.IntegrationsEnabled
+		Ecosystems:    mergeEcosystems(base.Ecosystems, overlay.Ecosystems, overlaySource),
+		WorktreeFiles: base.WorktreeFiles,
 	}
 	if len(overlay.WorktreeFiles) > 0 {
 		result.WorktreeFiles = overlay.WorktreeFiles
@@ -122,9 +108,8 @@ func mergeConfigs(base, overlay *Config, overlaySource string) *Config {
 	return result
 }
 
-// validate checks the config for structural errors and warns about unknown
-// integration names. knownIntegrationNames is the set of recognised names.
-func validate(cfg *Config, knownIntegrationNames []string) error {
+// validate checks the config for structural errors.
+func validate(cfg *Config) error {
 	if err := worktreefile.ValidateRules(cfg.WorktreeFiles); err != nil {
 		return err
 	}
@@ -137,15 +122,6 @@ func validate(cfg *Config, knownIntegrationNames []string) error {
 		}
 		if len(e.Detect.Files) == 0 {
 			return fmt.Errorf("ecosystem %q: detect.files must not be empty", e.Name)
-		}
-	}
-	known := make(map[string]struct{}, len(knownIntegrationNames))
-	for _, n := range knownIntegrationNames {
-		known[n] = struct{}{}
-	}
-	for _, name := range cfg.IntegrationsEnabled {
-		if _, ok := known[name]; !ok {
-			fmt.Fprintf(os.Stderr, "warning: unknown integration %q in integrations_enabled\n", name)
 		}
 	}
 	return nil
@@ -191,19 +167,12 @@ func resolveRepoRoot(repoPath string, runner RepoRootResolver) string {
 type LoadOption func(*loadOptions)
 
 type loadOptions struct {
-	runner                RepoRootResolver
-	knownIntegrationNames []string
+	runner RepoRootResolver
 }
 
 // WithRunner supplies a git command runner for resolving the repo root.
 func WithRunner(r RepoRootResolver) LoadOption {
 	return func(o *loadOptions) { o.runner = r }
-}
-
-// WithKnownIntegrations supplies the set of valid integration names for
-// config validation. When empty, integration name validation is skipped.
-func WithKnownIntegrations(names []string) LoadOption {
-	return func(o *loadOptions) { o.knownIntegrationNames = names }
 }
 
 // LoadConfig is the public API for loading sentei configuration. It:
@@ -243,7 +212,7 @@ func LoadConfig(repoPath string, opts ...LoadOption) (*Config, error) {
 		cfg = mergeConfigs(cfg, repoCfg, "per-repo")
 	}
 
-	if err := validate(cfg, lo.knownIntegrationNames); err != nil {
+	if err := validate(cfg); err != nil {
 		return nil, err
 	}
 	return cfg, nil

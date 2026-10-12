@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -137,38 +136,6 @@ func TestTeatestProgressFramesStayTruthfulAndBounded(t *testing.T) {
 	}
 }
 
-func TestTeatestFailedProgressFrameShowsBlockedSuffixes(t *testing.T) {
-	t.Setenv("SENTEI_MOTION", "off")
-	recorder := newProgressFrameRecorder()
-	m := NewModel(nil, nil, "/repo")
-	m.view = integrationProgressView
-	m.integ.lifecycle = integrationExecuting
-	m.integ.events = integrationFailureEvents()
-
-	tm := teatest.NewTestModel(t, recordedProgressModel{model: m, recorder: recorder}, teatest.WithInitialTermSize(80, 24))
-	recorder.waitFor(t, func(frames []progressRecordedFrame) bool {
-		return frameContains(frames, "dependency failed")
-	})
-	tm.Send(progressScenarioMsg(func(m *Model) { m.integ.lifecycle = integrationSettling }))
-	recorder.waitFor(t, func(frames []progressRecordedFrame) bool {
-		return frameContains(frames, "index exited 17")
-	})
-	tm.Send(progressScenarioQuitMsg{})
-	_ = tm.FinalModel(t, teatest.WithFinalTimeout(testTimeout))
-
-	frames := recorder.snapshot()
-	assertProgressFrameBounds(t, frames)
-	last := stripANSI(frames[len(frames)-1].content)
-	for _, want := range []string{"index exited 17", "skipped (dependency failed)"} {
-		if !strings.Contains(last, want) {
-			t.Fatalf("failed terminal frame missing %q:\n%s", want, last)
-		}
-	}
-	if strings.Contains(last, indicatorActiveFallback) {
-		t.Fatalf("failed terminal frame retained active glyph:\n%s", last)
-	}
-}
-
 func assertProgressFrameBounds(t *testing.T, frames []progressRecordedFrame) {
 	t.Helper()
 	for i, frame := range frames {
@@ -261,18 +228,4 @@ func removalProgressEvents(first, second progress.StepStatus) []progress.Event {
 		}
 	}
 	return events
-}
-
-func integrationFailureEvents() []progress.Event {
-	return []progress.Event{
-		{Phase: "ccc", PhaseLabel: "ccc", Step: "presence", StepLabel: "Check presence", Status: progress.StepPending, Of: 1},
-		{Phase: "ccc", PhaseLabel: "ccc", Step: "init", StepLabel: "Initialize", Status: progress.StepPending, Of: 1},
-		{Phase: "ccc", PhaseLabel: "ccc", Step: "index", StepLabel: "Index", Status: progress.StepPending, Of: 1},
-		{Phase: "ccc", PhaseLabel: "ccc", Step: "setup", StepLabel: "Dependent setup", Status: progress.StepPending, Of: 1},
-		{Phase: "ccc", PhaseLabel: "ccc", Close: true},
-		{Phase: "ccc", Step: "presence", Status: progress.StepDone, Checkpoint: 1, Of: 1},
-		{Phase: "ccc", Step: "init", Status: progress.StepDone, Checkpoint: 1, Of: 1},
-		{Phase: "ccc", Step: "index", Status: progress.StepFailed, Checkpoint: 1, Of: 1, Error: errors.New("index exited 17")},
-		{Phase: "ccc", Step: "setup", Status: progress.StepSkipped, Checkpoint: 1, Of: 1, Message: "dependency failed"},
-	}
 }

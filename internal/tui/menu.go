@@ -89,10 +89,7 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m = m.withCreateFlowReset()
 					m.view = createBranchView
 					return m, m.create.branchInput.Focus()
-				case "Manage integrations":
-					m.view = integrationListView
-					return m, m.loadIntegrationState()
-				case "Remove worktrees":
+				case menuRemoveWorktrees:
 					m.view = listView
 					m.remove.selected = make(map[string]bool)
 					if len(m.remove.worktrees) == 0 {
@@ -125,22 +122,24 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// menuRemoveWorktrees labels the one menu entry whose hint tracks the loaded
+// worktree list. It is found by label, not by position.
+const menuRemoveWorktrees = "Remove worktrees"
+
 func (m *Model) updateMenuHints() {
-	if m.context != repo.ContextBareRepo {
-		return
+	for i := range m.menuItems {
+		item := &m.menuItems[i]
+		if item.label != menuRemoveWorktrees {
+			continue
+		}
+		count := len(m.remove.worktrees)
+		item.hint = "none"
+		if count > 0 {
+			item.hint = fmt.Sprintf("%d available", count)
+		}
+		item.enabled = count > 0
+		item.loading = false
 	}
-	if len(m.menuItems) < 3 {
-		return
-	}
-	count := len(m.remove.worktrees)
-	if count > 0 {
-		m.menuItems[2].hint = fmt.Sprintf("%d available", count)
-		m.menuItems[2].enabled = true
-	} else {
-		m.menuItems[2].hint = "none"
-		m.menuItems[2].enabled = false
-	}
-	m.menuItems[2].loading = false
 }
 
 func (m Model) viewMenu() string {

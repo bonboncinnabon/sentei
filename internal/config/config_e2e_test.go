@@ -85,28 +85,9 @@ protected_branches:
 	if customTool.Source != "global" {
 		t.Errorf("custom-tool source: got %q, want %q", customTool.Source, "global")
 	}
-
-	// per-repo protected_branches replaces global
-	wantBranches := []string{"main", "production"}
-	if len(cfg.ProtectedBranches) != len(wantBranches) {
-		t.Fatalf("ProtectedBranches: got %v, want %v", cfg.ProtectedBranches, wantBranches)
-	}
-	for i, want := range wantBranches {
-		if cfg.ProtectedBranches[i] != want {
-			t.Errorf("ProtectedBranches[%d]: got %q, want %q", i, cfg.ProtectedBranches[i], want)
-		}
-	}
-
-	// integrations from per-repo config
-	if len(cfg.IntegrationsEnabled) != 2 {
-		t.Fatalf("IntegrationsEnabled: got %d, want 2", len(cfg.IntegrationsEnabled))
-	}
-	wantIntegrations := []string{"code-review-graph", "cocoindex-code"}
-	for i, want := range wantIntegrations {
-		if cfg.IntegrationsEnabled[i] != want {
-			t.Errorf("IntegrationsEnabled[%d]: got %q, want %q", i, cfg.IntegrationsEnabled[i], want)
-		}
-	}
+	// Both files still carry protected_branches and integrations_enabled.
+	// Those keys were never acted on and are now ignored; reaching this point
+	// shows that configs written for earlier versions keep loading.
 }
 
 func TestLoadConfig_E2E_MalformedGlobalErrors(t *testing.T) {

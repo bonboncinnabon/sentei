@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -13,24 +12,16 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/git"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
-type teardownCompleteMsg struct {
-	results []progress.StepResult
-	err     error
-}
-
 const (
-	unlockPhaseID   progress.PhaseID = "unlock-worktrees"
-	teardownPhaseID progress.PhaseID = "teardown-integrations"
-	cleanupPhaseID  progress.PhaseID = "prune-and-cleanup"
-	pruneStepID     progress.StepID  = "prune-worktree-metadata"
-	cleanupStepID   progress.StepID  = "repository-cleanup"
+	unlockPhaseID  progress.PhaseID = "unlock-worktrees"
+	cleanupPhaseID progress.PhaseID = "prune-and-cleanup"
+	pruneStepID    progress.StepID  = "prune-worktree-metadata"
+	cleanupStepID  progress.StepID  = "repository-cleanup"
 )
 
 func (m Model) updateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -49,24 +40,22 @@ func (m Model) updateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // beginRemoval starts the deletion of the current selection: fresh run
-// state, teardown of integration artifacts when present, then the deletion
-// progress. Entered from the at-risk confirmation gate, or directly from
-// the list when every selected worktree is clean and pushed.
+// state, then the deletion progress. Entered from the at-risk confirmation
+// gate, or directly from the list when every selected worktree is clean and
+// pushed.
 func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 	m.progressStartedAt = time.Now()
 	m.progressToken++
 	m.view = progressView
-	selected := m.selectedWorktrees()
-	m.remove.run = newRemovalRun(selected)
+	m.remove.run = removalRun{}
 
-	integrations := integration.All()
-	prepared, err := prepareRemoval(selected, integrations)
+	prepared, err := prepareRemoval(m.selectedWorktrees())
 	if err != nil {
 		m.remove.run.result.Err = err
 		m.view = summaryView
 		return m, nil
 	}
-	ch := make(chan progress.Event, (len(prepared.targets)+len(prepared.teardownOps)+len(prepared.unlockOps)+2)*5)
+	ch := make(chan progress.Event, (len(prepared.targets)+len(prepared.unlockOps)+2)*5)
 	execution, err := progress.Start(prepared.plan, func(event progress.Event) { ch <- event })
 	if err != nil {
 		close(ch)
@@ -77,8 +66,7 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 	m.remove.run.execution = execution
 	m.remove.run.progressCh = ch
 	m.remove.run.targets = prepared.targets
-	m.remove.run.teardownOps = prepared.teardownOps
-	declarationEvents := len(prepared.unlockOps) + len(prepared.teardownOps) + len(prepared.targets) + 2 + len(prepared.plan.Phases)
+	declarationEvents := len(prepared.unlockOps) + len(prepared.targets) + 2 + len(prepared.plan.Phases)
 	for range declarationEvents {
 		m.remove.run.events = append(m.remove.run.events, <-ch)
 	}
@@ -89,24 +77,14 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 		m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, transitionErr)
 	}
 
-	if len(prepared.teardownOps) > 0 {
-		m.remove.run.teardownRunning = true
-		for _, op := range prepared.teardownOps {
-			m.remove.run.teardownPlanned = append(m.remove.run.teardownPlanned, op.label)
-		}
-		return m, tea.Batch(waitForRemovalEvent(ch), m.runFrozenTeardownPhase(prepared.teardownOps, execution))
-	}
-
 	updated, cmd := m.startDeletions()
 	return updated, tea.Batch(waitForRemovalEvent(ch), cmd)
 }
 
-func prepareRemoval(worktrees []git.Worktree, integrations []integration.Integration) (removalPreparation, error) {
+func prepareRemoval(worktrees []git.Worktree) (removalPreparation, error) {
 	prepared := removalPreparation{}
 	seenWorktrees := map[string]bool{}
-	seenTeardowns := map[string]bool{}
 	unlock := progress.PlannedPhase{ID: unlockPhaseID, Label: "Unlock"}
-	teardown := progress.PlannedPhase{ID: teardownPhaseID, Label: "Teardown"}
 	removal := progress.PlannedPhase{ID: worktree.RemovalPhaseID, Label: worktree.RemovalPhaseName}
 
 	for _, wt := range worktrees {
@@ -120,57 +98,12 @@ func prepareRemoval(worktrees []git.Worktree, integrations []integration.Integra
 			prepared.unlockOps = append(prepared.unlockOps, unlockOperation{stepID: stepID, worktree: wt})
 			unlock.Steps = append(unlock.Steps, progress.PlannedStep{ID: stepID, Label: worktreeLabel(wt)})
 		}
-		for _, integ := range integrations {
-			for _, dir := range integ.Teardown.Dirs {
-				if _, err := integration.ResolveManagedPath(wt.Path, dir); err != nil {
-					return removalPreparation{}, fmt.Errorf("preparing removal for integration %q: %w", integ.Name, err)
-				}
-			}
-		}
-		for _, artifact := range creator.ScanArtifacts(wt.Path, integrations) {
-			integ := findIntegrationByName(integrations, artifact.IntegrationName)
-			if integ == nil {
-				continue
-			}
-			type managedArtifact struct {
-				dir string
-			}
-			artifacts := make([]managedArtifact, len(artifact.Dirs))
-			for i, dir := range artifact.Dirs {
-				artifacts[i].dir = filepath.Clean(strings.TrimSuffix(dir, string(filepath.Separator)))
-				if _, err := integration.ResolveManagedPath(wt.Path, artifacts[i].dir); err != nil {
-					return removalPreparation{}, fmt.Errorf("preparing removal for integration %q: %w", integ.Name, err)
-				}
-			}
-			sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].dir < artifacts[j].dir })
-			groupIdentity := strings.Join([]string{identity, strings.TrimSpace(integ.Name)}, "\x00")
-			if seenTeardowns[groupIdentity] {
-				return removalPreparation{}, fmt.Errorf("preparing removal: duplicate teardown identity for %s", integ.Name)
-			}
-			seenTeardowns[groupIdentity] = true
-			if integ.Teardown.Command != "" {
-				commandIdentity := groupIdentity + "\x00" + strings.TrimSpace(integ.Teardown.Command)
-				stepID := removalSemanticStepID("teardown-command", commandIdentity)
-				op := teardownOperation{groupID: groupIdentity, stepID: stepID, label: integration.TeardownStepName(*integ), kind: teardownCommand, wtPath: wt.Path, command: integ.Teardown.Command}
-				prepared.teardownOps = append(prepared.teardownOps, op)
-				teardown.Steps = append(teardown.Steps, progress.PlannedStep{ID: stepID, Label: op.label})
-			}
-			for _, artifact := range artifacts {
-				stepID := removalSemanticStepID("remove-artifact", groupIdentity+"\x00"+filepath.ToSlash(artifact.dir))
-				op := teardownOperation{groupID: groupIdentity, stepID: stepID, label: integration.RemoveDirStepName(artifact.dir, wt.Path), kind: teardownArtifacts, wtPath: wt.Path, managedPaths: []string{artifact.dir}}
-				prepared.teardownOps = append(prepared.teardownOps, op)
-				teardown.Steps = append(teardown.Steps, progress.PlannedStep{ID: stepID, Label: op.label})
-			}
-		}
 		stepID := removalSemanticStepID("remove", identity)
 		prepared.targets = append(prepared.targets, worktree.RemovalTarget{Worktree: wt, StepID: stepID})
 		removal.Steps = append(removal.Steps, progress.PlannedStep{ID: stepID, Label: worktreeLabel(wt), Checkpoints: 2})
 	}
 	if len(unlock.Steps) > 0 {
 		prepared.plan.Phases = append(prepared.plan.Phases, unlock)
-	}
-	if len(teardown.Steps) > 0 {
-		prepared.plan.Phases = append(prepared.plan.Phases, teardown)
 	}
 	prepared.plan.Phases = append(prepared.plan.Phases, removal, progress.PlannedPhase{
 		ID: cleanupPhaseID, Label: "Prune & cleanup",
@@ -200,92 +133,38 @@ func worktreeAtRisk(wt git.Worktree) bool {
 func (m Model) startDeletions() (tea.Model, tea.Cmd) {
 	execution := m.remove.run.execution
 	targets := append([]worktree.RemovalTarget(nil), m.remove.run.targets...)
+	remove := worktreeRemover(m.runner, m.repoPath, targets)
 	return m, func() tea.Msg {
-		result := worktree.DeleteWorktrees(execution, worktree.RemovalPhaseID, os.RemoveAll, targets, 5)
+		result := worktree.DeleteWorktrees(execution, worktree.RemovalPhaseID, remove, targets, 5)
 		return deletionsCompleteMsg{Result: result}
 	}
 }
 
-func findIntegrationByName(integrations []integration.Integration, name string) *integration.Integration {
-	for i := range integrations {
-		if integrations[i].Name == name {
-			return &integrations[i]
+// worktreeRemover returns the function that removes one target by path.
+//
+// The status shown in the list is a snapshot taken when it loaded. A target
+// that was at risk then went through the confirmation screen. A target that
+// looked clean did not, so its status is read again at the moment of deletion
+// and it is left alone if it has gained work since.
+//
+// Removal always passes --force: without it git refuses every worktree that
+// contains submodules, clean or not.
+func worktreeRemover(runner git.CommandRunner, repoPath string, targets []worktree.RemovalTarget) func(path string) error {
+	unconfirmed := make(map[string]git.Worktree, len(targets))
+	for _, target := range targets {
+		if !worktreeAtRisk(target.Worktree) {
+			unconfirmed[target.Worktree.Path] = target.Worktree
 		}
 	}
-	return nil
-}
-
-const maxTeardownConcurrency = 5
-
-func (m Model) runFrozenTeardownPhase(operations []teardownOperation, execution *progress.Execution) tea.Cmd {
-	return func() tea.Msg {
-		shell := m.shell
-		type indexedResults struct {
-			index   int
-			results []progress.StepResult
-			err     error
-		}
-
-		type operationGroup struct {
-			id         string
-			operations []teardownOperation
-		}
-		var groups []operationGroup
-		for _, operation := range operations {
-			if len(groups) == 0 || groups[len(groups)-1].id != operation.groupID {
-				groups = append(groups, operationGroup{id: operation.groupID})
+	return func(path string) error {
+		if wt, ok := unconfirmed[path]; ok {
+			fresh := worktree.EnrichWorktrees(runner, []git.Worktree{wt}, 1)
+			if worktree.AtRisk(fresh[0]) {
+				return errors.New("changed since the list loaded: reopen the list to review it")
 			}
-			groups[len(groups)-1].operations = append(groups[len(groups)-1].operations, operation)
 		}
-
-		resultsCh := make(chan indexedResults, len(groups))
-		sem := make(chan struct{}, maxTeardownConcurrency)
-
-		for i, group := range groups {
-			sem <- struct{}{}
-			go func(idx int, group operationGroup) {
-				defer func() { <-sem }()
-				indexed := indexedResults{index: idx}
-				for _, op := range group.operations {
-					result, transitionErr := execution.Run(teardownPhaseID, op.stepID, func() (string, error) {
-						switch op.kind {
-						case teardownCommand:
-							return shell.RunShell(op.wtPath, op.command)
-						case teardownArtifacts:
-							for _, managedPath := range op.managedPaths {
-								path, err := integration.ResolveManagedPath(op.wtPath, managedPath)
-								if err != nil {
-									return "", fmt.Errorf("revalidating artifact path: %w", err)
-								}
-								if err := os.RemoveAll(path); err != nil {
-									return "", err
-								}
-							}
-							return "removed artifact dirs", nil
-						default:
-							return "", fmt.Errorf("unknown teardown operation kind %d", op.kind)
-						}
-					})
-					indexed.results = append(indexed.results, result)
-					indexed.err = errors.Join(indexed.err, transitionErr)
-				}
-				resultsCh <- indexed
-			}(i, group)
-		}
-
-		collected := make([]indexedResults, len(groups))
-		for range groups {
-			ir := <-resultsCh
-			collected[ir.index] = ir
-		}
-
-		var allResults []progress.StepResult
-		var runErr error
-		for _, indexed := range collected {
-			allResults = append(allResults, indexed.results...)
-			runErr = errors.Join(runErr, indexed.err)
-		}
-		return teardownCompleteMsg{results: allResults, err: runErr}
+		_, err := runner.Run(repoPath, "worktree", "remove", "--force", path)
+		return err
 	}
 }
 
@@ -350,25 +229,6 @@ func (m Model) viewConfirm() string {
 	head := b.String()
 	b.Reset()
 	b.WriteString("\n")
-
-	// Integration teardown info
-	integrations := integration.All()
-	dirCounts := make(map[string]int)
-	for _, wt := range selected {
-		artifacts := creator.ScanArtifacts(wt.Path, integrations)
-		for _, a := range artifacts {
-			for _, d := range a.Dirs {
-				dirCounts[d]++
-			}
-		}
-	}
-	if len(dirCounts) > 0 {
-		b.WriteString("  Cleaning up:\n\n")
-		for dir, count := range dirCounts {
-			fmt.Fprintf(&b, "    %-28s in %d %s\n", dir, count, pluralize(count, "worktree", "worktrees"))
-		}
-		b.WriteString("\n")
-	}
 
 	if dirtyCount > 0 {
 		b.WriteString(styleWarning.Render(

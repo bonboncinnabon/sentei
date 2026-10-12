@@ -10,16 +10,16 @@ import (
 )
 
 func TestExecution_FinishSettlesDistinctStepsWithEqualLabels(t *testing.T) {
-	plan := Plan{Phases: []PlannedPhase{{ID: "integrations", Label: "Integrations", Steps: []PlannedStep{
-		{ID: "ccc.copy-index", Label: "Copy index from main"},
-		{ID: "crg.copy-index", Label: "Copy index from main"},
+	plan := Plan{Phases: []PlannedPhase{{ID: "setup", Label: "Setup", Steps: []PlannedStep{
+		{ID: "copy-a", Label: "Copy file"},
+		{ID: "copy-b", Label: "Copy file"},
 	}}}}
 	var events []Event
 	x, err := Start(plan, func(ev Event) { events = append(events, ev) })
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := x.Done("integrations", "ccc.copy-index", ""); err != nil {
+	if _, err := x.Done("setup", "copy-a", ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := x.Finish("blocked by earlier failure"); err != nil {
@@ -33,7 +33,7 @@ func TestExecution_FinishSettlesDistinctStepsWithEqualLabels(t *testing.T) {
 	if !states[0].Settled() {
 		t.Fatalf("phase did not settle: %#v", states[0])
 	}
-	if states[0].Steps[0].ID != "ccc.copy-index" || states[0].Steps[1].ID != "crg.copy-index" {
+	if states[0].Steps[0].ID != "copy-a" || states[0].Steps[1].ID != "copy-b" {
 		t.Fatalf("step IDs collapsed: %#v", states[0].Steps)
 	}
 	if states[0].Steps[1].Status != StepSkipped {

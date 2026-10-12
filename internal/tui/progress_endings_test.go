@@ -82,7 +82,6 @@ func TestInterruptedFlow_NamesLiveOperation(t *testing.T) {
 		{createProgressView, "", "worktree creation"},
 		{repoProgressView, "clone", "repository clone"},
 		{repoProgressView, "create", "repository creation"},
-		{integrationProgressView, "", "integration apply"},
 		{menuView, "", ""},
 	}
 	for _, tc := range cases {

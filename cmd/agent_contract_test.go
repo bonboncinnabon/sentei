@@ -42,6 +42,32 @@ func TestRunCreate_FromInsideWorktreeCreatesSibling(t *testing.T) {
 	}
 }
 
+// --copy-env used to copy nothing unless --ecosystems was also given, because
+// the files were derived from the ecosystems selected for install.
+func TestRunCreate_CopyEnvWorksWithoutEcosystems(t *testing.T) {
+	root := setupSenteiLayout(t)
+	main := filepath.Join(root, "main")
+	// uv.lock makes the uv ecosystem detectable; its env file is .env.
+	mustWriteFile(t, filepath.Join(main, "uv.lock"), "version = 1\n")
+	mustWriteFile(t, filepath.Join(main, ".env"), "TOKEN=local\n")
+
+	var err error
+	captureStdout(t, func() {
+		err = RunCreate([]string{"--branch", "feature/env", "--base", "main", "--copy-env", root})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, readErr := os.ReadFile(filepath.Join(root, "feature-env", ".env"))
+	if readErr != nil {
+		t.Fatalf("--copy-env without --ecosystems must still copy the env file: %v", readErr)
+	}
+	if string(got) != "TOKEN=local\n" {
+		t.Errorf(".env = %q, want the source contents", got)
+	}
+}
+
 func TestFindSource_NeverPicksTheBareEntry(t *testing.T) {
 	worktrees := []git.Worktree{
 		{Path: "/repo/.bare", IsBare: true},

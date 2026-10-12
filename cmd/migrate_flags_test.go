@@ -69,25 +69,3 @@ func TestValidateMigrateForNonInteractive_Valid(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
-func TestMigrateCLICommand_RepoPathOnly(t *testing.T) {
-	opts := &MigrateOptions{RepoPath: "/some/repo"}
-	result := MigrateCLICommand(opts)
-	if result != "sentei migrate /some/repo" {
-		t.Errorf("MigrateCLICommand = %q, want %q", result, "sentei migrate /some/repo")
-	}
-}
-
-func TestMigrateCLICommand_WithDeleteBackup(t *testing.T) {
-	opts := &MigrateOptions{RepoPath: "/some/repo", DeleteBackup: true}
-	result := MigrateCLICommand(opts)
-	if !strings.Contains(result, "sentei migrate") {
-		t.Errorf("expected 'sentei migrate' prefix, got %q", result)
-	}
-	if !strings.Contains(result, "--delete-backup") {
-		t.Errorf("expected '--delete-backup' flag, got %q", result)
-	}
-	if !strings.Contains(result, "/some/repo") {
-		t.Errorf("expected repo path, got %q", result)
-	}
-}

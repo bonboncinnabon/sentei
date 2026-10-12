@@ -61,20 +61,3 @@ func TestValidateCloneForNonInteractive_Valid(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
-func TestCloneCLICommand_URLOnly(t *testing.T) {
-	opts := &CloneOptions{URL: "https://github.com/org/repo.git"}
-	result := CloneCLICommand(opts)
-	if result != "sentei clone --url https://github.com/org/repo.git" {
-		t.Errorf("CloneCLICommand = %q, want %q", result, "sentei clone --url https://github.com/org/repo.git")
-	}
-}
-
-func TestCloneCLICommand_URLAndName(t *testing.T) {
-	opts := &CloneOptions{URL: "https://github.com/org/repo.git", Name: "my-repo"}
-	result := CloneCLICommand(opts)
-	want := "sentei clone --name my-repo --url https://github.com/org/repo.git"
-	if result != want {
-		t.Errorf("CloneCLICommand = %q, want %q", result, want)
-	}
-}

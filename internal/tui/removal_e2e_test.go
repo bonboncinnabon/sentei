@@ -65,9 +65,9 @@ func TestE2E_RemovalFlowChrome(t *testing.T) {
 
 func TestE2E_ProgressViewsQuitOnKeys(t *testing.T) {
 	m := NewModel(nil, nil, "/repo")
-	m.remove.run = newRemovalRun(nil)
+	m.remove.run = removalRun{}
 
-	for _, view := range []viewState{progressView, createProgressView, repoProgressView, integrationProgressView} {
+	for _, view := range []viewState{progressView, createProgressView, repoProgressView} {
 		m.view = view
 		for _, k := range []tea.KeyPressMsg{{Code: 'q', Text: "q"}, {Code: 'c', Mod: tea.ModCtrl}} {
 			_, cmd := m.Update(k)
@@ -89,8 +89,7 @@ func TestUpdateProgress_WindowSizeUpdatesWindowing(t *testing.T) {
 	}
 	m := NewModel(worktrees, nil, "/repo")
 	m.width = 100
-	m.remove.run = newRemovalRun(worktrees)
-	m.remove.run.statuses[worktrees[0].Path] = statusRemoving
+	m.remove.run = removalRun{}
 	for i, wt := range worktrees {
 		stepID := progress.StepID(stepName(i))
 		m.remove.run.events = append(m.remove.run.events, progress.Event{Phase: worktree.RemovalPhaseID, PhaseLabel: worktree.RemovalPhaseName, Step: stepID, StepLabel: wt.Branch, Status: progress.StepPending, Of: 2})
@@ -114,7 +113,7 @@ func TestUpdateProgress_WindowSizeUpdatesWindowing(t *testing.T) {
 	}
 
 	// Sanity: the run state itself is untouched by resizes.
-	if m.remove.run.total() != 30 || m.remove.run.statuses[worktrees[0].Path] != statusRemoving {
+	if got := len(m.remove.run.events); got != len(worktrees)+2 {
 		t.Error("resize must not mutate run state")
 	}
 }

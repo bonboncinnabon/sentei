@@ -71,11 +71,44 @@ created automatically. Existing destinations are preserved unless
 Both paths must be non-empty relative paths without `..` components. Sentei
 rejects source symlinks that escape the container and any destination symlink.
 A missing source or failed copy is reported as a failed Setup step; Sentei
-keeps the created worktree and continues independent dependency and integration
-steps. File contents are never included in diagnostics.
+keeps the created worktree and continues the independent dependency steps. File contents are never included in diagnostics.
 
 `worktree_files` is automatic repository setup. Ecosystem `env_files` remains
 an independent, opt-in create option controlled by `--copy-env`.
+
+### Scripts and agents
+
+Every command runs without the TUI when given `--non-interactive` (or `--yes`,
+`-y`):
+
+```bash
+sentei create  --non-interactive --branch feature/x --base main [--copy-env] [--ecosystems pnpm] [repo]
+sentei remove  --non-interactive --merged [--stale 30d] [--all] [--dry-run] [--force] [repo]
+sentei cleanup --non-interactive --mode safe [--dry-run] [--force] [repo]
+sentei clone   --non-interactive --url <url> [--name <dir>]
+sentei migrate --non-interactive [--delete-backup] <repo>
+```
+
+What a caller can rely on:
+
+- **Flags come before the repository path.** An argument after the path is an
+  error; it is never silently ignored.
+- **The repository path defaults to the current directory** (`migrate` needs it
+  spelled out). It may be the repository container or any worktree inside it.
+  `create` always places the new worktree beside the existing ones.
+- **The exit status is the result.** Non-zero means something failed: a bad
+  flag, a worktree that could not be removed, a cleanup step that errored, a
+  failed setup or install step.
+- **`--non-interactive` does not override a safety.** `remove` refuses the
+  whole run, and names the worktrees, when a match has uncommitted, untracked
+  or unpushed work, or a status that could not be read. `--force` removes
+  those too. Protected branches and the worktree holding the current
+  directory are never removed, with or without `--force`.
+- **`--dry-run` changes nothing.** It prints what `remove` or `cleanup` would
+  do and leaves locks in place.
+- **`--copy-env` is independent of `--ecosystems`.** The files come from the
+  ecosystems detected in the source worktree; `--ecosystems` only selects
+  which installs run.
 
 ### CLI Flags
 
@@ -108,10 +141,12 @@ an independent, opt-in create option controlled by `--copy-env`.
 | `[ok]` | Clean — no uncommitted changes |
 | `[~]` | Dirty — has uncommitted changes |
 | `[!]` | Has untracked files |
+| `[?]` | Status could not be read (treated as at risk) |
 | `[L]` | Locked |
 | `[P]` | Protected branch (cannot be deleted) |
 
-Protected branches: `main`, `master`, `develop`, `dev`.
+Protected branches: `main`, `master`, `develop`, `dev`, and the repository's
+default branch. The worktree sentei was launched from is protected too.
 
 ## License
 

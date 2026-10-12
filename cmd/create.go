@@ -8,6 +8,7 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/creator"
+	"github.com/bonboncinnabon/sentei/internal/ecosystem"
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/repo"
@@ -63,11 +64,19 @@ func RunCreate(args []string) error {
 		}
 	}
 
-	// Find a source worktree for env file copying.
+	// Find a source worktree for env file copying. The files to copy come from
+	// the ecosystems detected there, not from --ecosystems: that flag selects
+	// installs, and --copy-env must work without it.
 	if opts.CopyEnv {
 		worktrees, err := git.ListWorktrees(runner, repoPath)
 		if err == nil {
 			creatorOpts.SourceWorktree = findSource(worktrees)
+		}
+		if cfg != nil && creatorOpts.SourceWorktree != "" {
+			detected, _ := ecosystem.NewRegistry(cfg.Ecosystems).Detect(creatorOpts.SourceWorktree)
+			for _, eco := range detected {
+				creatorOpts.EnvFiles = append(creatorOpts.EnvFiles, eco.Config.EnvFiles...)
+			}
 		}
 	}
 

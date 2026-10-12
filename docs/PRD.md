@@ -173,7 +173,7 @@ For each worktree, gather:
   symlinks are rejected.
 - Missing sources and copy failures are visible Setup failures without exposing
   file contents.
-- Independent dependency and integration setup continues after a copy failure.
+- Independent dependency setup continues after a copy failure.
 - Ecosystem `env_files` behavior remains separate and opt-in.
 
 ---

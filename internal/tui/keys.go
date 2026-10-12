@@ -219,17 +219,6 @@ var (
 		hintOnly("q / ctrl+c", "quit (operation keeps running in git)"),
 	}}}
 
-	integrationFooter        = []key.Binding{navHint, keys.Toggle, keys.Info, keys.Back}
-	integrationPendingFooter = []key.Binding{navHint, keys.Toggle, keys.Info, withDesc(keys.Confirm, "apply"), keys.Back}
-
-	integrationSections = []keySection{{name: "Actions", bindings: []key.Binding{
-		hintOnly("j/k", "move"),
-		withDesc(keys.Toggle, "stage/unstage"),
-		withDesc(keys.Info, "integration info"),
-		withDesc(keys.Confirm, "apply changes"),
-		keys.Back,
-	}}}
-
 	confirmationSections = []keySection{{name: "Actions", bindings: []key.Binding{
 		withDesc(keys.Confirm, "confirm"),
 		keys.Back,
@@ -243,5 +232,4 @@ var (
 	migrateConfirmFooter = []key.Binding{withDesc(keys.Yes, "delete"), withDesc(keys.No, "keep"), keys.Quit}
 	migrateOpenFooter    = []key.Binding{withDesc(keys.Confirm, "open in sentei"), withDesc(keys.Quit, "exit")}
 	cleanupSafeHint      = withDesc(keys.Confirm, "safe cleanup")
-	integrationsOpenHint = withDesc(keys.Confirm, "integrations")
 )

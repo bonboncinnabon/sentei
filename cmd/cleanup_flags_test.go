@@ -90,25 +90,3 @@ func TestValidateCleanupForNonInteractive_Valid(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
-func TestCleanupCLICommand_SafeMode(t *testing.T) {
-	opts := &cleanup.Options{Mode: cleanup.ModeSafe}
-	cmd := CleanupCLICommand(opts)
-	if !strings.Contains(cmd, "sentei cleanup") {
-		t.Errorf("expected 'sentei cleanup' prefix, got %s", cmd)
-	}
-	if !strings.Contains(cmd, "--mode safe") {
-		t.Errorf("expected '--mode safe', got %s", cmd)
-	}
-}
-
-func TestCleanupCLICommand_AggressiveDryRun(t *testing.T) {
-	opts := &cleanup.Options{Mode: cleanup.ModeAggressive, DryRun: true}
-	cmd := CleanupCLICommand(opts)
-	if !strings.Contains(cmd, "--mode aggressive") {
-		t.Errorf("expected '--mode aggressive', got %s", cmd)
-	}
-	if !strings.Contains(cmd, "--dry-run") {
-		t.Errorf("expected '--dry-run', got %s", cmd)
-	}
-}

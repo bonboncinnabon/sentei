@@ -9,14 +9,13 @@ import (
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 	"github.com/bonboncinnabon/sentei/internal/worktreefile"
 )
 
 func TestPrepareCreationPlansWorktreeFilesInSetup(t *testing.T) {
-	prepared, err := prepareCreation(&mock.Runner{}, &mock.Runner{}, Options{
+	prepared, err := prepareCreation(Options{
 		BranchName: "feature/files",
 		BaseBranch: "main",
 		RepoPath:   "/repo",
@@ -41,7 +40,7 @@ func TestPrepareCreationPlansWorktreeFilesInSetup(t *testing.T) {
 }
 
 func TestPrepareCreationWithNoWorktreeFilesPreservesSetupPlan(t *testing.T) {
-	prepared, err := prepareCreation(&mock.Runner{}, &mock.Runner{}, Options{
+	prepared, err := prepareCreation(Options{
 		BranchName: "feature/plain",
 		BaseBranch: "main",
 		RepoPath:   "/repo",
@@ -104,11 +103,9 @@ func TestRunWorktreeFileFailureDoesNotBlockIndependentSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:shell[tool detect]", sourceWorktree):                              {},
 		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/files]", repoRoot):          {Err: errors.New("missing")},
 		fmt.Sprintf("%s:[worktree add %s -b feature/files main]", repoRoot, worktreePath): {},
 		fmt.Sprintf("%s:shell[go mod download]", worktreePath):                            {},
-		fmt.Sprintf("%s:shell[tool setup]", worktreePath):                                 {},
 	}}
 
 	result := Run(runner, runner, Options{
@@ -122,11 +119,6 @@ func TestRunWorktreeFileFailureDoesNotBlockIndependentSetup(t *testing.T) {
 		Ecosystems: []config.EcosystemConfig{{
 			Name: "go", Install: config.InstallConfig{Command: "go mod download"},
 		}},
-		Integrations: []integration.Integration{{
-			Name:   "tool",
-			Detect: integration.DetectSpec{Command: "tool detect"},
-			Setup:  integration.SetupSpec{Command: "tool setup", WorkingDir: "worktree"},
-		}},
 	}, func(progress.Event) {})
 
 	if !result.HasFailures() {
@@ -136,9 +128,7 @@ func TestRunWorktreeFileFailureDoesNotBlockIndependentSetup(t *testing.T) {
 	if copyStep.Status != progress.StepFailed || !strings.Contains(copyStep.Error.Error(), `source "missing" does not exist`) {
 		t.Fatalf("copy step = %#v", copyStep)
 	}
-	for _, name := range []string{"go", "Setup tool"} {
-		if step := creatorResultStep(t, result, name); step.Status != progress.StepDone {
-			t.Fatalf("independent step %q = %#v", name, step)
-		}
+	if step := creatorResultStep(t, result, "go"); step.Status != progress.StepDone {
+		t.Fatalf("independent step %q = %#v", "go", step)
 	}
 }

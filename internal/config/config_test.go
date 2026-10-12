@@ -104,35 +104,6 @@ func assertConfigEqual(t *testing.T, got, want Config) {
 				}
 			}
 		}
-		if len(gotE.PostInstall) != len(wantE.PostInstall) {
-			t.Errorf("Ecosystems[%d].PostInstall length: got %d, want %d", i, len(gotE.PostInstall), len(wantE.PostInstall))
-		} else {
-			for j, cmd := range gotE.PostInstall {
-				if cmd != wantE.PostInstall[j] {
-					t.Errorf("Ecosystems[%d].PostInstall[%d]: got %q, want %q", i, j, cmd, wantE.PostInstall[j])
-				}
-			}
-		}
-	}
-
-	if len(got.ProtectedBranches) != len(want.ProtectedBranches) {
-		t.Errorf("ProtectedBranches length: got %d, want %d", len(got.ProtectedBranches), len(want.ProtectedBranches))
-	} else {
-		for i, b := range got.ProtectedBranches {
-			if b != want.ProtectedBranches[i] {
-				t.Errorf("ProtectedBranches[%d]: got %q, want %q", i, b, want.ProtectedBranches[i])
-			}
-		}
-	}
-
-	if len(got.IntegrationsEnabled) != len(want.IntegrationsEnabled) {
-		t.Errorf("IntegrationsEnabled length: got %d, want %d", len(got.IntegrationsEnabled), len(want.IntegrationsEnabled))
-	} else {
-		for i, s := range got.IntegrationsEnabled {
-			if s != want.IntegrationsEnabled[i] {
-				t.Errorf("IntegrationsEnabled[%d]: got %q, want %q", i, s, want.IntegrationsEnabled[i])
-			}
-		}
 	}
 }
 
@@ -178,13 +149,10 @@ integrations_enabled:
 						// workspace_detect, workspace_install and parallel
 						// keys: existing configs must keep loading, with
 						// those keys ignored.
-						Install:     InstallConfig{Command: "npm install"},
-						EnvFiles:    []string{".env", ".env.local"},
-						PostInstall: []string{"npm run build"},
+						Install:  InstallConfig{Command: "npm install"},
+						EnvFiles: []string{".env", ".env.local"},
 					},
 				},
-				ProtectedBranches:   []string{"main", "develop"},
-				IntegrationsEnabled: []string{"github", "slack"},
 			},
 		},
 		{
@@ -475,21 +443,11 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "unknown integration name is warning not error",
-			cfg: Config{
-				Ecosystems: []EcosystemConfig{
-					{Name: "go", Detect: DetectConfig{Files: []string{"go.mod"}}, Install: InstallConfig{Command: "go mod download"}},
-				},
-				IntegrationsEnabled: []string{"future-tool"},
-			},
-			wantErr: false,
-		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validate(&tc.cfg, []string{"code-review-graph", "cocoindex-code"})
+			err := validate(&tc.cfg)
 			if tc.wantErr && err == nil {
 				t.Error("expected error, got nil")
 			}
@@ -517,9 +475,8 @@ ecosystems:
 		t.Fatalf("WriteFile global config: %v", err)
 	}
 
-	// Set up a repo directory with a .sentei.yaml that enables integrations.
+	// A repo config that still carries a retired key must keep loading.
 	repoDir := t.TempDir()
-	// Create a minimal git repo so resolveRepoRoot falls back gracefully.
 	repoConfig := `
 integrations_enabled:
   - code-review-graph
@@ -549,11 +506,6 @@ integrations_enabled:
 	}
 	if pnpm.Install.Command != "pnpm install --frozen-lockfile" {
 		t.Errorf("pnpm command: got %q, want %q", pnpm.Install.Command, "pnpm install --frozen-lockfile")
-	}
-
-	// Check integrations.
-	if len(cfg.IntegrationsEnabled) != 2 {
-		t.Fatalf("IntegrationsEnabled: got %d, want 2", len(cfg.IntegrationsEnabled))
 	}
 }
 

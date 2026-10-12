@@ -39,7 +39,7 @@ func TestCreateConfirmationShowsAutomaticWorktreeFiles(t *testing.T) {
 
 func TestBuildCreatorOptionsForwardsWorktreeFiles(t *testing.T) {
 	m := worktreeFilesModel()
-	opts := m.buildCreatorOptions(nil)
+	opts := m.buildCreatorOptions()
 	if len(opts.WorktreeFiles) != 1 {
 		t.Fatalf("WorktreeFiles length = %d, want 1", len(opts.WorktreeFiles))
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/git"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/worktreefile"
 )
@@ -18,9 +17,13 @@ type Options struct {
 	SourceWorktree string
 	MergeBase      bool
 	CopyEnvFiles   bool
-	WorktreeFiles  []worktreefile.Rule
-	Ecosystems     []config.EcosystemConfig
-	Integrations   []integration.Integration
+	// EnvFiles are copied from SourceWorktree when CopyEnvFiles is set, in
+	// addition to the env files of Ecosystems. Callers pass the env files of
+	// every ecosystem detected in the source, so copying them does not depend
+	// on which installs were selected.
+	EnvFiles      []string
+	WorktreeFiles []worktreefile.Rule
+	Ecosystems    []config.EcosystemConfig
 }
 
 type Result struct {
@@ -35,7 +38,7 @@ func (r *Result) HasFailures() bool {
 
 func Run(runner git.CommandRunner, shell git.ShellRunner, opts Options, emit func(progress.Event)) Result {
 	result := Result{}
-	prepared, err := prepareCreation(runner, shell, opts)
+	prepared, err := prepareCreation(opts)
 	if err != nil {
 		result.Err = err
 		return result

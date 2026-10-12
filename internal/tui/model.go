@@ -18,7 +18,6 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/git"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/repo"
 )
@@ -52,10 +51,6 @@ const (
 	migrateProgressView
 	migrateSummaryView
 	migrateNextView
-	integrationListView
-	integrationProgressView
-	integrationSummaryView
-	migrateIntegrationsView
 	cleanupConfirmView
 	cleanupPreviewView
 	cleanupResultView
@@ -144,12 +139,11 @@ type createState struct {
 	focusedField  int // 0 = branch, 1 = base
 	validationErr string
 
-	ecosystems             []config.EcosystemConfig
-	ecoEnabled             map[string]bool
-	activeIntegrationNames []string // loaded from state, displayed as info line
-	mergeBase              bool
-	copyEnvFiles           bool
-	optionsCursor          int
+	ecosystems    []config.EcosystemConfig
+	ecoEnabled    map[string]bool
+	mergeBase     bool
+	copyEnvFiles  bool
+	optionsCursor int
 
 	eventCh  chan progress.Event
 	resultCh chan creator.Result
@@ -196,42 +190,6 @@ type repoState struct {
 	opType   string // "create", "clone", "migrate"
 }
 
-type integrationLifecycle uint8
-
-const (
-	integrationIdle integrationLifecycle = iota
-	integrationPreparing
-	integrationExecuting
-	integrationSaving
-	integrationSettling
-)
-
-// integrationState holds all state for the integration management flow.
-type integrationState struct {
-	integrations []integration.Integration //nolint:unused
-	current      map[string]bool           // what's on disk right now
-	staged       map[string]bool           // desired state after apply
-	detected     map[string]bool           // what was detected on disk at load time (for "detected" hints)
-	depStatus    map[string]bool           // dep name → installed (for info dialog) //nolint:unused
-	cursor       int                       //nolint:unused
-	colCursor    int                       // 0-based column index for future expansion //nolint:unused
-
-	// Progress
-	events          []progress.Event //nolint:unused
-	lifecycle       integrationLifecycle
-	targetWorktrees []string                    // all apply targets, pre-populated as pending phases
-	eventCh         chan progress.Event         //nolint:unused
-	resultCh        chan integrationApplyResult //nolint:unused
-
-	// Context: where to return after progress completes
-	returnView viewState //nolint:unused
-
-	// Apply outcome stages remain distinct so summaries identify the failed contract.
-	prepareErr   error
-	executionErr error
-	saveErr      error
-}
-
 type Model struct {
 	view     viewState
 	runner   git.CommandRunner
@@ -266,7 +224,6 @@ type Model struct {
 	remove removeState
 	create createState
 	repo   repoState
-	integ  integrationState
 	portal DetailPortal
 
 	// motionTick is the one animation clock: star frames and shimmer band
@@ -375,8 +332,7 @@ func NewMenuModel(runner git.CommandRunner, shell git.ShellRunner, repoPath stri
 	case repo.ContextBareRepo:
 		items = []menuItem{
 			{label: "Create new worktree", enabled: true},
-			{label: "Manage integrations", enabled: true},
-			{label: "Remove worktrees", hint: "loading\u2026", enabled: false, loading: true},
+			{label: menuRemoveWorktrees, hint: "loading\u2026", enabled: false, loading: true},
 			{label: "Cleanup & exit", hint: "prune refs, remove gone branches", enabled: true},
 		}
 	case repo.ContextNoRepo:
@@ -431,11 +387,6 @@ func NewMenuModel(runner git.CommandRunner, shell git.ShellRunner, repoPath stri
 			urlInput:       urlInput,
 			cloneNameInput: cloneNameInput,
 			visibility:     "private",
-		},
-		integ: integrationState{
-			current:  make(map[string]bool),
-			staged:   make(map[string]bool),
-			detected: make(map[string]bool),
 		},
 	}
 
@@ -517,15 +468,11 @@ func settledProgressTransitionCmd(token int) tea.Cmd {
 }
 
 func (m Model) completeProgressTransition() Model {
-	leavingIntegrationProgress := m.view == integrationProgressView
 	leavingProgress := m.determinateProgressActive()
 	m.progressTransitionPending = false
 	m.view = m.progressTargetView
 	if leavingProgress && m.portal.trigger == portalDetails {
 		m.portal = m.portal.Close()
-	}
-	if leavingIntegrationProgress && m.view != integrationSummaryView {
-		m.integ.lifecycle = integrationIdle
 	}
 	// Leaving the progress view: discard the spring state so the next
 	// flow starts from zero, not easing down from 100%.
@@ -580,9 +527,6 @@ func (m Model) Init() tea.Cmd {
 // indeterminateWaitActive reports whether a spinner-bearing wait is visible:
 // the cleanup scan or the menu worktree-context load.
 func (m Model) indeterminateWaitActive() bool {
-	if m.view == integrationProgressView && m.integ.lifecycle == integrationPreparing {
-		return true
-	}
 	if m.view == cleanupPreviewView && m.cleanupScan == nil {
 		return true
 	}
@@ -724,8 +668,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.portal = m.portal.Open(portalDetails, title, content)
 				return m, nil
 			}
-			// No details for this view: fall through so views with their own
-			// `?` handling (integration info card) still receive it.
+			// No details for this view: fall through to the view's own handling.
 		}
 	}
 
@@ -804,14 +747,6 @@ func (m Model) dispatchByView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateMigrateSummary(msg)
 	case migrateNextView:
 		return m.updateMigrateNext(msg)
-	case integrationListView:
-		return m.updateIntegrationList(msg)
-	case integrationProgressView:
-		return m.updateIntegrationProgress(msg)
-	case integrationSummaryView:
-		return m.updateIntegrationSummary(msg)
-	case migrateIntegrationsView:
-		return m.updateMigrateIntegrations(msg)
 	case cleanupConfirmView:
 		return m.updateCleanupConfirm(msg)
 	case cleanupPreviewView:
@@ -878,14 +813,6 @@ func (m Model) viewContent() string {
 		return m.viewMigrateSummary()
 	case migrateNextView:
 		return m.viewMigrateNext()
-	case integrationListView:
-		return m.viewIntegrationList()
-	case integrationProgressView:
-		return m.viewIntegrationProgress()
-	case integrationSummaryView:
-		return m.viewIntegrationSummary()
-	case migrateIntegrationsView:
-		return m.viewMigrateIntegrations()
 	case cleanupConfirmView:
 		return m.viewCleanupConfirm()
 	case cleanupPreviewView:
@@ -990,8 +917,6 @@ func (m Model) flowIdentity() (sentence, verb string) {
 		return "repository creation", "creating"
 	case migrateProgressView:
 		return "repository migration", "migrating"
-	case integrationProgressView:
-		return "integration apply", "applying"
 	}
 	return "", ""
 }

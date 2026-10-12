@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -15,7 +14,7 @@ import (
 func TestViewProgress_NoPurpleBadge_HasChromeAndBar(t *testing.T) {
 	m := NewModel([]git.Worktree{{Path: "/work/a", Branch: "refs/heads/a"}}, nil, "/repo")
 	m.width, m.height = 80, 30
-	m.remove.run = newRemovalRun([]git.Worktree{{Path: "/work/a", Branch: "refs/heads/a"}})
+	m.remove.run = removalRun{}
 	m.view = progressView
 
 	view := stripANSI(m.viewProgress())
@@ -32,7 +31,7 @@ func TestViewProgress_NoPurpleBadge_HasChromeAndBar(t *testing.T) {
 
 func TestBuildRemovalPhases_PruneStaging(t *testing.T) {
 	m := NewModel(nil, nil, "/repo")
-	m.remove.run = newRemovalRun([]git.Worktree{{Path: "/work/a", Branch: "refs/heads/a"}})
+	m.remove.run = removalRun{}
 	m.remove.run.events = []progress.Event{
 		{Phase: worktree.RemovalPhaseID, PhaseLabel: worktree.RemovalPhaseName, Step: "remove-0", StepLabel: "a", Status: progress.StepPending, Of: 2},
 		{Phase: cleanupPhaseID, PhaseLabel: "Prune & cleanup", Step: pruneStepID, StepLabel: "Prune worktree metadata", Status: progress.StepPending, Of: 1},
@@ -69,38 +68,10 @@ func TestBuildRemovalPhases_PruneStaging(t *testing.T) {
 	}
 }
 
-func TestBuildIntegrationPhases_WaitsForPreparedDeclaration(t *testing.T) {
-	m := NewMenuModel(nil, nil, "/repo", nil, repo.ContextBareRepo)
-	m.integ.targetWorktrees = []string{"/repo/feature-a", "/repo/feature-b"}
-
-	phases := m.buildIntegrationPhases()
-	if len(phases) != 0 {
-		t.Fatalf("expected no determinate phases before preparation, got %d", len(phases))
-	}
-}
-
-func TestBuildIntegrationPhases_ErrorBakedIntoLabel(t *testing.T) {
-	m := NewMenuModel(nil, nil, "/repo", nil, repo.ContextBareRepo)
-	m.integ.events = []progress.Event{
-		{Phase: "/repo/a", Step: "Install pipx", Status: progress.StepFailed, Error: errors.New("exit 1")},
-	}
-
-	phases := m.buildIntegrationPhases()
-	if len(phases) != 1 || len(phases[0].Steps) != 1 {
-		t.Fatalf("unexpected phases: %+v", phases)
-	}
-	if phases[0].Steps[0].Status != progress.StepFailed {
-		t.Errorf("expected failed step, got %v", phases[0].Steps[0].Status)
-	}
-	if !strings.Contains(phases[0].Steps[0].Name, "exit 1") {
-		t.Errorf("expected error in step label, got %q", phases[0].Steps[0].Name)
-	}
-}
-
 func TestViewSummary_VerdictMarkerAndNoEmptyCleanupHeader(t *testing.T) {
 	m := NewModel(nil, nil, "/repo")
 	m.width = 80
-	m.remove.run = newRemovalRun(nil)
+	m.remove.run = removalRun{}
 	m.remove.run.result.SuccessCount = 2
 	m.remove.run.cleanupResult = &cleanup.Result{NonWtBranchesRemaining: 1}
 	m.view = summaryView
@@ -123,7 +94,7 @@ func TestViewSummary_VerdictMarkerAndNoEmptyCleanupHeader(t *testing.T) {
 func TestViewSummary_CleanupLinesPluralizeSingular(t *testing.T) {
 	m := NewModel(nil, nil, "/repo")
 	m.width = 80
-	m.remove.run = newRemovalRun(nil)
+	m.remove.run = removalRun{}
 	m.remove.run.result.SuccessCount = 1
 	m.remove.run.cleanupResult = &cleanup.Result{
 		StaleRefsRemoved:    1,

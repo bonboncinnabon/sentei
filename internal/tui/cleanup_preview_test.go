@@ -285,7 +285,7 @@ func TestE2E_CleanupPreviewFlow(t *testing.T) {
 	m := NewMenuModel(nil, nil, "/repo", &config.Config{}, repo.ContextBareRepo)
 	m.width, m.height = 90, 28
 	m.runner = &stubRunner{responses: map[string]stubResponse{}}
-	m.menuCursor = 3 // "Cleanup & exit"
+	m.menuCursor = 2 // "Cleanup & exit"
 	m.view = menuView
 
 	updated, cmd := m.updateMenu(tea.KeyPressMsg{Code: tea.KeyEnter})

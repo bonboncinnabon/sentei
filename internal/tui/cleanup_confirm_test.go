@@ -157,7 +157,7 @@ func TestMenuCleanupTransitionsToPreview(t *testing.T) {
 	m.height = 24
 
 	// Move cursor to "Cleanup & exit" (index 3 in bare repo menu).
-	m.menuCursor = 3
+	m.menuCursor = 2
 
 	updated, cmd := m.updateMenu(tea.KeyPressMsg{Code: tea.KeyEnter})
 	result := updated.(Model)

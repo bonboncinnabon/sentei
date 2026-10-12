@@ -1,15 +1,56 @@
 package tui
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/testtmp"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
+
+func runTestGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = testtmp.HermeticGitEnv()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// bareRepoWithWorktrees creates a bare repo with one commit on main and one
+// worktree per name (on branch feature/<name>), and returns the bare path.
+func bareRepoWithWorktrees(t *testing.T, names ...string) string {
+	t.Helper()
+	root := t.TempDir()
+	bare := filepath.Join(root, "test.git")
+	clone := filepath.Join(root, "clone")
+	runTestGit(t, root, "init", "--bare", "--initial-branch=main", bare)
+	runTestGit(t, root, "clone", bare, clone)
+	runTestGit(t, clone, "-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "--allow-empty", "-m", "initial commit")
+	runTestGit(t, clone, "push", "origin", "main")
+	for _, name := range names {
+		runTestGit(t, bare, "worktree", "add", "-b", "feature/"+name, filepath.Join(bare, name), "main")
+	}
+	return bare
+}
+
+func unreadableStatusModel() (Model, string) {
+	const path = "/repo/scratch"
+	m := makeRemoveModel([]git.Worktree{{
+		Path:            path,
+		Branch:          "refs/heads/scratch",
+		EnrichmentError: "git log -1: fatal: no commits yet",
+	}})
+	m.width = 120
+	m.remove.selected[path] = true
+	return m, path
+}
 
 func TestWorktreeAtRisk_UnreadableStatus(t *testing.T) {
 	wt := git.Worktree{EnrichmentError: "git log -1: fatal: no commits yet"}
@@ -22,19 +63,46 @@ func TestWorktreeAtRisk_UnreadableStatus(t *testing.T) {
 // whose status could not be read has every risk flag false and used to take
 // that path.
 func TestList_EnterOnUnreadableStatusStopsAtConfirm(t *testing.T) {
-	path := "/repo/scratch"
-	m := makeRemoveModel([]git.Worktree{{
-		Path:            path,
-		Branch:          "refs/heads/scratch",
-		EnrichmentError: "git log -1: fatal: no commits yet",
-	}})
+	m, _ := unreadableStatusModel()
 	m.view = listView
-	m.remove.selected[path] = true
 
 	updated, _ := m.updateList(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if got := updated.(Model).view; got != confirmView {
 		t.Errorf("view after enter = %d, want confirmView (%d)", got, confirmView)
+	}
+}
+
+func TestViewList_UnreadableStatusIsNotShownAsClean(t *testing.T) {
+	m, _ := unreadableStatusModel()
+	m.view = listView
+
+	// The legend below the table always mentions [ok]; only the row matters.
+	var row string
+	for line := range strings.SplitSeq(stripANSI(m.viewList()), "\n") {
+		if strings.Contains(line, "scratch") {
+			row = line
+		}
+	}
+
+	if !strings.Contains(row, "[?]") {
+		t.Errorf("an unreadable status must be marked [?], got row %q", row)
+	}
+	if strings.Contains(row, "[ok]") {
+		t.Errorf("an unreadable status must not read as [ok], got row %q", row)
+	}
+}
+
+func TestViewConfirm_UnreadableStatusRowIsExplained(t *testing.T) {
+	m, _ := unreadableStatusModel()
+	m.view = confirmView
+
+	view := stripANSI(m.viewConfirm())
+
+	for _, want := range []string{"[?]", "status could not be read", "1 worktree whose status could not be read"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("confirm view is missing %q:\n%s", want, view)
+		}
 	}
 }
 
@@ -79,23 +147,7 @@ func TestList_LaunchDirectoryWorktreeCannotBeSelected(t *testing.T) {
 }
 
 func TestLoadWorktreeContext_MarksLaunchDirectoryWorktree(t *testing.T) {
-	root := t.TempDir()
-	bare := filepath.Join(root, "test.git")
-	clone := filepath.Join(root, "clone")
-	run := func(dir string, args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		cmd.Env = testtmp.HermeticGitEnv()
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	run(root, "init", "--bare", "--initial-branch=main", bare)
-	run(root, "clone", bare, clone)
-	run(clone, "-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "--allow-empty", "-m", "initial commit")
-	run(clone, "push", "origin", "main")
-	run(bare, "worktree", "add", "-b", "feature/here", filepath.Join(bare, "here"), "main")
-	run(bare, "worktree", "add", "-b", "feature/elsewhere", filepath.Join(bare, "elsewhere"), "main")
+	bare := bareRepoWithWorktrees(t, "here", "elsewhere")
 	t.Chdir(filepath.Join(bare, "here"))
 
 	msg, ok := loadWorktreeContext(&git.GitRunner{}, bare, 1)().(worktreeContextMsg)
@@ -111,5 +163,70 @@ func TestLoadWorktreeContext_MarksLaunchDirectoryWorktree(t *testing.T) {
 		if got := msg.launchedFrom[wt.Path]; got != want {
 			t.Errorf("launchedFrom[%s] = %v, want %v", wt.Path, got, want)
 		}
+	}
+}
+
+// The list's status is a snapshot. A row that looked clean skipped the
+// confirmation screen, so its status is read again before it is removed and a
+// tree that gained files after the list loaded is left alone. Rows that were
+// at risk went through the confirmation screen and are removed as they are.
+func TestWorktreeRemover_RechecksRowsThatLookedClean(t *testing.T) {
+	bare := bareRepoWithWorktrees(t, "stale", "confirmed", "clean")
+	path := func(name string) string { return filepath.Join(bare, name) }
+	targets := []worktree.RemovalTarget{
+		{Worktree: git.Worktree{Path: path("stale")}},
+		{Worktree: git.Worktree{Path: path("confirmed"), HasUntrackedFiles: true}},
+		{Worktree: git.Worktree{Path: path("clean")}},
+	}
+	// Files that appear after the snapshot was taken.
+	newWork := filepath.Join(path("stale"), "new-work.txt")
+	for _, file := range []string{newWork, filepath.Join(path("confirmed"), "draft.txt")} {
+		if err := os.WriteFile(file, []byte("unsaved\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	remove := worktreeRemover(&git.GitRunner{}, bare, targets)
+
+	err := remove(path("stale"))
+	if err == nil || !strings.Contains(err.Error(), "changed since the list loaded") {
+		t.Errorf("a row that looked clean but now holds new files must be refused, got %v", err)
+	}
+	if _, err := os.Stat(newWork); err != nil {
+		t.Errorf("the new file must survive the refused removal: %v", err)
+	}
+	if err := remove(path("confirmed")); err != nil {
+		t.Errorf("a confirmed at-risk row must be removed: %v", err)
+	}
+	if err := remove(path("clean")); err != nil {
+		t.Errorf("a clean row must be removed: %v", err)
+	}
+	for _, name := range []string{"confirmed", "clean"} {
+		if _, err := os.Stat(path(name)); !os.IsNotExist(err) {
+			t.Errorf("worktree %s should be gone (stat err: %v)", name, err)
+		}
+	}
+}
+
+// git refuses to remove a worktree that contains submodules unless --force is
+// given, even when it is clean. A clean row must still be removable.
+func TestWorktreeRemover_RemovesCleanWorktreeWithSubmodule(t *testing.T) {
+	bare := bareRepoWithWorktrees(t, "withsub")
+	wt := filepath.Join(bare, "withsub")
+	lib := filepath.Join(t.TempDir(), "lib")
+	identity := []string{"-c", "user.name=Test", "-c", "user.email=test@test.com", "-c", "protocol.file.allow=always"}
+	runGit := func(dir string, args ...string) { runTestGit(t, dir, append(identity, args...)...) }
+	runGit(filepath.Dir(lib), "init", "--initial-branch=main", lib)
+	runGit(lib, "commit", "--allow-empty", "-m", "lib")
+	runGit(wt, "submodule", "add", lib, "lib")
+	runGit(wt, "commit", "-m", "add submodule")
+
+	remove := worktreeRemover(&git.GitRunner{}, bare, []worktree.RemovalTarget{{Worktree: git.Worktree{Path: wt}}})
+
+	if err := remove(wt); err != nil {
+		t.Fatalf("a clean worktree with a submodule must be removed: %v", err)
+	}
+	if _, err := os.Stat(wt); !os.IsNotExist(err) {
+		t.Errorf("the worktree should be gone (stat err: %v)", err)
 	}
 }

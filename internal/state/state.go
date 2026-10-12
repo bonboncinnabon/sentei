@@ -6,23 +6,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 )
 
 const stateFile = "sentei.json"
 
-// State holds persistent configuration for a bare repository.
+// State holds persistent data for a bare repository. Unknown keys in an
+// existing file (such as the retired "integrations" list) are ignored on load
+// and dropped on the next save.
 type State struct {
-	Integrations []string `json:"integrations"`
 	// LifetimeRemoved counts every worktree this repository has pruned
 	// through the TUI, across all sessions. Garnish, not bookkeeping:
 	// it exists so summaries can whisper at milestones.
 	LifetimeRemoved int `json:"lifetime_removed,omitempty"`
-}
-
-// HasIntegration reports whether name is in the Integrations slice.
-func (s *State) HasIntegration(name string) bool {
-	return slices.Contains(s.Integrations, name)
 }
 
 // Load reads the state from bareDir/sentei.json. If the file does not exist,

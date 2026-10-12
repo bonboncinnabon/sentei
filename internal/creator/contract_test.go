@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
@@ -110,7 +109,7 @@ func TestRun_MergeFailureDoesNotBlockEnvCopy(t *testing.T) {
 	}
 }
 
-func TestRun_IndependentSetupFailureDoesNotBlockDependenciesOrIntegrations(t *testing.T) {
+func TestRun_IndependentSetupFailureDoesNotBlockDependencies(t *testing.T) {
 	tests := []struct {
 		name           string
 		mergeErr       error
@@ -146,12 +145,10 @@ func TestRun_IndependentSetupFailureDoesNotBlockDependenciesOrIntegrations(t *te
 				t.Fatal(err)
 			}
 			responses := map[string]mock.Response{
-				fmt.Sprintf("%s:shell[tool detect]", source):                                  {},
 				fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/fallbacks]", repo):      {Err: errors.New("missing")},
 				fmt.Sprintf("%s:[worktree add %s -b feature/fallbacks main]", repo, worktree): {},
 				fmt.Sprintf("%s:[merge main --no-edit]", worktree):                            {Err: tc.mergeErr},
 				fmt.Sprintf("%s:shell[go mod download]", worktree):                            {},
-				fmt.Sprintf("%s:shell[tool setup]", worktree):                                 {},
 			}
 			runner := &mock.Runner{Responses: responses}
 			result := Run(runner, runner, Options{
@@ -159,10 +156,6 @@ func TestRun_IndependentSetupFailureDoesNotBlockDependenciesOrIntegrations(t *te
 				SourceWorktree: source, MergeBase: true, CopyEnvFiles: true,
 				Ecosystems: []config.EcosystemConfig{{
 					Name: "go", EnvFiles: []string{".env"}, Install: config.InstallConfig{Command: "go mod download"},
-				}},
-				Integrations: []integration.Integration{{
-					Name: "tool", Detect: integration.DetectSpec{Command: "tool detect"},
-					Setup: integration.SetupSpec{Command: "tool setup", WorkingDir: "worktree"},
 				}},
 			}, func(progress.Event) {})
 
@@ -172,10 +165,8 @@ func TestRun_IndependentSetupFailureDoesNotBlockDependenciesOrIntegrations(t *te
 			if step := creatorResultStep(t, result, tc.failedStepName); step.Status != progress.StepFailed {
 				t.Fatalf("failed setup result = %#v", step)
 			}
-			for _, name := range []string{"go", "Setup tool"} {
-				if step := creatorResultStep(t, result, name); step.Status != progress.StepDone {
-					t.Fatalf("independent step %q = %#v", name, step)
-				}
+			if step := creatorResultStep(t, result, "go"); step.Status != progress.StepDone {
+				t.Fatalf("independent step %q = %#v", "go", step)
 			}
 		})
 	}
@@ -196,20 +187,15 @@ func creatorResultStep(t *testing.T, result Result, name string) progress.StepRe
 
 func TestRun_WorktreeFailureBlocksAllPreparedExecution(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:shell[tool detect]":                                           {},
 		"/repo:[show-ref --verify refs/heads/feature/blocked]":               {Err: errors.New("missing")},
 		"/repo:[worktree add /repo/feature-blocked -b feature/blocked main]": {Err: errors.New("cannot create")},
 	}}
 	result := Run(runner, runner, Options{
 		BranchName: "feature/blocked", BaseBranch: "main", RepoPath: "/repo", MergeBase: true,
 		Ecosystems: []config.EcosystemConfig{{Name: "go", Install: config.InstallConfig{Command: "go mod download"}}},
-		Integrations: []integration.Integration{{
-			Name: "tool", Detect: integration.DetectSpec{Command: "tool detect"},
-			Setup: integration.SetupSpec{Command: "tool setup", WorkingDir: "worktree"},
-		}},
 	}, func(progress.Event) {})
 	for _, call := range runner.Calls {
-		if strings.Contains(call, "merge main") || strings.Contains(call, "go mod download") || strings.Contains(call, "tool setup") {
+		if strings.Contains(call, "merge main") || strings.Contains(call, "go mod download") {
 			t.Fatalf("blocked execution call occurred: %v", runner.Calls)
 		}
 	}

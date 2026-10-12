@@ -36,9 +36,6 @@ func TestRecordRemovals_PersistsAndReportsMilestone(t *testing.T) {
 	if s.LifetimeRemoved != 12 {
 		t.Errorf("lifetime = %d, want 12", s.LifetimeRemoved)
 	}
-	if s.Integrations == nil && len(s.Integrations) != 0 {
-		t.Error("unrelated state must survive")
-	}
 }
 
 func TestRecordRemovals_ZeroIsSilent(t *testing.T) {
@@ -55,7 +52,7 @@ func TestRecordRemovals_ZeroIsSilent(t *testing.T) {
 func TestSummary_WhispersAtMilestone(t *testing.T) {
 	m := NewModel(nil, nil, "/repo")
 	m.width = 80
-	m.remove.run = newRemovalRun(nil)
+	m.remove.run = removalRun{}
 	m.remove.run.result = worktree.DeletionResult{SuccessCount: 2}
 	m.view = summaryView
 
