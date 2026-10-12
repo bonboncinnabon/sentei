@@ -1,11 +1,16 @@
 package config
 
 import (
+	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/worktreefile"
@@ -15,12 +20,56 @@ import (
 //go:embed defaults/ecosystems.yaml
 var defaultEcosystemsYAML []byte
 
-func loadEmbeddedDefaults() (*Config, error) {
+// retiredKeys were read by earlier versions and no longer do anything. A file
+// that still carries them loads; every other unknown key is an error, so a
+// misspelled key cannot silently leave a default in place.
+// ponytail: matched by name at any depth; match on position too if a retired
+// name is ever reused for a live key.
+var retiredKeys = []string{
+	"protected_branches", "integrations_enabled", "post_install",
+	"workspace_detect", "workspace_install", "parallel",
+}
+
+// unknownKey matches the message yaml.v3 produces for a key with no field.
+var unknownKey = regexp.MustCompile(`^(line \d+): field (\S+) not found in type \S+$`)
+
+// parse decodes one YAML config document, rejecting keys sentei does not know.
+func parse(data []byte) (*Config, error) {
 	var cfg Config
-	if err := yaml.Unmarshal(defaultEcosystemsYAML, &cfg); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	err := decoder.Decode(&cfg)
+
+	// A type error lists every problem; the rest of the document is decoded.
+	var typeErr *yaml.TypeError
+	switch {
+	case err == nil, errors.Is(err, io.EOF): // io.EOF: nothing but comments
+		return &cfg, nil
+	case !errors.As(err, &typeErr):
+		return nil, err
+	}
+	var problems []string
+	for _, problem := range typeErr.Errors {
+		match := unknownKey.FindStringSubmatch(problem)
+		switch {
+		case match == nil:
+			problems = append(problems, problem)
+		case !slices.Contains(retiredKeys, match[2]):
+			problems = append(problems, fmt.Sprintf("%s: unknown key %q (check the spelling or remove it)", match[1], match[2]))
+		}
+	}
+	if len(problems) == 0 {
+		return &cfg, nil
+	}
+	return nil, errors.New(strings.Join(problems, "; "))
+}
+
+func loadEmbeddedDefaults() (*Config, error) {
+	cfg, err := parse(defaultEcosystemsYAML)
+	if err != nil {
 		return nil, fmt.Errorf("parsing embedded defaults: %w", err)
 	}
-	return &cfg, nil
+	return cfg, nil
 }
 
 // loadFile reads and parses a YAML config file. Returns (nil, nil) if the file
@@ -33,11 +82,11 @@ func loadFile(path string) (*Config, error) {
 		}
 		return nil, fmt.Errorf("reading config file %s: %w", path, err)
 	}
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	cfg, err := parse(data)
+	if err != nil {
 		return nil, fmt.Errorf("parsing config file %s: %w", path, err)
 	}
-	return &cfg, nil
+	return cfg, nil
 }
 
 // mergeEcosystems performs a keyed merge of overlay into base, using name as
