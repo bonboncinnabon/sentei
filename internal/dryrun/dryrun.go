@@ -11,7 +11,10 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
-func Print(worktrees []git.Worktree, w io.Writer) error {
+// Print writes the worktree summary to w. defaultBranch is the repository's
+// detected default branch: its worktree is marked [P] like the built-in
+// protected names, because removal protects it the same way.
+func Print(worktrees []git.Worktree, defaultBranch string, w io.Writer) error {
 	sorted := make([]git.Worktree, len(worktrees))
 	copy(sorted, worktrees)
 	sort.SliceStable(sorted, func(a, b int) bool {
@@ -51,7 +54,7 @@ func Print(worktrees []git.Worktree, w io.Writer) error {
 			subject = wt.EnrichmentError
 		}
 
-		if git.IsProtectedBranch(wt.Branch) {
+		if git.IsProtectedBranchWith(wt.Branch, defaultBranch) {
 			branch += " [P]"
 		}
 
