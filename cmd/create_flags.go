@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"strings"
-
-	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
 // CreateOptions holds parsed flags for the create command.
@@ -61,29 +59,4 @@ func ValidateCreateForNonInteractive(opts *CreateOptions) error {
 		return fmt.Errorf("missing required flag: --base")
 	}
 	return nil
-}
-
-// CreateCLICommand generates the equivalent CLI command string from options.
-func CreateCLICommand(opts *CreateOptions) string {
-	flags := make(map[string]string)
-	if opts.Branch != "" {
-		flags["branch"] = opts.Branch
-	}
-	if opts.Base != "" {
-		flags["base"] = opts.Base
-	}
-	if len(opts.Ecosystems) > 0 {
-		flags["ecosystems"] = strings.Join(opts.Ecosystems, ",")
-	}
-	if opts.MergeBase {
-		flags["merge-base"] = "true"
-	}
-	if opts.CopyEnv {
-		flags["copy-env"] = "true"
-	}
-	cmd := cli.BuildFlagString("sentei create", flags)
-	if opts.RepoPath != "" {
-		cmd += " " + opts.RepoPath
-	}
-	return cmd
 }

@@ -42,15 +42,3 @@ func ValidateMigrateForNonInteractive(opts *MigrateOptions) error {
 	}
 	return nil
 }
-
-// MigrateCLICommand generates the equivalent CLI command string from options.
-func MigrateCLICommand(opts *MigrateOptions) string {
-	cmd := "sentei migrate"
-	if opts.DeleteBackup {
-		cmd += " --delete-backup"
-	}
-	if opts.RepoPath != "" {
-		cmd += " " + opts.RepoPath
-	}
-	return cmd
-}

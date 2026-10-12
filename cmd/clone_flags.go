@@ -3,8 +3,6 @@ package cmd
 import (
 	"flag"
 	"fmt"
-
-	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
 // CloneOptions holds the parsed flags for the clone command.
@@ -36,16 +34,4 @@ func ValidateCloneForNonInteractive(opts *CloneOptions) error {
 		return fmt.Errorf("missing required flag: --url")
 	}
 	return nil
-}
-
-// CloneCLICommand generates the equivalent CLI command string from options.
-func CloneCLICommand(opts *CloneOptions) string {
-	flags := make(map[string]string)
-	if opts.URL != "" {
-		flags["url"] = opts.URL
-	}
-	if opts.Name != "" {
-		flags["name"] = opts.Name
-	}
-	return cli.BuildFlagString("sentei clone", flags)
 }
