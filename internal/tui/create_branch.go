@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/ecosystem"
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
@@ -129,35 +130,31 @@ func (m Model) updateCreateBranchInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// prepareCreateOptions offers the ecosystems detected in the source worktree,
+// all checked.
 func (m *Model) prepareCreateOptions() {
-	if m.cfg == nil {
+	m.create.ecosystems = nil
+	sourceWT := m.findSourceWorktree()
+	if m.cfg == nil || sourceWT == "" {
 		return
 	}
-
-	// Detect ecosystems from a source worktree
-	sourceWT := m.findSourceWorktree()
-	if sourceWT != "" {
-		registry := ecosystem.NewRegistry(m.cfg.Ecosystems)
-		detected, _ := registry.Detect(sourceWT)
-		m.create.ecosystems = nil
-		for _, eco := range detected {
-			m.create.ecosystems = append(m.create.ecosystems, eco.Config)
-			m.create.ecoEnabled[eco.Name] = true
-		}
+	detected, _ := ecosystem.NewRegistry(m.cfg.Ecosystems).Detect(sourceWT)
+	for _, eco := range detected {
+		m.create.ecosystems = append(m.create.ecosystems, eco.Config)
+		m.create.ecoEnabled[eco.Name] = true
 	}
 }
 
+// findSourceWorktree returns the worktree that ecosystems are detected in and
+// env files are copied from. The menu loads the worktree list in the
+// background and a direct `sentei create` never loads it, so an empty list is
+// read from git here instead of being taken to mean "no worktrees".
 func (m Model) findSourceWorktree() string {
-	for _, wt := range m.remove.worktrees {
-		branch := stripBranchPrefix(wt.Branch)
-		if branch == "main" || branch == "master" {
-			return wt.Path
-		}
+	worktrees := m.remove.worktrees
+	if len(worktrees) == 0 {
+		worktrees, _ = git.ListWorktrees(m.runner, m.repoPath)
 	}
-	if len(m.remove.worktrees) > 0 {
-		return m.remove.worktrees[0].Path
-	}
-	return ""
+	return creator.SourceWorktree(worktrees)
 }
 
 func (m Model) viewCreateBranch() string {

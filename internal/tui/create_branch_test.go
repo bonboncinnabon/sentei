@@ -177,3 +177,28 @@ func TestViewCreateBranch_RendersChromeFieldsAndError(t *testing.T) {
 		}
 	}
 }
+
+// The menu loads the worktree list in the background. Choosing "Create new
+// worktree" before it landed used to find no source worktree, so the options
+// screen offered no install or env rows and the run skipped both.
+func TestCreateFromMenu_BeforeWorktreesLoad_StillOffersInstallAndEnvRows(t *testing.T) {
+	m, source := unloadedWorktreesModel(t)
+
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // "Create new worktree"
+	updated, _ = updated.(Model).Update(tea.KeyPressMsg{Text: "feature/early"})
+	updated, _ = updated.(Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model := updated.(Model)
+
+	if model.view != createOptionsView {
+		t.Fatalf("view = %d, want createOptionsView", model.view)
+	}
+	view := stripANSI(model.viewCreateOptions())
+	for _, want := range []string{"Install dependencies (uv)", "Copy environment files"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("options screen missing %q:\n%s", want, view)
+		}
+	}
+	if got := model.buildCreatorOptions().SourceWorktree; got != source {
+		t.Errorf("SourceWorktree = %q, want %q", got, source)
+	}
+}

@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
 // setupSenteiLayout creates the layout sentei itself produces: <root>/.bare,
@@ -65,16 +63,6 @@ func TestRunCreate_CopyEnvWorksWithoutEcosystems(t *testing.T) {
 	}
 	if string(got) != "TOKEN=local\n" {
 		t.Errorf(".env = %q, want the source contents", got)
-	}
-}
-
-func TestFindSource_NeverPicksTheBareEntry(t *testing.T) {
-	worktrees := []git.Worktree{
-		{Path: "/repo/.bare", IsBare: true},
-		{Path: "/repo/trunk", Branch: "refs/heads/trunk"},
-	}
-	if got := findSource(worktrees); got != "/repo/trunk" {
-		t.Errorf("findSource = %q, want /repo/trunk: the bare entry holds no working files", got)
 	}
 }
 

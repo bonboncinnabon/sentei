@@ -9,10 +9,9 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
-// SetCreateOpts sets the create options and starts at the appropriate view.
-// If branch and base are both set, starts at createConfirmView.
-// If only branch is set, starts at createOptionsView (base selection done).
-// If nothing is set, starts at createBranchView (normal flow).
+// SetCreateOpts applies the flags of `sentei create` and picks the first view:
+// the confirmation when branch and base are both given, the options screen
+// when only the branch is, the branch form otherwise.
 func (m *Model) SetCreateOpts(opts *CreateOpts) {
 	m.createOpts = opts
 
@@ -22,26 +21,49 @@ func (m *Model) SetCreateOpts(opts *CreateOpts) {
 	if opts.Base != "" {
 		m.create.baseInput.SetValue(opts.Base)
 	}
-	if opts.MergeBase {
-		m.create.mergeBase = true
+	m.prepareCreateOptions()
+
+	// With branch and base given no options screen follows, so the flags are
+	// the whole decision, exactly as in the non-interactive run. Otherwise the
+	// toggles keep their interactive defaults and stay editable.
+	direct := opts.Branch != "" && opts.Base != ""
+	if direct {
+		m.create.mergeBase = opts.MergeBase
+		m.create.copyEnvFiles = opts.CopyEnv
 	}
-	if opts.CopyEnv {
-		m.create.copyEnvFiles = true
-	}
-	if len(opts.Ecosystems) > 0 {
-		for _, eco := range opts.Ecosystems {
-			m.create.ecoEnabled[eco] = true
-		}
+	if direct || len(opts.Ecosystems) > 0 {
+		m.selectEcosystems(opts.Ecosystems)
 	}
 
 	switch {
-	case opts.Branch != "" && opts.Base != "":
+	case direct:
 		m.view = createConfirmView
 	case opts.Branch != "":
-		m.prepareCreateOptions()
 		m.view = createOptionsView
 	default:
 		m.view = createBranchView
+	}
+}
+
+// selectEcosystems checks exactly the named ecosystems, as --ecosystems does
+// in the non-interactive run: a configured ecosystem counts even when it was
+// not detected in the source worktree, so it is added to the offered rows.
+func (m *Model) selectEcosystems(names []string) {
+	m.create.ecoEnabled = make(map[string]bool, len(names))
+	for _, name := range names {
+		m.create.ecoEnabled[name] = true
+	}
+	if m.cfg == nil {
+		return
+	}
+	offered := make(map[string]bool, len(m.create.ecosystems))
+	for _, eco := range m.create.ecosystems {
+		offered[eco.Name] = true
+	}
+	for _, eco := range m.cfg.Ecosystems {
+		if m.create.ecoEnabled[eco.Name] && !offered[eco.Name] {
+			m.create.ecosystems = append(m.create.ecosystems, eco)
+		}
 	}
 }
 
