@@ -265,6 +265,10 @@ func (m Model) updateFilterInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) viewList() string {
+	return fitLines(m.renderList(), m.width)
+}
+
+func (m Model) renderList() string {
 	var b strings.Builder
 
 	b.WriteString(viewTitle(titleList))
@@ -476,8 +480,13 @@ func (m Model) listAwaitingRows() bool {
 
 func (m Model) viewStatusOrFilter() string {
 	if m.remove.filterActive {
-		// The filter keeps the chrome margin like every other line.
-		return "  " + m.remove.filterInput.View()
+		// The filter keeps the chrome margin like every other line, and
+		// scrolls inside what is left of the row: the terminal width less
+		// the margin, the prompt and the cursor cell.
+		input := m.remove.filterInput
+		input.SetWidth(max(m.width-2-lipgloss.Width(input.Prompt)-1, 1))
+		input.SetCursor(input.Position())
+		return "  " + input.View()
 	}
 	return m.viewStatusBar()
 }
@@ -505,9 +514,14 @@ func (m Model) viewStatusBar() string {
 	if count == 0 {
 		hintSet = listFooterNoSelection
 	}
-	prefix := fmt.Sprintf("  %d selected%s \u00b7 ", count, filterInfo)
-	hints := footerHints(m.width-lipgloss.Width(prefix), hintSet)
-	return styleStatusBar.Render(prefix) + hints
+	selection := fmt.Sprintf("  %d selected%s", count, filterInfo)
+	head := selection + " \u00b7 "
+	// The count and its filters come first. Hints take what is left of the
+	// row, and a count that fills it leaves none.
+	if m.width > 0 && lipgloss.Width(head) >= m.width {
+		return styleStatusBar.Render(truncateWithEllipsis(selection, m.width))
+	}
+	return styleStatusBar.Render(head) + footerHints(m.width-lipgloss.Width(head), hintSet)
 }
 
 func (m Model) viewLegend() string {

@@ -110,6 +110,20 @@ func truncateWithEllipsis(s string, width int) string {
 	return ansi.Truncate(s, width, "…")
 }
 
+// fitLines truncates every line of view to width cells. Views call it last,
+// so a terminal narrower than their content shows ellipses instead of rows
+// that wrap and push the rest of the frame down. Width 0 means unknown.
+func fitLines(view string, width int) string {
+	if width <= 0 {
+		return view
+	}
+	lines := strings.Split(view, "\n")
+	for i, line := range lines {
+		lines[i] = truncateWithEllipsis(line, width)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // viewStatLine renders the windowing legend: per-status counts (zero counts
 // omitted) followed by how many of the total items are visible. activeGlyph
 // is the already-styled active indicator (spinner frame or static fallback).

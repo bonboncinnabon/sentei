@@ -154,6 +154,34 @@ func worktreeRemover(runner git.CommandRunner, repoPath string, targets []worktr
 	}
 }
 
+// confirmRisk is the badge and note the confirm screen shows for wt. A
+// worktree with nothing at risk has no note.
+func confirmRisk(wt git.Worktree) (badge, note string) {
+	switch {
+	case wt.IsLocked:
+		return "[L]", "locked — will force-remove"
+	case wt.HasUncommittedChanges:
+		return "[~]", "uncommitted changes — will be lost"
+	case wt.HasUntrackedFiles:
+		return "[!]", "untracked files — will be lost"
+	case wt.HasUnpushedCommits:
+		return "[^]", "commits not on any remote"
+	case wt.EnrichmentError != "":
+		return "[?]", "status could not be read"
+	}
+	return "[ok]", ""
+}
+
+// confirmTotals are the warnings under the rows, one per kind of risk
+// present, in this order. Each completes "⚠ N worktrees ...".
+var confirmTotals = []struct{ badge, text string }{
+	{"[~]", "with uncommitted changes that will be lost"},
+	{"[!]", "with untracked files that will be lost"},
+	{"[L]", "locked and will be force-removed"},
+	{"[^]", "with commits not pushed to any remote"},
+	{"[?]", "whose status could not be read and may hold uncommitted work"},
+}
+
 func (m Model) viewConfirm() string {
 	var b strings.Builder
 
@@ -167,36 +195,31 @@ func (m Model) viewConfirm() string {
 
 	// Columnar rows: badge gutter first so one vertical sweep answers
 	// "anything risky?", names aligned after it, notes only on at-risk rows.
-	nameWidth := 0
+	nameWidth, noteWidth := 0, 0
 	for _, wt := range selected {
+		_, note := confirmRisk(wt)
 		nameWidth = max(nameWidth, lipgloss.Width(worktreeLabel(wt)))
+		noteWidth = max(noteWidth, lipgloss.Width(note))
 	}
 	nameWidth = min(nameWidth, confirmNameWidthCap)
+	// A narrow terminal takes the room from the name column first. When not
+	// even a short name fits beside the notes, the notes go: the badge and
+	// the totals below still state every risk.
+	showNotes := m.width == 0 || m.width-confirmRowLead-2-noteWidth >= min(nameWidth, confirmNameWidthMin)
+	if m.width > 0 {
+		room := m.width - confirmRowLead
+		if showNotes && noteWidth > 0 {
+			room -= 2 + noteWidth
+		}
+		nameWidth = min(nameWidth, max(room, 1))
+	}
 
 	var rows []confirmRow
-	var dirtyCount, untrackedCount, lockedCount, unpushedCount, unknownCount int
+	counts := map[string]int{}
 	for _, wt := range selected {
-		var badge, note string
-		risky := true
-		switch {
-		case wt.IsLocked:
-			badge, note = "[L]", "locked — will force-remove"
-			lockedCount++
-		case wt.HasUncommittedChanges:
-			badge, note = "[~]", "uncommitted changes — will be lost"
-			dirtyCount++
-		case wt.HasUntrackedFiles:
-			badge, note = "[!]", "untracked files — will be lost"
-			untrackedCount++
-		case wt.HasUnpushedCommits:
-			badge, note = "[^]", "commits not on any remote"
-			unpushedCount++
-		case wt.EnrichmentError != "":
-			badge, note = "[?]", "status could not be read"
-			unknownCount++
-		default:
-			badge, risky = "[ok]", false
-		}
+		badge, note := confirmRisk(wt)
+		risky := note != ""
+		counts[badge]++
 
 		badgeStyle := styleStatusClean
 		if risky {
@@ -206,7 +229,7 @@ func (m Model) viewConfirm() string {
 		// Pad by display width: fmt's %-*s pads by bytes and drifts on …
 		pad := strings.Repeat(" ", max(nameWidth-lipgloss.Width(name), 0))
 		line := fmt.Sprintf("    %s  %s%s", badgeStyle.Render(fmt.Sprintf("%-4s", badge)), name, pad)
-		if risky {
+		if risky && showNotes {
 			line += "  " + styleWarning.Render(note)
 		}
 		rows = append(rows, confirmRow{line: strings.TrimRight(line, " "), risky: risky})
@@ -216,35 +239,11 @@ func (m Model) viewConfirm() string {
 	b.Reset()
 	b.WriteString("\n")
 
-	if dirtyCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s with uncommitted changes that will be lost", dirtyCount, pluralize(dirtyCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
-	}
-	if untrackedCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s with untracked files that will be lost", untrackedCount, pluralize(untrackedCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
-	}
-	if lockedCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s locked and will be force-removed", lockedCount, pluralize(lockedCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
-	}
-	if unpushedCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s with commits not pushed to any remote", unpushedCount, pluralize(unpushedCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
-	}
-	if unknownCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s whose status could not be read and may hold uncommitted work", unknownCount, pluralize(unknownCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
+	for _, total := range confirmTotals {
+		if n := counts[total.badge]; n > 0 {
+			b.WriteString(styleWarning.Render(fmt.Sprintf("  ⚠ %d %s %s", n, pluralize(n, "worktree", "worktrees"), total.text)))
+			b.WriteString("\n")
+		}
 	}
 
 	b.WriteString("\n")
@@ -259,7 +258,7 @@ func (m Model) viewConfirm() string {
 	if m.windowHeight > 0 {
 		budget = m.windowHeight - strings.Count(head, "\n") - strings.Count(tail, "\n")
 	}
-	return head + fitConfirmRows(rows, budget) + tail
+	return fitLines(head+fitConfirmRows(rows, budget)+tail, m.width)
 }
 
 type confirmRow struct {

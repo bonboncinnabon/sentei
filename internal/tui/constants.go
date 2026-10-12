@@ -53,6 +53,14 @@ const progressSettleTimeout = 3 * time.Second
 // branch cannot push the risk notes off to the right.
 const confirmNameWidthCap = 28
 
+// confirmRowLead is what a confirm row draws before its name: the indent,
+// the badge gutter and the gap after it.
+const confirmRowLead = 10
+
+// confirmNameWidthMin is the narrowest name column that may still sit beside
+// the risk notes. Below it the notes are dropped and the names get the row.
+const confirmNameWidthMin = 12
+
 // formInputWidth is the shared cell width of text-input fields: wide enough
 // for real URLs, and required because the v2 textinput renders only the
 // first placeholder rune when its width is unset.
