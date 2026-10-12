@@ -1,0 +1,24 @@
+internal/tui/quit_test.go
+  s_b5d41ab2ae0f4c::t_42179ddf5e251b 1-24,26-66
+  s_b5d41ab2ae0f4c::t_e461343ce2e7d3 25
+internal/tui/keys.go
+  s_b5d41ab2ae0f4c::t_bc87872f7e577e 15,64-69
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_6aaae53d9594f5 646-652
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "7776fc1da7c00b62765cc56834c98a337fd6dc71",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
