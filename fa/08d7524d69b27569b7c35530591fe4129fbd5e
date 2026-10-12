@@ -1,0 +1,22 @@
+internal/tui/progress_layout.go
+  s_b5d41ab2ae0f4c::t_266e5145b5383c 214-216
+internal/tui/progress_layout_test.go
+  s_b5d41ab2ae0f4c::t_c47460eb9fb2e8 4,192-225
+  s_b5d41ab2ae0f4c::t_11fa2e77f39c0b 226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "fa08d7524d69b27569b7c35530591fe4129fbd5e",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
