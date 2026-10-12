@@ -2,7 +2,6 @@ package tui
 
 import (
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,8 +19,6 @@ func repoOptionsModel(t *testing.T) Model {
 	m.view = repoOptionsView
 	m.width, m.height = 80, 24
 	m.repo.nameInput.SetValue("myrepo")
-	m.repo.locationInput.SetValue(filepath.Join(tmp, "myrepo"))
-	m.repo.createWorktree = true
 	m.repo.optionsCursor = repoOptPublish
 	return m
 }
@@ -58,14 +55,14 @@ func TestCheckGitHubAuth_StatusFromShellOutcome(t *testing.T) {
 func TestRepoVisibleOptions_PublishExpandsList(t *testing.T) {
 	m := repoOptionsModel(t)
 
-	if got := m.repoVisibleOptions(); len(got) != 2 {
-		t.Errorf("visible options without publish = %v, want worktree+publish", got)
+	if got := m.repoVisibleOptions(); len(got) != 1 || got[0] != repoOptPublish {
+		t.Errorf("visible options without publish = %v, want publish only", got)
 	}
 
 	m.repo.publishGitHub = true
 	got := m.repoVisibleOptions()
-	if len(got) != 4 || got[2] != repoOptVisibility || got[3] != repoOptDescription {
-		t.Errorf("visible options with publish = %v, want all four", got)
+	if len(got) != 3 || got[1] != repoOptVisibility || got[2] != repoOptDescription {
+		t.Errorf("visible options with publish = %v, want all three", got)
 	}
 }
 
@@ -161,18 +158,11 @@ func TestUpdateRepoOptions_TogglePublishRequiresAuth(t *testing.T) {
 	}
 }
 
-func TestUpdateRepoOptions_ToggleWorktreeAndVisibility(t *testing.T) {
+func TestUpdateRepoOptions_ToggleVisibility(t *testing.T) {
 	m := repoOptionsModel(t)
-	m.repo.optionsCursor = repoOptWorktree
-
-	updated, _ := m.updateRepoOptions(keyMsg(" "))
-	if updated.(Model).repo.createWorktree {
-		t.Error("space should toggle the worktree option off")
-	}
-
 	m.repo.publishGitHub = true
 	m.repo.optionsCursor = repoOptVisibility
-	updated, _ = m.updateRepoOptions(keyMsg(" "))
+	updated, _ := m.updateRepoOptions(keyMsg(" "))
 	model := updated.(Model)
 	if model.repo.visibility != "public" {
 		t.Errorf("visibility = %q, want public", model.repo.visibility)
@@ -180,6 +170,16 @@ func TestUpdateRepoOptions_ToggleWorktreeAndVisibility(t *testing.T) {
 	updated, _ = model.updateRepoOptions(keyMsg(" "))
 	if updated.(Model).repo.visibility != "private" {
 		t.Error("second toggle should flip visibility back to private")
+	}
+}
+
+// The repository always gets its main worktree. A checkbox that could be
+// unchecked without changing the run does not belong on the screen.
+func TestViewRepoOptions_OffersNoWorktreeToggle(t *testing.T) {
+	view := stripANSI(repoOptionsModel(t).viewRepoOptions())
+
+	if strings.Contains(view, "Create initial worktree") {
+		t.Errorf("options screen offers a toggle the run ignores:\n%s", view)
 	}
 }
 
@@ -292,7 +292,7 @@ func TestViewRepoOptions_ProgressiveDisclosure(t *testing.T) {
 
 	m.repo.publishGitHub = true
 	view = stripANSI(m.viewRepoOptions())
-	for _, want := range []string{"Create initial worktree", "Publish to GitHub", "Visibility", "private", "Description", "(optional)"} {
+	for _, want := range []string{"Publish to GitHub", "Visibility", "private", "Description", "(optional)"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("view missing %q:\n%s", want, view)
 		}
