@@ -1,0 +1,25 @@
+internal/tui/remove_direct_entry_test.go
+  s_b5d41ab2ae0f4c::t_bbcc3c0029aeda 1-37,39-64,66-81,83-97,99-111
+  s_b5d41ab2ae0f4c::t_4759cec02c6949 38,65,82,98
+internal/tui/list.go
+  s_b5d41ab2ae0f4c::t_34bea06f49f510 277-280,464-467
+  s_b5d41ab2ae0f4c::t_39d7aa50ccf84c 468-469
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_34bea06f49f510 107-111,212,502,504,506-515,517,521-525,538-540,542-548,552-553,558-560,599,603-604
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4c19630f25fbd0b1953787bdb83703ef1b084b4d",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
