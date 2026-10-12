@@ -25,10 +25,13 @@ func (m *Model) SetCreateOpts(opts *CreateOpts) {
 	m.prepareCreateOptions()
 
 	// --ecosystems names the installs. On the options screen it preselects
-	// among the detected ecosystems, which stay editable there.
+	// among the detected ecosystems, which stay editable there. The rows left
+	// out are recorded as unchecked so a later detection keeps them that way.
 	direct := opts.Branch != "" && opts.Base != ""
 	if direct || len(opts.Ecosystems) > 0 {
-		m.create.ecoEnabled = make(map[string]bool, len(opts.Ecosystems))
+		for _, eco := range m.create.ecosystems {
+			m.create.ecoEnabled[eco.Name] = false
+		}
 		for _, name := range opts.Ecosystems {
 			m.create.ecoEnabled[name] = true
 		}

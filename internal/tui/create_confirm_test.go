@@ -330,3 +330,21 @@ func TestSetCreateOpts_OptionsScreenStartsFromTheEcosystemsFlag(t *testing.T) {
 		t.Errorf("installs=%v MergeBase=%v CopyEnvFiles=%v, want the interactive defaults (detected uv and go, both on)", got, opts.MergeBase, opts.CopyEnvFiles)
 	}
 }
+
+// Without --branch the branch form comes first, and leaving it detects the
+// ecosystems again. That second pass used to check every row, discarding the
+// --ecosystems selection made at startup.
+func TestSetCreateOpts_EcosystemsFlagSurvivesTheBranchForm(t *testing.T) {
+	m, _ := directCreateModel(t, &CreateOpts{Ecosystems: []string{"go"}})
+
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "feature/later"})
+	updated, _ = updated.(Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model := updated.(Model)
+
+	if model.view != createOptionsView {
+		t.Fatalf("view = %d, want createOptionsView", model.view)
+	}
+	if got := installNames(model.buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"go"}) {
+		t.Errorf("installs = %v, want [go] from --ecosystems", got)
+	}
+}

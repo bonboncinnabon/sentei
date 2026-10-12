@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -200,5 +201,28 @@ func TestCreateFromMenu_BeforeWorktreesLoad_StillOffersInstallAndEnvRows(t *test
 	}
 	if got := model.buildCreatorOptions().SourceWorktree; got != source {
 		t.Errorf("SourceWorktree = %q, want %q", got, source)
+	}
+}
+
+// Leaving the branch form detects ecosystems again. A row the user unchecked
+// before going back must not come back checked.
+func TestCreateOptions_UncheckedRowSurvivesAReturnToTheBranchForm(t *testing.T) {
+	m, _ := unloadedWorktreesModel(t)
+
+	steps := []tea.Msg{
+		tea.KeyPressMsg{Code: tea.KeyEnter}, // menu: Create new worktree
+		tea.KeyPressMsg{Text: "feature/back"},
+		tea.KeyPressMsg{Code: tea.KeyEnter}, // to the options screen
+		keyMsg(" "),                         // uncheck the first row (uv)
+		tea.KeyPressMsg{Code: tea.KeyEsc},   // back to the branch form
+		tea.KeyPressMsg{Code: tea.KeyEnter}, // forward again
+	}
+	var model tea.Model = m
+	for _, step := range steps {
+		model, _ = model.Update(step)
+	}
+
+	if got := installNames(model.(Model).buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"go"}) {
+		t.Errorf("installs = %v, want [go]: uv was unchecked before going back", got)
 	}
 }

@@ -118,8 +118,9 @@ func (m Model) updateCreateBranchInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// prepareCreateOptions offers the ecosystems detected in the source worktree,
-// all checked.
+// prepareCreateOptions offers the ecosystems detected in the source worktree.
+// A row starts checked; a choice already made for it (a toggle before going
+// back to this form, or --ecosystems) stands.
 func (m *Model) prepareCreateOptions() {
 	m.create.ecosystems = nil
 	sourceWT := m.findSourceWorktree()
@@ -129,7 +130,9 @@ func (m *Model) prepareCreateOptions() {
 	detected, _ := ecosystem.NewRegistry(m.cfg.Ecosystems).Detect(sourceWT)
 	for _, eco := range detected {
 		m.create.ecosystems = append(m.create.ecosystems, eco.Config)
-		m.create.ecoEnabled[eco.Name] = true
+		if _, chosen := m.create.ecoEnabled[eco.Name]; !chosen {
+			m.create.ecoEnabled[eco.Name] = true
+		}
 	}
 }
 
