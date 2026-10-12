@@ -21,16 +21,7 @@ func (m Model) updateCloneInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, keys.Tab):
-			if m.repo.cloneFocusedField == 0 {
-				m.repo.cloneFocusedField = 1
-				m.repo.urlInput.Blur()
-				m.repo.cloneNameInput.CursorEnd()
-				return m, m.repo.cloneNameInput.Focus()
-			}
-			m.repo.cloneFocusedField = 0
-			m.repo.cloneNameInput.Blur()
-			m.repo.urlInput.CursorEnd()
-			return m, m.repo.urlInput.Focus()
+			return m, switchFormField(&m.repo.cloneFocusedField, &m.repo.urlInput, &m.repo.cloneNameInput)
 
 		case key.Matches(msg, keys.Confirm):
 			url := strings.TrimSpace(m.repo.urlInput.Value())
@@ -78,18 +69,16 @@ func (m Model) startClone() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateCloneTextInput(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmd, edited := editFormField(m.repo.cloneFocusedField, &m.repo.urlInput, &m.repo.cloneNameInput, msg)
+	if !edited {
+		return m, cmd
+	}
 	m.repo.validationErr = ""
-	var cmd tea.Cmd
-	if m.repo.cloneFocusedField == 0 {
-		prevURL := m.repo.urlInput.Value()
-		m.repo.urlInput, cmd = m.repo.urlInput.Update(msg)
-		newURL := m.repo.urlInput.Value()
-		if newURL != prevURL && !m.repo.nameManuallyEdited {
-			m.repo.cloneNameInput.SetValue(repo.DeriveRepoName(newURL))
-		}
-	} else {
+	// The name follows the URL until the user types one of their own.
+	if m.repo.cloneFocusedField == 1 {
 		m.repo.nameManuallyEdited = true
-		m.repo.cloneNameInput, cmd = m.repo.cloneNameInput.Update(msg)
+	} else if !m.repo.nameManuallyEdited {
+		m.repo.cloneNameInput.SetValue(repo.DeriveRepoName(m.repo.urlInput.Value()))
 	}
 	return m, cmd
 }
