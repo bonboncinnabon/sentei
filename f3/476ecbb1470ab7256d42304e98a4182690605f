@@ -1,0 +1,39 @@
+internal/tui/confirm.go
+  s_b5d41ab2ae0f4c::t_f7a263e79f1254 85,201,228
+internal/tui/help.go
+  s_b5d41ab2ae0f4c::t_61851c4d867bec 12
+  s_b5d41ab2ae0f4c::t_f7a263e79f1254 122
+internal/tui/list.go
+  s_b5d41ab2ae0f4c::t_11266aadbed773 25-26,28
+  s_b5d41ab2ae0f4c::t_f7a263e79f1254 14,39,41-51,53,350,352
+internal/tui/list_test.go
+  s_b5d41ab2ae0f4c::t_f7a263e79f1254 15-26
+  s_b5d41ab2ae0f4c::t_d03909b148f98d 12
+internal/dryrun/dryrun.go
+  s_b5d41ab2ae0f4c::t_f7a263e79f1254 10,36,38,49
+internal/tui/reindex_test.go
+  s_b5d41ab2ae0f4c::t_1b9d969163fb84 8
+  s_b5d41ab2ae0f4c::t_11266aadbed773 56
+internal/worktree/display.go
+  s_b5d41ab2ae0f4c::t_5f81b894a6e95f 1-80
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_11266aadbed773 24,926,957-958
+internal/worktree/display_test.go
+  s_b5d41ab2ae0f4c::t_5f81b894a6e95f 1-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f3476ecbb1470ab7256d42304e98a4182690605f",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
