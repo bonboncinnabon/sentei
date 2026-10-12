@@ -1,10 +1,12 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"charm.land/bubbles/v2/cursor"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/repo"
@@ -97,5 +99,45 @@ func TestMenu_RepoFlowsOpenWithoutAnotherScreensError(t *testing.T) {
 				t.Errorf("%q opened showing %q", item.label, model.repo.validationErr)
 			}
 		})
+	}
+}
+
+// The preview under a form names the directory about to be created. A long
+// parent path must give way from the left: clipped at the terminal edge, the
+// line lost the one part the user had typed.
+func TestForms_DestinationPreviewKeepsItsTailOnANarrowTerminal(t *testing.T) {
+	launch := "/home/someone/" + strings.Repeat("deeply/nested/", 6) + "launch"
+
+	repoForm := repoNameModel(launch)
+	repoForm.repo.nameInput.SetValue("demo")
+	cloneForm := cloneInputModel(launch)
+	cloneForm.repo.urlInput.SetValue("git@github.com:user/demo.git")
+
+	for name, m := range map[string]Model{"create repository": repoForm, "clone": cloneForm} {
+		t.Run(name, func(t *testing.T) {
+			m.width = 60
+			view := stripANSI(m.viewRepoName())
+			if name == "clone" {
+				view = stripANSI(m.viewCloneInput())
+			}
+			var preview string
+			for _, line := range strings.Split(view, "\n") {
+				if strings.Contains(line, "→") {
+					preview = line
+				}
+			}
+			if !strings.HasSuffix(preview, "/launch/demo") || !strings.Contains(preview, "…") {
+				t.Errorf("preview = %q, want the head elided and the destination's tail kept", preview)
+			}
+			if width := ansi.StringWidth(preview); width > m.width {
+				t.Errorf("preview is %d cells wide on a %d-cell terminal: %q", width, m.width, preview)
+			}
+		})
+	}
+
+	repoForm.width = 60
+	header := strings.Split(stripANSI(repoForm.viewRepoOptions()), "\n")[2]
+	if !strings.HasSuffix(header, "/launch/demo") || ansi.StringWidth(header) > repoForm.width {
+		t.Errorf("options header = %q, want the destination's tail within %d cells", header, repoForm.width)
 	}
 }

@@ -104,7 +104,7 @@ func (m Model) viewCloneInput() string {
 	b.WriteString("\n")
 	// The destination preview lives with the field and tracks the URL live
 	// (the huh spike's other win).
-	b.WriteString(styleDim.Render(fmt.Sprintf("    → %s", cloneDest)))
+	b.WriteString(destinationPreview(cloneDest, m.width))
 	b.WriteString("\n")
 
 	if m.repo.validationErr != "" {

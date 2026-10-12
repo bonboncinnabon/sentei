@@ -108,7 +108,7 @@ func (m Model) viewRepoName() string {
 	b.WriteString("\n")
 	// The repository is a directory named after it inside Location.
 	dest := filepath.Join(m.repoLocation(), strings.TrimSpace(m.repo.nameInput.Value()))
-	b.WriteString(styleDim.Render(fmt.Sprintf("    → %s", dest)))
+	b.WriteString(destinationPreview(dest, m.width))
 	b.WriteString("\n")
 
 	if m.repo.validationErr != "" {
