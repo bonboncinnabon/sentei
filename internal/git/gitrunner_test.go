@@ -3,6 +3,7 @@ package git
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -294,5 +295,45 @@ func TestRunShell_DropsInheritedGitDir(t *testing.T) {
 	}
 	if got != ".git" {
 		t.Errorf("git dir seen by the install command = %q, want .git", got)
+	}
+}
+
+func TestGitRunner_ForcesCLocale(t *testing.T) {
+	t.Setenv("LC_ALL", "de_DE.UTF-8")
+
+	if got := childEnv(t, &GitRunner{})["LC_ALL"]; got != "C" {
+		t.Errorf("LC_ALL = %q, want C: sentei matches on git's English messages", got)
+	}
+}
+
+func TestGitRunner_MessagesStayEnglishUnderGermanLocale(t *testing.T) {
+	runner := &GitRunner{}
+	repo := t.TempDir()
+	worktree := filepath.Join(t.TempDir(), "wt")
+	for _, args := range [][]string{
+		{"init"},
+		{"commit", "--allow-empty", "-m", "init"},
+		{"worktree", "add", worktree},
+	} {
+		if _, err := runner.Run(repo, args...); err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+	}
+
+	t.Setenv("LANG", "de_DE.UTF-8")
+	t.Setenv("LC_ALL", "de_DE.UTF-8")
+	t.Setenv("LANGUAGE", "de")
+
+	// The message worktree removal matches on to tell "nothing to unlock"
+	// from a real failure.
+	const want = "is not locked"
+	unlock := []string{"-C", repo, "worktree", "unlock", worktree}
+	if translated, _ := exec.Command("git", unlock...).CombinedOutput(); strings.Contains(string(translated), want) {
+		t.Skip("git prints English under de_DE here (locale or translation not installed)")
+	}
+
+	_, err := runner.Run(repo, unlock[2:]...)
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("error = %v, want it to contain %q", err, want)
 	}
 }
