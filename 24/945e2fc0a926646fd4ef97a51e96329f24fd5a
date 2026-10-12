@@ -1,0 +1,51 @@
+internal/cleanup/dryrun_test.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 13-17,23,35,96,138,141
+internal/cleanup/config.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 10-14,16,18,21-23,27-28,31-36,39,43-45,50,54,59-62,64-70,73-74,77-79,81-82,84
+internal/cleanup/realgit_test.go
+  s_b5d41ab2ae0f4c::t_3f9c01fdca0357 1-13,16-152
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 14-15
+cmd/cleanup_run_test.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 84
+internal/cleanup/config_test.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 4-5,11,13-16,19-21,24-26,29-32,35-38,41-43,46-49,56-57,60,64-65,70-86
+  s_b5d41ab2ae0f4c::t_dda840cb2dbeda 87
+internal/tui/cleanup_truth_test.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 110-112
+openspec/specs/cleanup-preview/spec.md
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 25
+internal/tui/summary.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 101
+internal/cleanup/protection_test.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 31-32,34-38,42,49-50,53-55,61-65,67,74
+internal/cleanup/cleanup.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 83-84,110-112,115
+internal/tui/cleanup_preview_test.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 61,67
+internal/cleanup/testmain_test.go
+  s_b5d41ab2ae0f4c::t_3f9c01fdca0357 1-14
+internal/cleanup/cleanup_test.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 15-28,33,35,40-44,52-53,55,63-64,66,68-69,71-72,74-84,86-87
+internal/cleanup/dryrun.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 40,64,66,87
+internal/tui/chrome_migration_test.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 120
+internal/tui/cleanup_result.go
+  s_b5d41ab2ae0f4c::t_e05e33e0047d23 54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "24945e2fc0a926646fd4ef97a51e96329f24fd5a",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
