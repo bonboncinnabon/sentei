@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -134,9 +133,32 @@ func worktreeAtRisk(wt git.Worktree) bool {
 func (m Model) startDeletions() (tea.Model, tea.Cmd) {
 	execution := m.remove.run.execution
 	targets := append([]worktree.RemovalTarget(nil), m.remove.run.targets...)
+	remove := worktreeRemover(m.runner, m.repoPath, targets)
 	return m, func() tea.Msg {
-		result := worktree.DeleteWorktrees(execution, worktree.RemovalPhaseID, os.RemoveAll, targets, 5)
+		result := worktree.DeleteWorktrees(execution, worktree.RemovalPhaseID, remove, targets, 5)
 		return deletionsCompleteMsg{Result: result}
+	}
+}
+
+// worktreeRemover returns the function that removes one target by path.
+//
+// The status shown in the list is a snapshot taken when it loaded. A target
+// that was at risk then went through the confirmation screen and is removed
+// with --force. A target that looked clean is removed without it, so git
+// checks the tree again at the moment of deletion and refuses one that has
+// gained uncommitted or untracked files since.
+func worktreeRemover(runner git.CommandRunner, repoPath string, targets []worktree.RemovalTarget) func(path string) error {
+	confirmed := make(map[string]bool, len(targets))
+	for _, target := range targets {
+		confirmed[target.Worktree.Path] = worktreeAtRisk(target.Worktree)
+	}
+	return func(path string) error {
+		args := []string{"worktree", "remove", path}
+		if confirmed[path] {
+			args = []string{"worktree", "remove", "--force", path}
+		}
+		_, err := runner.Run(repoPath, args...)
+		return err
 	}
 }
 

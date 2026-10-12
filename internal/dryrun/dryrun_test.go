@@ -59,6 +59,17 @@ func TestPrint(t *testing.T) {
 			wantLines: []string{"[!]", "experiment/test"},
 		},
 		{
+			name: "status could not be read",
+			worktrees: []git.Worktree{
+				{
+					Branch:          "refs/heads/scratch",
+					EnrichmentError: "git log -1: fatal: no commits yet",
+				},
+			},
+			wantLines:  []string{"[?]", "scratch"},
+			wantAbsent: []string{"[ok]"},
+		},
+		{
 			name: "locked worktree",
 			worktrees: []git.Worktree{
 				{
