@@ -1,0 +1,165 @@
+internal/cli/registry_yes_test.go
+  s_b5d41ab2ae0f4c::t_3abf8e61fe165b 3,7-8,30,32-39
+internal/git/paths.go
+  s_b5d41ab2ae0f4c::t_a006bf47715e92 27-43
+internal/tui/removal_protection_test.go
+  s_b5d41ab2ae0f4c::t_95bb0ba7f3567b 1-115
+internal/worktree/enricher.go
+  s_b5d41ab2ae0f4c::t_ddfb86d745da59 87-93
+internal/cleanup/config_test.go
+  s_b5d41ab2ae0f4c::t_4fdf91cd304bda 156
+cmd/cleanup_run_test.go
+  s_b5d41ab2ae0f4c::t_93985d44eb9930 81-82
+internal/tui/repo_options_test.go
+  s_b5d41ab2ae0f4c::t_7a007c5d6dadc1 127-128
+  s_b5d41ab2ae0f4c::t_664a57137f0a68 72-97
+internal/cli/registry_test.go
+  s_b5d41ab2ae0f4c::t_0e26fe82b65192 20-21
+  s_b5d41ab2ae0f4c::t_b3670101739912 148-151,154-161,165-167,169,171,175-176,178-179
+internal/repo/migrate_prepared.go
+  s_b5d41ab2ae0f4c::t_24b900fd77185f 66-71
+  s_b5d41ab2ae0f4c::t_6cc6fd9dbdbc86 48-52
+  s_444f5ef2dcc907::t_e7898382c68d36 72
+internal/cleanup/protection_test.go
+  s_b5d41ab2ae0f4c::t_386029534a929c 1-94
+internal/cleanup/cleanup_test.go
+  s_b5d41ab2ae0f4c::t_d3178efa1a57c5 70
+  s_b5d41ab2ae0f4c::t_d640d5a9aab1ac 64-69
+cmd/remove_run_test.go
+  s_b5d41ab2ae0f4c::t_04bc6b4affe09d 185-253
+  s_b5d41ab2ae0f4c::t_9581f5648257d7 292-293
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_d640d5a9aab1ac 108-109
+  s_b5d41ab2ae0f4c::t_8cf3367839bd6c 110-112
+  s_b5d41ab2ae0f4c::t_c38d78892a02b6 629
+internal/worktree/atrisk_test.go
+  s_b5d41ab2ae0f4c::t_2a4be9d5ebea2c 1-30
+cmd/cli_e2e_test.go
+  s_b5d41ab2ae0f4c::t_49d31de5a71bdf 75-78,80,82,85-86
+  s_b5d41ab2ae0f4c::t_dc1a75b3b05a2b 359-361,363-368,370,374-380,383-392
+internal/repo/migrate_path_test.go
+  s_b5d41ab2ae0f4c::t_3ec10054229d33 1-56
+internal/tui/menu.go
+  s_b5d41ab2ae0f4c::t_41d4123112ed35 5
+  s_b5d41ab2ae0f4c::t_00fbc91634fa89 20
+  s_b5d41ab2ae0f4c::t_94293bf143f8d6 32-34,39-41,47
+internal/tui/repo_options.go
+  s_b5d41ab2ae0f4c::t_7cff2ac0097e52 57-60,62-63
+cmd/args.go
+  s_b5d41ab2ae0f4c::t_995e81b2699c43 1-17
+internal/cleanup/dryrun_test.go
+  s_b5d41ab2ae0f4c::t_d640d5a9aab1ac 31
+  s_b5d41ab2ae0f4c::t_79946b17c81323 32
+internal/cli/registry.go
+  s_b5d41ab2ae0f4c::t_a74fdf23ba1507 79
+  s_b5d41ab2ae0f4c::t_c393db967d969f 94-99,106,112
+  s_b5d41ab2ae0f4c::t_b875438c245d24 6
+  s_b5d41ab2ae0f4c::t_7b45c04916cd8a 147-149
+  s_b5d41ab2ae0f4c::t_9b272ebb1e268d 22-23
+  s_b5d41ab2ae0f4c::t_81250205542dcc 57-58,61-64,66-67,71
+main_test.go
+  s_b5d41ab2ae0f4c::t_ac2d0cf2f24d14 5,10-59
+  s_444f5ef2dcc907::t_f09fd964b44cf4 60
+cmd/remove_flags.go
+  s_b5d41ab2ae0f4c::t_f53f54793d941f 80-82,84
+internal/dryrun/dryrun.go
+  s_b5d41ab2ae0f4c::t_452651f583f9d4 69-71
+cmd/output_format_test.go
+  s_b5d41ab2ae0f4c::t_14861917327f06 67-72,82-84
+  s_b5d41ab2ae0f4c::t_4f8a7f39b21429 61
+  s_114887674b7f24::t_d06ea3e23f7f60 85
+internal/cleanup/branches.go
+  s_b5d41ab2ae0f4c::t_c1acbe7ccd7adf 131-133,138-142,149
+cmd/cleanup_flags.go
+  s_b5d41ab2ae0f4c::t_0bbb718ff786b3 22-24
+internal/tui/list.go
+  s_b5d41ab2ae0f4c::t_85dddfaf5047b6 71-78,83-85
+  s_b5d41ab2ae0f4c::t_d22213366f9154 177,191,202,210,385
+internal/git/path_contains_test.go
+  s_b5d41ab2ae0f4c::t_6c265d519cc419 1-47
+internal/tui/confirm.go
+  s_b5d41ab2ae0f4c::t_6fbcfa792cb88b 312
+  s_b5d41ab2ae0f4c::t_3065e6f945b81d 347,350-351
+  s_b5d41ab2ae0f4c::t_d047b721f232df 397-402
+  s_b5d41ab2ae0f4c::t_93839b2038c25e 408-422,424-451
+  s_b5d41ab2ae0f4c::t_136b466febe1ca 329-331
+  s_b5d41ab2ae0f4c::t_9ebe878ade8c49 311
+  s_b5d41ab2ae0f4c::t_e7059e0db6a836 192-193,195
+cmd/agent_contract_test.go
+  s_b5d41ab2ae0f4c::t_2f2416a884c3c8 1-68
+cmd/remove_filter.go
+  s_b5d41ab2ae0f4c::t_702f39ae54752d 17-19
+  s_b5d41ab2ae0f4c::t_5503e476308b3a 28-29,33
+cmd/create.go
+  s_b5d41ab2ae0f4c::t_a23722c8ef2436 137-138,140,142-144,149-151,153
+  s_b5d41ab2ae0f4c::t_7dbe1bd766456b 98-99,103,109,115,117
+  s_b5d41ab2ae0f4c::t_5b0bb31f8a0d21 42-45
+main.go
+  s_b5d41ab2ae0f4c::t_3485a9e2ae4cdf 87-88
+  s_b5d41ab2ae0f4c::t_61d64359ef6960 148-150
+  s_b5d41ab2ae0f4c::t_5079db5de8f227 247
+  s_b5d41ab2ae0f4c::t_c80ae889bb2861 169-205,207-221
+  s_b5d41ab2ae0f4c::t_81c206d107d557 79-80
+  s_b5d41ab2ae0f4c::t_e237b99717b3c9 335-339
+  s_b5d41ab2ae0f4c::t_427537779cd1ee 71-72
+  s_b5d41ab2ae0f4c::t_06a87e11553173 257
+  s_b5d41ab2ae0f4c::t_be96a70896a360 268
+  s_b5d41ab2ae0f4c::t_bae007907bb2c3 275
+  s_b5d41ab2ae0f4c::t_24f76327b4d315 304-305
+  s_b5d41ab2ae0f4c::t_207a6a7218fe4c 340
+internal/cleanup/branches_test.go
+  s_b5d41ab2ae0f4c::t_d640d5a9aab1ac 149,151-154
+  s_b5d41ab2ae0f4c::t_90359dbf4da4e5 150
+internal/tui/confirm_overflow_test.go
+  s_b5d41ab2ae0f4c::t_10ebd2f2210ac8 1-82
+cmd/cleanup.go
+  s_b5d41ab2ae0f4c::t_10327e1f1db649 51-54
+cmd/create_flags.go
+  s_b5d41ab2ae0f4c::t_32ca0d7ed6ef15 45-47,49
+cmd/migrate_flags.go
+  s_b5d41ab2ae0f4c::t_de580e188b25cc 28-30,32
+cmd/remove.go
+  s_b5d41ab2ae0f4c::t_1d3aa6439ee311 124-130
+  s_b5d41ab2ae0f4c::t_afbd6379f2ba39 113-114
+  s_b5d41ab2ae0f4c::t_162c8328531005 131,179-182
+  s_b5d41ab2ae0f4c::t_6eb027be2891eb 63-69
+  s_b5d41ab2ae0f4c::t_cc85ea976aa30a 90,95
+  s_b5d41ab2ae0f4c::t_6d7451a2a58ee1 132
+internal/cleanup/config.go
+  s_b5d41ab2ae0f4c::t_075f304f1b9afe 76-78
+  s_b5d41ab2ae0f4c::t_35575752845d5a 99-101
+cmd/args_test.go
+  s_b5d41ab2ae0f4c::t_712a70f8d257bc 1-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6025a20c223948230895a65b78bb84b9567641d7",
+  "prompts": {},
+  "sessions": {
+    "s_114887674b7f24": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c980550-5a1f-439e-9910-74b015825844",
+        "model": "unknown"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    },
+    "s_444f5ef2dcc907": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b8fb388-3e36-4fa1-8e2f-755c73b5f3b8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    },
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
