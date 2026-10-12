@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
@@ -24,13 +23,7 @@ type removalRun struct {
 	pruneErr error
 }
 
-type unlockOperation struct {
-	stepID   progress.StepID
-	worktree git.Worktree
-}
-
 type removalPreparation struct {
-	plan      progress.Plan
-	unlockOps []unlockOperation
-	targets   []worktree.RemovalTarget
+	plan    progress.Plan
+	targets []worktree.RemovalTarget
 }

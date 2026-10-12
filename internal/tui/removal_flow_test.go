@@ -174,3 +174,83 @@ func dirNames(t *testing.T, dir string) []string {
 	}
 	return names
 }
+
+// lockReason returns the lock reason git reports for the worktree at path,
+// and whether it is locked at all.
+func lockReason(t *testing.T, bare, path string) (string, bool) {
+	t.Helper()
+	wts, err := git.ListWorktrees(&git.GitRunner{}, bare)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, wt := range wts {
+		if wt.Path == path {
+			return wt.LockReason, wt.IsLocked
+		}
+	}
+	t.Fatalf("worktree %s is not listed", path)
+	return "", false
+}
+
+// A locked worktree used to be unlocked first, by a blocking git call inside
+// Update, and stayed unlocked when its removal then failed or never started.
+func TestRemoval_FailedRemovalLeavesTheLockInPlace(t *testing.T) {
+	bare := realBareRepo(t, "alpha")
+	alpha := filepath.Join(bare, "alpha")
+	runTestGit(t, bare, "worktree", "lock", "--reason", "on a USB disk", alpha)
+
+	runner := &recordingRunner{fail: map[string]error{"worktree remove": errors.New("git worktree remove: device busy")}}
+	m := runRemoval(t, loadedListModel(t, runner, bare), alpha)
+
+	if !m.remove.run.result.HasFailures() {
+		t.Fatal("the removal was meant to fail")
+	}
+	if reason, locked := lockReason(t, bare, alpha); !locked || reason != "on a USB disk" {
+		t.Errorf("after a failed removal: locked=%v reason=%q, want the lock and its reason intact", locked, reason)
+	}
+	if runner.called("worktree unlock") {
+		t.Error("the removal unlocked the worktree")
+	}
+}
+
+func TestRemoval_LockedWorktreeIsRemoved(t *testing.T) {
+	bare := realBareRepo(t, "alpha")
+	alpha := filepath.Join(bare, "alpha")
+	runTestGit(t, bare, "worktree", "lock", alpha)
+
+	m := runRemoval(t, loadedListModel(t, &recordingRunner{}, bare), alpha)
+
+	if summary := stripAnsi(m.viewSummary()); m.remove.run.result.HasFailures() {
+		t.Fatalf("removing a confirmed locked worktree failed:\n%s", summary)
+	}
+	if _, err := os.Stat(alpha); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("locked worktree directory still exists (stat error: %v)", err)
+	}
+	wts, err := git.ListWorktrees(&git.GitRunner{}, bare)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, wt := range wts {
+		if wt.Path == alpha {
+			t.Error("git still lists the locked worktree after its removal")
+		}
+	}
+}
+
+// Only a lock the user saw on the confirm screen is overridden. A worktree
+// locked after the list loaded is refused by git and stays where it is.
+func TestRemoval_LockAddedAfterTheListLoadedIsRespected(t *testing.T) {
+	bare := realBareRepo(t, "alpha")
+	alpha := filepath.Join(bare, "alpha")
+	m := loadedListModel(t, &recordingRunner{}, bare)
+	runTestGit(t, bare, "worktree", "lock", alpha)
+
+	m = runRemoval(t, m, alpha)
+
+	if !m.remove.run.result.HasFailures() {
+		t.Error("a worktree locked after the list loaded was removed")
+	}
+	if _, err := os.Stat(alpha); err != nil {
+		t.Errorf("worktree locked after the list loaded is gone: %v", err)
+	}
+}

@@ -17,8 +17,6 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
-const unlockPhaseID progress.PhaseID = "unlock-worktrees"
-
 func (m Model) updateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
@@ -50,7 +48,7 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 		m.view = summaryView
 		return m, nil
 	}
-	ch := make(chan progress.Event, (len(prepared.targets)+len(prepared.unlockOps)+len(prepared.plan.Phases))*5)
+	ch := make(chan progress.Event, (len(prepared.targets)+len(prepared.plan.Phases))*5)
 	execution, err := progress.Start(prepared.plan, func(event progress.Event) { ch <- event })
 	if err != nil {
 		close(ch)
@@ -61,15 +59,9 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 	m.remove.run.execution = execution
 	m.remove.run.progressCh = ch
 	m.remove.run.targets = prepared.targets
-	declarationEvents := len(prepared.unlockOps) + len(prepared.targets) + len(prepared.plan.Phases)
+	declarationEvents := len(prepared.targets) + len(prepared.plan.Phases)
 	for range declarationEvents {
 		m.remove.run.events = append(m.remove.run.events, <-ch)
-	}
-	for _, operation := range prepared.unlockOps {
-		_, transitionErr := execution.Run(unlockPhaseID, operation.stepID, func() (string, error) {
-			return "", worktree.UnlockWorktree(m.runner, m.repoPath, operation.worktree.Path)
-		})
-		m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, transitionErr)
 	}
 
 	updated, cmd := m.startDeletions()
@@ -79,7 +71,6 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 func prepareRemoval(worktrees []git.Worktree) (removalPreparation, error) {
 	prepared := removalPreparation{}
 	seenWorktrees := map[string]bool{}
-	unlock := progress.PlannedPhase{ID: unlockPhaseID, Label: "Unlock"}
 	removal := progress.PlannedPhase{ID: worktree.RemovalPhaseID, Label: worktree.RemovalPhaseName}
 
 	for _, wt := range worktrees {
@@ -88,19 +79,11 @@ func prepareRemoval(worktrees []git.Worktree) (removalPreparation, error) {
 			return removalPreparation{}, fmt.Errorf("preparing removal: duplicate worktree identity %q", identity)
 		}
 		seenWorktrees[identity] = true
-		if wt.IsLocked {
-			stepID := removalSemanticStepID("unlock", identity)
-			prepared.unlockOps = append(prepared.unlockOps, unlockOperation{stepID: stepID, worktree: wt})
-			unlock.Steps = append(unlock.Steps, progress.PlannedStep{ID: stepID, Label: worktreeLabel(wt)})
-		}
 		stepID := removalSemanticStepID("remove", identity)
 		prepared.targets = append(prepared.targets, worktree.RemovalTarget{Worktree: wt, StepID: stepID})
 		removal.Steps = append(removal.Steps, progress.PlannedStep{ID: stepID, Label: worktreeLabel(wt), Checkpoints: 2})
 	}
-	if len(unlock.Steps) > 0 {
-		prepared.plan.Phases = append(prepared.plan.Phases, unlock)
-	}
-	prepared.plan.Phases = append(prepared.plan.Phases, removal)
+	prepared.plan.Phases = []progress.PlannedPhase{removal}
 	return prepared, nil
 }
 
@@ -140,13 +123,19 @@ func (m Model) startDeletions() (tea.Model, tea.Cmd) {
 // and it is left alone if it has gained work since.
 //
 // Removal always passes --force: without it git refuses every worktree that
-// contains submodules, clean or not.
+// contains submodules, clean or not. A target that was locked when it was
+// confirmed gets --force twice, which is how git removes a locked worktree.
+// Nothing is unlocked first, so a removal that fails or never starts leaves
+// the lock and its reason in place, and a lock placed after the list loaded
+// is still refused.
 func worktreeRemover(runner git.CommandRunner, repoPath string, targets []worktree.RemovalTarget) func(path string) error {
 	unconfirmed := make(map[string]git.Worktree, len(targets))
+	locked := make(map[string]bool)
 	for _, target := range targets {
 		if !worktreeAtRisk(target.Worktree) {
 			unconfirmed[target.Worktree.Path] = target.Worktree
 		}
+		locked[target.Worktree.Path] = target.Worktree.IsLocked
 	}
 	return func(path string) error {
 		if wt, ok := unconfirmed[path]; ok {
@@ -155,7 +144,11 @@ func worktreeRemover(runner git.CommandRunner, repoPath string, targets []worktr
 				return errors.New("changed since the list loaded: reopen the list to review it")
 			}
 		}
-		_, err := runner.Run(repoPath, "worktree", "remove", "--force", path)
+		args := []string{"worktree", "remove", "--force"}
+		if locked[path] {
+			args = append(args, "--force")
+		}
+		_, err := runner.Run(repoPath, append(args, path)...)
 		return err
 	}
 }
