@@ -11,17 +11,25 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/fileutil"
 )
 
+// uniqueEnvFiles returns the env files to copy: the explicit list plus those
+// declared by the ecosystems selected for install.
 func uniqueEnvFiles(opts Options) []string {
 	seen := map[string]bool{}
 	var files []string
+	add := func(name string) {
+		name = filepath.Clean(strings.TrimSpace(name))
+		if name == "." || filepath.IsAbs(name) || strings.HasPrefix(name, ".."+string(filepath.Separator)) || seen[name] {
+			return
+		}
+		seen[name] = true
+		files = append(files, name)
+	}
+	for _, name := range opts.EnvFiles {
+		add(name)
+	}
 	for _, ecosystem := range opts.Ecosystems {
 		for _, name := range ecosystem.EnvFiles {
-			name = filepath.Clean(strings.TrimSpace(name))
-			if name == "." || filepath.IsAbs(name) || strings.HasPrefix(name, ".."+string(filepath.Separator)) || seen[name] {
-				continue
-			}
-			seen[name] = true
-			files = append(files, name)
+			add(name)
 		}
 	}
 	sort.Strings(files)

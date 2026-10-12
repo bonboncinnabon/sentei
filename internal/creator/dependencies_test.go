@@ -2,6 +2,9 @@ package creator
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -49,6 +52,40 @@ func TestRun_WorkspaceRepoGetsOneRootInstall(t *testing.T) {
 	}
 	if installs != 1 {
 		t.Errorf("root install ran %d times, want 1 (calls: %v)", installs, runner.Calls)
+	}
+}
+
+// Env files used to come only from the ecosystems selected for install, so
+// asking to copy them without selecting an install copied nothing.
+func TestRun_CopiesExplicitEnvFilesWithoutEcosystems(t *testing.T) {
+	source := t.TempDir()
+	if err := os.WriteFile(filepath.Join(source, ".env"), []byte("TOKEN=local\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	repo := t.TempDir()
+	worktree := filepath.Join(repo, "feature-env")
+	if err := os.MkdirAll(worktree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runner := &mock.Runner{Responses: map[string]mock.Response{
+		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/env]", repo):      {Err: errors.New("not found")},
+		fmt.Sprintf("%s:[worktree add %s -b feature/env main]", repo, worktree): {},
+	}}
+
+	result := Run(runner, runner, Options{
+		BranchName: "feature/env", BaseBranch: "main", RepoPath: repo,
+		SourceWorktree: source, CopyEnvFiles: true, EnvFiles: []string{".env"},
+	}, func(progress.Event) {})
+
+	if result.Err != nil || result.HasFailures() {
+		t.Fatalf("result = %#v, want success", result)
+	}
+	got, err := os.ReadFile(filepath.Join(worktree, ".env"))
+	if err != nil {
+		t.Fatalf("the env file was not copied: %v", err)
+	}
+	if string(got) != "TOKEN=local\n" {
+		t.Errorf(".env = %q, want the source contents", got)
 	}
 }
 

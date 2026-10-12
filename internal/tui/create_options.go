@@ -137,8 +137,12 @@ func (m *Model) startCreation() {
 }
 
 func (m Model) buildCreatorOptions() creator.Options {
+	// The env row lists the files of every detected ecosystem, so that is what
+	// gets copied, whether or not the ecosystem's install row is checked.
 	var enabledEcos []config.EcosystemConfig
+	var envFiles []string
 	for _, eco := range m.create.ecosystems {
+		envFiles = append(envFiles, eco.EnvFiles...)
 		if m.create.ecoEnabled[eco.Name] {
 			enabledEcos = append(enabledEcos, eco)
 		}
@@ -151,6 +155,7 @@ func (m Model) buildCreatorOptions() creator.Options {
 		SourceWorktree: m.findSourceWorktree(),
 		MergeBase:      m.create.mergeBase,
 		CopyEnvFiles:   m.create.copyEnvFiles,
+		EnvFiles:       envFiles,
 		Ecosystems:     enabledEcos,
 	}
 	if m.cfg != nil {

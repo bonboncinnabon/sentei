@@ -17,8 +17,13 @@ type Options struct {
 	SourceWorktree string
 	MergeBase      bool
 	CopyEnvFiles   bool
-	WorktreeFiles  []worktreefile.Rule
-	Ecosystems     []config.EcosystemConfig
+	// EnvFiles are copied from SourceWorktree when CopyEnvFiles is set, in
+	// addition to the env files of Ecosystems. Callers pass the env files of
+	// every ecosystem detected in the source, so copying them does not depend
+	// on which installs were selected.
+	EnvFiles      []string
+	WorktreeFiles []worktreefile.Rule
+	Ecosystems    []config.EcosystemConfig
 }
 
 type Result struct {
