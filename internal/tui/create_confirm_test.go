@@ -220,13 +220,15 @@ func TestCreateConfirm_ViewDispatch(t *testing.T) {
 
 // unloadedWorktreesModel is a bare-repo model whose worktree list has not been
 // loaded: the state of a direct `sentei create`, and of the menu before its
-// background load lands. The source worktree (uv.lock present, pnpm absent)
+// background load lands. The source worktree (uv and go present, pnpm absent)
 // can only be found by asking git.
 func unloadedWorktreesModel(t *testing.T) (Model, string) {
 	t.Helper()
 	source := t.TempDir()
-	if err := os.WriteFile(filepath.Join(source, "uv.lock"), nil, 0o644); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"uv.lock", "go.mod"} {
+		if err := os.WriteFile(filepath.Join(source, name), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		"/repo:[rev-parse --git-dir]": {Output: ".bare"},
@@ -236,6 +238,7 @@ func unloadedWorktreesModel(t *testing.T) (Model, string) {
 	}}
 	cfg := &config.Config{Ecosystems: []config.EcosystemConfig{
 		{Name: "uv", Detect: config.DetectConfig{Files: []string{"uv.lock"}}, EnvFiles: []string{".env"}},
+		{Name: "go", Detect: config.DetectConfig{Files: []string{"go.mod"}}},
 		{Name: "pnpm", Detect: config.DetectConfig{Files: []string{"pnpm-lock.yaml"}}},
 	}}
 	m := NewMenuModel(runner, runner, "/repo", cfg, repo.ContextBareRepo)
@@ -260,15 +263,17 @@ func ecosystemNames(ecosystems []config.EcosystemConfig) []string {
 }
 
 // With branch and base given there is no options screen, so the flags are the
-// whole decision. --ecosystems used to be dropped: nothing was installed.
+// whole decision. --ecosystems used to be dropped: nothing was installed. As in
+// the non-interactive run, a configured ecosystem is installed when named,
+// detected (go) or not (pnpm), and a detected one that was not named (uv) is not.
 func TestSetCreateOpts_DirectRunInstallsTheRequestedEcosystems(t *testing.T) {
-	m, _ := directCreateModel(t, &CreateOpts{Branch: "feature/x", Base: "main", Ecosystems: []string{"pnpm"}})
+	m, _ := directCreateModel(t, &CreateOpts{Branch: "feature/x", Base: "main", Ecosystems: []string{"pnpm", "go"}})
 
-	if got := ecosystemNames(m.buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"pnpm"}) {
-		t.Errorf("installs = %v, want exactly the --ecosystems selection [pnpm]", got)
+	if got := ecosystemNames(m.buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"go", "pnpm"}) {
+		t.Errorf("installs = %v, want exactly the --ecosystems selection [go pnpm]", got)
 	}
 	confirm := stripAnsi(m.viewCreateConfirm())
-	if !strings.Contains(confirm, "--ecosystems pnpm") {
+	if !strings.Contains(confirm, "--ecosystems go,pnpm") {
 		t.Errorf("confirm screen does not echo the selection:\n%s", confirm)
 	}
 }
@@ -303,20 +308,25 @@ func TestSetCreateOpts_DirectRunCopiesEnvFromTheSourceWorktree(t *testing.T) {
 	}
 }
 
-// With only --branch the options screen follows: --ecosystems preselects its
-// rows, and without it every detected ecosystem starts checked.
+// With only --branch the options screen follows. It offers the detected
+// ecosystems: --ecosystems preselects among them, and without it they all
+// start checked.
 func TestSetCreateOpts_OptionsScreenStartsFromTheEcosystemsFlag(t *testing.T) {
-	selected, _ := directCreateModel(t, &CreateOpts{Branch: "feature/x", Ecosystems: []string{"pnpm"}})
-	if got := ecosystemNames(selected.buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"pnpm"}) {
-		t.Errorf("installs = %v, want [pnpm] from --ecosystems", got)
+	selected, _ := directCreateModel(t, &CreateOpts{Branch: "feature/x", Ecosystems: []string{"go", "pnpm"}})
+	if got := ecosystemNames(selected.buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"go"}) {
+		t.Errorf("installs = %v, want [go] from --ecosystems", got)
 	}
-	if view := stripAnsi(selected.viewCreateOptions()); !strings.Contains(view, "[ ] Install dependencies (uv)") || !strings.Contains(view, "[x] Install dependencies (pnpm)") {
-		t.Errorf("options screen does not reflect --ecosystems pnpm:\n%s", view)
+	view := stripAnsi(selected.viewCreateOptions())
+	if !strings.Contains(view, "[ ] Install dependencies (uv)") || !strings.Contains(view, "[x] Install dependencies (go)") {
+		t.Errorf("options screen does not reflect --ecosystems go:\n%s", view)
+	}
+	if strings.Contains(view, "pnpm") {
+		t.Errorf("options screen offers pnpm, which was not detected:\n%s", view)
 	}
 
 	defaults, _ := directCreateModel(t, &CreateOpts{Branch: "feature/x"})
 	opts := defaults.buildCreatorOptions()
-	if got := ecosystemNames(opts.Ecosystems); !slices.Equal(got, []string{"uv"}) || !opts.MergeBase || !opts.CopyEnvFiles {
-		t.Errorf("installs=%v MergeBase=%v CopyEnvFiles=%v, want the interactive defaults (detected uv, both on)", got, opts.MergeBase, opts.CopyEnvFiles)
+	if got := ecosystemNames(opts.Ecosystems); !slices.Equal(got, []string{"uv", "go"}) || !opts.MergeBase || !opts.CopyEnvFiles {
+		t.Errorf("installs=%v MergeBase=%v CopyEnvFiles=%v, want the interactive defaults (detected uv and go, both on)", got, opts.MergeBase, opts.CopyEnvFiles)
 	}
 }

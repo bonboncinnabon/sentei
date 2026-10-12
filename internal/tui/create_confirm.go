@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -23,20 +24,23 @@ func (m *Model) SetCreateOpts(opts *CreateOpts) {
 	}
 	m.prepareCreateOptions()
 
-	// With branch and base given no options screen follows, so the flags are
-	// the whole decision, exactly as in the non-interactive run. Otherwise the
-	// toggles keep their interactive defaults and stay editable.
+	// --ecosystems names the installs. On the options screen it preselects
+	// among the detected ecosystems, which stay editable there.
 	direct := opts.Branch != "" && opts.Base != ""
-	if direct {
-		m.create.mergeBase = opts.MergeBase
-		m.create.copyEnvFiles = opts.CopyEnv
-	}
 	if direct || len(opts.Ecosystems) > 0 {
-		m.selectEcosystems(opts.Ecosystems)
+		m.create.ecoEnabled = make(map[string]bool, len(opts.Ecosystems))
+		for _, name := range opts.Ecosystems {
+			m.create.ecoEnabled[name] = true
+		}
 	}
 
 	switch {
 	case direct:
+		// No options screen follows, so the flags are the whole decision,
+		// exactly as in the non-interactive run.
+		m.create.mergeBase = opts.MergeBase
+		m.create.copyEnvFiles = opts.CopyEnv
+		m.offerConfiguredEcosystems(opts.Ecosystems)
 		m.view = createConfirmView
 	case opts.Branch != "":
 		m.view = createOptionsView
@@ -45,14 +49,10 @@ func (m *Model) SetCreateOpts(opts *CreateOpts) {
 	}
 }
 
-// selectEcosystems checks exactly the named ecosystems, as --ecosystems does
-// in the non-interactive run: a configured ecosystem counts even when it was
-// not detected in the source worktree, so it is added to the offered rows.
-func (m *Model) selectEcosystems(names []string) {
-	m.create.ecoEnabled = make(map[string]bool, len(names))
-	for _, name := range names {
-		m.create.ecoEnabled[name] = true
-	}
+// offerConfiguredEcosystems adds the named ecosystems that were not detected
+// in the source worktree: the non-interactive run installs any configured
+// ecosystem that --ecosystems names, detected or not.
+func (m *Model) offerConfiguredEcosystems(names []string) {
 	if m.cfg == nil {
 		return
 	}
@@ -61,7 +61,7 @@ func (m *Model) selectEcosystems(names []string) {
 		offered[eco.Name] = true
 	}
 	for _, eco := range m.cfg.Ecosystems {
-		if m.create.ecoEnabled[eco.Name] && !offered[eco.Name] {
+		if slices.Contains(names, eco.Name) && !offered[eco.Name] {
 			m.create.ecosystems = append(m.create.ecosystems, eco)
 		}
 	}
