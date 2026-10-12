@@ -151,25 +151,12 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.listCursorUp()
 
 		case key.Matches(msg, keys.PageDown):
-			m.remove.cursor += m.height
-			if m.remove.cursor >= len(m.remove.visibleIndices) {
-				m.remove.cursor = len(m.remove.visibleIndices) - 1
-			}
-			if m.remove.cursor < 0 {
-				m.remove.cursor = 0
-			}
-			if m.remove.cursor >= m.remove.offset+m.height {
-				m.remove.offset = m.remove.cursor - m.height + 1
-			}
+			m.remove.cursor += m.listRows()
+			m.clampListWindow()
 
 		case key.Matches(msg, keys.PageUp):
-			m.remove.cursor -= m.height
-			if m.remove.cursor < 0 {
-				m.remove.cursor = 0
-			}
-			if m.remove.cursor < m.remove.offset {
-				m.remove.offset = m.remove.cursor
-			}
+			m.remove.cursor -= m.listRows()
+			m.clampListWindow()
 
 		case key.Matches(msg, keys.Toggle):
 			if len(m.remove.visibleIndices) > 0 {
@@ -238,24 +225,16 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 // listCursorDown moves the cursor one row down, scrolling the window when it
 // passes the bottom edge. Shared by the j/down keys and the mouse wheel.
 func (m Model) listCursorDown() Model {
-	if m.remove.cursor < len(m.remove.visibleIndices)-1 {
-		m.remove.cursor++
-		if m.remove.cursor >= m.remove.offset+m.height {
-			m.remove.offset = m.remove.cursor - m.height + 1
-		}
-	}
+	m.remove.cursor++
+	m.clampListWindow()
 	return m
 }
 
 // listCursorUp moves the cursor one row up, scrolling the window when it
 // passes the top edge. Shared by the k/up keys and the mouse wheel.
 func (m Model) listCursorUp() Model {
-	if m.remove.cursor > 0 {
-		m.remove.cursor--
-		if m.remove.cursor < m.remove.offset {
-			m.remove.offset = m.remove.cursor
-		}
-	}
+	m.remove.cursor--
+	m.clampListWindow()
 	return m
 }
 
@@ -310,7 +289,7 @@ func (m Model) viewList() string {
 		return b.String()
 	}
 
-	end := min(m.remove.offset+m.height, len(m.remove.visibleIndices))
+	end := min(m.remove.offset+m.listRows(), len(m.remove.visibleIndices))
 
 	arrow := " ▲"
 	if !m.remove.sortAscending {

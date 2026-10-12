@@ -38,6 +38,11 @@ func overallBarWidth(viewWidth int) int {
 // the footer area.
 const viewChromeRows = 6
 
+// listExtraChromeRows is what the worktree list draws beyond viewChromeRows:
+// the repo line and its blank line, the column header, the status bar's top
+// padding and the legend.
+const listExtraChromeRows = 5
+
 // progressSettleBeat is how long a flow's final progress frame stays visibly
 // settled (displayed fill at its spring target) before advancing to the
 // summary. State-relative: the beat starts when the spring arrives, not when

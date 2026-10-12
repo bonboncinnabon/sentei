@@ -584,6 +584,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = size.Width
 		m.windowHeight = max(size.Height, 0)
 		m.height = max(size.Height-viewChromeRows, 5)
+		m.clampListWindow()
 		m.bar.SetWidth(overallBarWidth(size.Width))
 		return m, nil
 	}
@@ -894,16 +895,24 @@ func (m *Model) reindex() {
 	})
 
 	m.remove.visibleIndices = indices
+	m.clampListWindow()
+}
 
-	if m.remove.cursor >= len(m.remove.visibleIndices) {
-		m.remove.cursor = max(len(m.remove.visibleIndices)-1, 0)
-	}
-	if m.remove.offset > m.remove.cursor {
-		m.remove.offset = m.remove.cursor
-	}
-	if m.remove.cursor >= m.remove.offset+m.height && m.height > 0 {
-		m.remove.offset = m.remove.cursor - m.height + 1
-	}
+// listRows is how many worktree rows the list can show: the shared body
+// height less the chrome only the list draws.
+func (m Model) listRows() int {
+	return max(m.height-listExtraChromeRows, 1)
+}
+
+// clampListWindow puts the cursor on a row, scrolls the window to contain it
+// and stops the window running past the end of the list. Everything that
+// moves the cursor, changes the rows or resizes the terminal ends here.
+func (m *Model) clampListWindow() {
+	rows, height := len(m.remove.visibleIndices), m.listRows()
+	m.remove.cursor = max(min(m.remove.cursor, rows-1), 0)
+	m.remove.offset = min(m.remove.offset, m.remove.cursor)
+	m.remove.offset = max(m.remove.offset, m.remove.cursor-height+1)
+	m.remove.offset = max(min(m.remove.offset, rows-height), 0)
 }
 
 // flowIdentity names the live operation in its two voices: a sentence form
