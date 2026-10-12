@@ -68,8 +68,11 @@ func (m Model) viewCreateSummary() string {
 
 	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Path"), truncateWithEllipsis(wtPath, max(m.width-16, 20)))
 	origin := "from " + base
-	if result != nil && result.BranchExisted {
+	if result != nil && result.ExistingBranch != "" {
 		origin = "existing branch, not created from " + base
+		if result.ExistingBranch != branch {
+			origin = fmt.Sprintf("tracks %s, not created from %s", result.ExistingBranch, base)
+		}
 	}
 	fmt.Fprintf(&b, "    %-10s %s (%s)\n", styleDim.Render("Branch"), branch, origin)
 

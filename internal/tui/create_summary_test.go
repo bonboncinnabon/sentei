@@ -177,16 +177,22 @@ func TestViewCreateSummary_CreatedWithFailedSetupStepNamesIt(t *testing.T) {
 }
 
 // An existing branch is checked out as it is, so "(from main)" would be false.
+// One that only the remote had is named as what the new branch tracks.
 func TestViewCreateSummary_ExistingBranchDoesNotClaimTheBase(t *testing.T) {
-	m := createOptionsModel()
-	m.create.result = &creator.Result{WorktreePath: "/repo/feature-x", BranchExisted: true}
+	for existing, want := range map[string]string{
+		"feature/x":        "feature/x (existing branch, not created from main)",
+		"origin/feature/x": "feature/x (tracks origin/feature/x, not created from main)",
+	} {
+		m := createOptionsModel()
+		m.create.result = &creator.Result{WorktreePath: "/repo/feature-x", ExistingBranch: existing}
 
-	view := stripANSI(m.viewCreateSummary())
+		view := stripANSI(m.viewCreateSummary())
 
-	if !strings.Contains(view, "feature/x (existing branch, not created from main)") {
-		t.Errorf("summary must say the existing branch was used:\n%s", view)
-	}
-	if strings.Contains(view, "feature/x (from main)") {
-		t.Errorf("summary claims the branch came from the base:\n%s", view)
+		if !strings.Contains(view, want) {
+			t.Errorf("summary must say %q:\n%s", want, view)
+		}
+		if strings.Contains(view, "feature/x (from main)") {
+			t.Errorf("summary claims the branch came from the base:\n%s", view)
+		}
 	}
 }
