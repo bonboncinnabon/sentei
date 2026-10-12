@@ -90,9 +90,12 @@ func loadFile(path string) (*Config, error) {
 }
 
 // mergeEcosystems performs a keyed merge of overlay into base, using name as
-// the key. Existing entries are updated field-by-field (only non-zero overlay
-// fields replace base values). New entries are appended. Source is set on all
-// changed or new entries.
+// the key. Existing entries are updated field by field with the keys the
+// overlay names: a list the overlay sets replaces the base list, and an
+// explicit empty list (`env_files: []`) clears it, while an absent key leaves
+// the base value alone. install.command has no such form: an empty string is
+// indistinguishable from an absent key, so it keeps the base command. New
+// entries are appended. Source is set on all changed or new entries.
 func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []EcosystemConfig {
 	if len(overlay) == 0 {
 		return base
@@ -119,13 +122,13 @@ func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []Ec
 		if over.Enabled != nil {
 			e.Enabled = over.Enabled
 		}
-		if len(over.Detect.Files) > 0 {
+		if over.Detect.Files != nil {
 			e.Detect.Files = over.Detect.Files
 		}
 		if over.Install.Command != "" {
 			e.Install.Command = over.Install.Command
 		}
-		if len(over.EnvFiles) > 0 {
+		if over.EnvFiles != nil {
 			e.EnvFiles = over.EnvFiles
 		}
 		e.Source = overlaySource
@@ -136,14 +139,14 @@ func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []Ec
 }
 
 // mergeConfigs merges overlay on top of base, returning a new Config. The
-// worktree_files list is replaced entirely when the overlay provides one; an
-// empty overlay list does not clear the base list.
+// worktree_files list is replaced entirely when the overlay names the key, so
+// `worktree_files: []` clears the base list.
 func mergeConfigs(base, overlay *Config, overlaySource string) *Config {
 	result := &Config{
 		Ecosystems:    mergeEcosystems(base.Ecosystems, overlay.Ecosystems, overlaySource),
 		WorktreeFiles: base.WorktreeFiles,
 	}
-	if len(overlay.WorktreeFiles) > 0 {
+	if overlay.WorktreeFiles != nil {
 		result.WorktreeFiles = overlay.WorktreeFiles
 	}
 	return result
@@ -162,7 +165,7 @@ func validate(cfg *Config) error {
 			return fmt.Errorf("ecosystems[%d]: name is required", i)
 		}
 		if len(e.Detect.Files) == 0 {
-			return fmt.Errorf("ecosystem %q: detect.files must not be empty", e.Name)
+			return fmt.Errorf("ecosystem %q: detect.files must not be empty; list at least one file, or set enabled: false to turn the ecosystem off", e.Name)
 		}
 	}
 	return nil
