@@ -84,6 +84,9 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Confirm):
 			if m.menuCursor >= 0 && m.menuCursor < len(m.menuItems) && m.menuItems[m.menuCursor].enabled {
 				label := m.menuItems[m.menuCursor].label
+				// The repo screens share this field: none may open showing
+				// an error another one left behind.
+				m.repo.validationErr = ""
 				switch label {
 				case "Create new worktree":
 					m = m.withCreateFlowReset()
@@ -102,7 +105,6 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.repo.nameInput.SetValue("")
 					m.repo.locationInput.SetValue(m.repoPath)
 					m.repo.focusedField = 0
-					m.repo.validationErr = ""
 					m.view = repoNameView
 					return m, m.repo.nameInput.Focus()
 				case "Clone repository as bare":
