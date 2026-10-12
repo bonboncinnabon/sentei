@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -94,12 +95,16 @@ func RunCreate(args []string) error {
 	return nil
 }
 
+// createResultError maps the run to the command's exit status and says
+// whether a worktree was left behind, because that decides the next step.
 func createResultError(result creator.Result) error {
-	if result.Err != nil {
+	switch {
+	case result.Err != nil:
 		return fmt.Errorf("create failed: %w", result.Err)
-	}
-	if result.HasFailures() {
-		return fmt.Errorf("create completed with errors")
+	case result.WorktreePath == "":
+		return errors.New("create failed: no worktree was created; fix the error above and run create again")
+	case result.HasFailures():
+		return fmt.Errorf("create completed with errors: the worktree exists at %s; resolve the failed steps above inside it", result.WorktreePath)
 	}
 	return nil
 }

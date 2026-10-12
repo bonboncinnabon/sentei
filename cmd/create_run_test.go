@@ -11,6 +11,7 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 func TestCreateResultErrorPropagatesContractError(t *testing.T) {
@@ -202,7 +203,25 @@ func TestRunCreate_FailsForMissingBaseBranch(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing base branch")
 	}
-	if !strings.Contains(err.Error(), "create completed with errors") {
+	if !strings.Contains(err.Error(), "no worktree was created") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// The error is the command's verdict: it must not say "completed" when
+// nothing was created, and must point at the worktree when one exists.
+func TestCreateResultErrorSaysWhetherAWorktreeExists(t *testing.T) {
+	failed := []progress.Phase{{Name: "Setup", Steps: []progress.StepResult{{Status: progress.StepFailed, Error: errors.New("boom")}}}}
+
+	notCreated := createResultError(creator.Result{Phases: failed})
+	if notCreated == nil || !strings.Contains(notCreated.Error(), "no worktree was created") {
+		t.Errorf("without a worktree path: %v, want an error saying nothing was created", notCreated)
+	}
+	created := createResultError(creator.Result{WorktreePath: "/repo/feature-x", Phases: failed})
+	if created == nil || !strings.Contains(created.Error(), "the worktree exists at /repo/feature-x") {
+		t.Errorf("with a worktree path: %v, want an error naming the worktree", created)
+	}
+	if err := createResultError(creator.Result{WorktreePath: "/repo/feature-x"}); err != nil {
+		t.Errorf("a clean run returned %v", err)
 	}
 }
