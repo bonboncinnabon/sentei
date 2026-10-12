@@ -1,0 +1,24 @@
+internal/tui/motion.go
+  s_b5d41ab2ae0f4c::t_ab51528129ef95 53-56,58-59,61
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_ab51528129ef95 243,551,663-664,677,753-754
+internal/tui/motion_test.go
+  s_b5d41ab2ae0f4c::t_ba6f97916da683 12,164-165,253-287
+  s_b5d41ab2ae0f4c::t_7f5efcda39442e 288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a7e1e72a4f5a782489be8fb01c00c75f62287b54",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
