@@ -82,7 +82,7 @@ func prepareRemoval(worktrees []git.Worktree) (removalPreparation, error) {
 		seenWorktrees[identity] = true
 		stepID := removalSemanticStepID("remove", identity)
 		prepared.targets = append(prepared.targets, worktree.RemovalTarget{Worktree: wt, StepID: stepID})
-		removal.Steps = append(removal.Steps, progress.PlannedStep{ID: stepID, Label: worktreeLabel(wt), Checkpoints: 2})
+		removal.Steps = append(removal.Steps, progress.PlannedStep{ID: stepID, Label: worktree.Label(wt), Checkpoints: 2})
 	}
 	prepared.plan.Phases = []progress.PlannedPhase{removal}
 	return prepared, nil
@@ -198,7 +198,7 @@ func (m Model) viewConfirm() string {
 	nameWidth, noteWidth := 0, 0
 	for _, wt := range selected {
 		_, note := confirmRisk(wt)
-		nameWidth = max(nameWidth, lipgloss.Width(worktreeLabel(wt)))
+		nameWidth = max(nameWidth, lipgloss.Width(worktree.Label(wt)))
 		noteWidth = max(noteWidth, lipgloss.Width(note))
 	}
 	nameWidth = min(nameWidth, confirmNameWidthCap)
@@ -225,7 +225,7 @@ func (m Model) viewConfirm() string {
 		if risky {
 			badgeStyle = styleWarning
 		}
-		name := truncateWithEllipsis(worktreeLabel(wt), nameWidth)
+		name := truncateWithEllipsis(worktree.Label(wt), nameWidth)
 		// Pad by display width: fmt's %-*s pads by bytes and drifts on …
 		pad := strings.Repeat(" ", max(nameWidth-lipgloss.Width(name), 0))
 		line := fmt.Sprintf("    %s  %s%s", badgeStyle.Render(fmt.Sprintf("%-4s", badge)), name, pad)

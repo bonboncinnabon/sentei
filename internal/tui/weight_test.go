@@ -7,13 +7,6 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
-func TestWorktreeLabel_DetachedUsesShortHash(t *testing.T) {
-	wt := git.Worktree{Path: "/work/detached-head", HEAD: "e635cdfa8afe577ac4345997dba1bab0ca223810", IsDetached: true}
-	if got := worktreeLabel(wt); got != "e635cdf" {
-		t.Errorf("detached label = %q, want short hash e635cdf (must match the list)", got)
-	}
-}
-
 func TestConfirm_CleanUsesBadgeVocabulary(t *testing.T) {
 	m := NewModel([]git.Worktree{
 		{Path: "/work/a", Branch: "refs/heads/feature/a"},

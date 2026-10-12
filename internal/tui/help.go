@@ -9,6 +9,7 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 // renderHelpSections formats key bindings as an aligned two-column table
@@ -118,7 +119,7 @@ func (m Model) detailContent() (string, string) {
 	wt := m.remove.worktrees[m.remove.visibleIndices[m.remove.cursor]]
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n\n", styleTitle.Render(worktreeLabel(wt)))
+	fmt.Fprintf(&b, "%s\n\n", styleTitle.Render(worktree.Label(wt)))
 	rows := []struct{ label, value string }{
 		{"Path", wt.Path},
 		{"Branch", wt.Branch},

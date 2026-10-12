@@ -21,6 +21,7 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 // progressSettleProbeMsg is the completion settle's hard-timeout wake-up:
@@ -922,7 +923,7 @@ func (m *Model) reindex() {
 	var indices []int
 	for i, wt := range m.remove.worktrees {
 		if filterLower != "" {
-			branch := strings.ToLower(stripBranchPrefix(wt.Branch))
+			branch := strings.ToLower(worktree.ShortBranch(wt.Branch))
 			if !strings.Contains(branch, filterLower) {
 				continue
 			}
@@ -953,8 +954,8 @@ func (m *Model) reindex() {
 			return wa.LastCommitDate.After(wb.LastCommitDate)
 
 		case SortByBranch:
-			ba := strings.ToLower(stripBranchPrefix(wa.Branch))
-			bb := strings.ToLower(stripBranchPrefix(wb.Branch))
+			ba := strings.ToLower(worktree.ShortBranch(wa.Branch))
+			bb := strings.ToLower(worktree.ShortBranch(wb.Branch))
 			if sortAsc {
 				return ba < bb
 			}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -12,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2/table"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 const (
@@ -22,50 +22,10 @@ const (
 	colAge      = 4
 )
 
-func relativeTime(t time.Time) string {
-	if t.IsZero() {
-		return "unknown"
-	}
-
-	d := time.Since(t)
-	switch {
-	case d < time.Minute:
-		return "just now"
-	case d < time.Hour:
-		m := int(d.Minutes())
-		if m == 1 {
-			return "1 minute ago"
-		}
-		return fmt.Sprintf("%d minutes ago", m)
-	case d < 24*time.Hour:
-		h := int(d.Hours())
-		if h == 1 {
-			return "1 hour ago"
-		}
-		return fmt.Sprintf("%d hours ago", h)
-	case d < 30*24*time.Hour:
-		days := int(d.Hours() / 24)
-		if days == 1 {
-			return "1 day ago"
-		}
-		return fmt.Sprintf("%d days ago", days)
-	case d < 365*24*time.Hour:
-		months := int(d.Hours() / 24 / 30)
-		if months == 1 {
-			return "1 month ago"
-		}
-		return fmt.Sprintf("%d months ago", months)
-	default:
-		years := int(d.Hours() / 24 / 365)
-		if years == 1 {
-			return "1 year ago"
-		}
-		return fmt.Sprintf("%d years ago", years)
-	}
-}
-
+// stripBranchPrefix is worktree.ShortBranch under the name the create flow
+// calls it by.
 func stripBranchPrefix(ref string) string {
-	return strings.TrimPrefix(ref, "refs/heads/")
+	return worktree.ShortBranch(ref)
 }
 
 // removalProtected reports whether wt can never be selected for removal: a
@@ -76,20 +36,21 @@ func (m Model) removalProtected(wt git.Worktree) bool {
 	return git.IsProtectedBranchWith(wt.Branch, m.remove.defaultBranch) || m.remove.launchedFrom[wt.Path]
 }
 
+// statusIndicator renders the worktree's status badge in its status color.
 func statusIndicator(wt git.Worktree) string {
-	switch {
-	case wt.IsLocked:
-		return styleStatusLocked.Render("[L]")
-	case wt.EnrichmentError != "":
-		// Unknown is not clean: the row must not read as [ok].
-		return styleWarning.Render("[?]")
-	case wt.HasUncommittedChanges:
-		return styleStatusDirty.Render("[~]")
-	case wt.HasUntrackedFiles:
-		return styleStatusUntracked.Render("[!]")
-	default:
-		return styleStatusClean.Render("[ok]")
+	badge := worktree.StatusBadge(wt)
+	style := styleStatusClean
+	switch badge {
+	case "[L]":
+		style = styleStatusLocked
+	case "[?]":
+		style = styleWarning
+	case "[~]":
+		style = styleStatusDirty
+	case "[!]":
+		style = styleStatusUntracked
 	}
+	return style.Render(badge)
 }
 
 func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -386,9 +347,9 @@ func (m Model) renderList() string {
 
 		status := statusIndicator(wt)
 
-		branch := worktreeLabel(wt)
+		branch := worktree.Label(wt)
 
-		age := relativeTime(wt.LastCommitDate)
+		age := worktree.RelativeTime(wt.LastCommitDate)
 		subject := wt.LastCommitSubject
 		if wt.EnrichmentError != "" {
 			age = "error"
