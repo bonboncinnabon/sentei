@@ -1,0 +1,23 @@
+internal/tui/removal_plan_test.go
+  s_b5d41ab2ae0f4c::t_fc9c800a88b1b7 26
+internal/tui/progress.go
+  s_b5d41ab2ae0f4c::t_fc9c800a88b1b7 104
+internal/tui/remove_run_test.go
+  s_b5d41ab2ae0f4c::t_fc9c800a88b1b7 69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3bba5d8186ef13e2c6be03f2c7959a387f186eb2",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
