@@ -139,3 +139,20 @@ func TestUpdateMigrateSummary_WindowSize(t *testing.T) {
 		t.Errorf("size = %dx%d, want 100x34", model.width, model.height)
 	}
 }
+
+func TestViewMigrateSummary_ValuesShareAColumn(t *testing.T) {
+	result := repo.MigrateResult{BareRoot: "/repo/proj", WorktreePath: "/repo/proj/feature-x", Branch: "feature/x"}
+
+	out := stripAnsi(makeMigrateSummaryModel(result).viewMigrateSummary())
+
+	if path, branch := columnOf(t, out, "/repo/proj"), columnOf(t, out, "feature/x"); path != branch {
+		t.Errorf("values start at columns %d and %d, want one column:\n%s", path, branch, out)
+	}
+}
+
+func TestViewMigrateSummary_WrappedFailureKeepsItsIndent(t *testing.T) {
+	result := failedMigrateResult()
+	result.Phases[0].Steps[0].Error = errors.New(strings.Repeat("blocked ", 30))
+
+	assertWrappedIndent(t, stripAnsi(makeMigrateSummaryModel(result).viewMigrateSummary()), "blocked")
+}

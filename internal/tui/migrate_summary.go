@@ -45,7 +45,7 @@ func (m Model) viewMigrateSummary() string {
 	if failure := result.Failure(); failure != nil {
 		fmt.Fprintf(&b, "  %s Migration failed\n\n",
 			styleIndicatorFailed.Render(indicatorFailed))
-		b.WriteString("    " + styleError.Width(max(m.width-8, 30)).Render(failure.Error()))
+		b.WriteString(styleError.Width(max(m.width-8, 30)).MarginLeft(4).Render(failure.Error()))
 		b.WriteString("\n\n")
 		b.WriteString(viewSeparator(m.width))
 		b.WriteString("\n\n")
@@ -57,8 +57,10 @@ func (m Model) viewMigrateSummary() string {
 	fmt.Fprintf(&b, "  %s %s migrated\n\n",
 		styleIndicatorDone.Render(indicatorDone), filepath.Base(result.BareRoot))
 
-	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Path"), result.BareRoot)
-	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Branch"), result.Branch)
+	// Labels are padded before they are styled: escape codes would otherwise
+	// count toward the column width.
+	fmt.Fprintf(&b, "    %s %s\n", styleDim.Render(fmt.Sprintf("%-10s", "Path")), result.BareRoot)
+	fmt.Fprintf(&b, "    %s %s\n", styleDim.Render(fmt.Sprintf("%-10s", "Branch")), result.Branch)
 	b.WriteString("\n")
 	b.WriteString(styleDim.Render("  Your files, stashes, remotes, config and hooks are where"))
 	b.WriteString("\n")

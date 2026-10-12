@@ -114,14 +114,16 @@ func (m Model) viewMigrateConfirm() string {
 	case info.Err != nil:
 		fmt.Fprintf(&b, "  %s This repository cannot be migrated yet\n\n",
 			styleIndicatorFailed.Render(indicatorFailed))
-		b.WriteString("    " + styleError.Width(max(m.width-8, 30)).Render(info.Err.Error()))
+		b.WriteString(styleError.Width(max(m.width-8, 30)).MarginLeft(4).Render(info.Err.Error()))
 		b.WriteString("\n")
 		footer = migrateBlockedFooter
 
 	default:
 		worktree := filepath.Join(filepath.Base(info.Plan.RepoPath), filepath.Base(info.Plan.WorktreePath))
-		fmt.Fprintf(&b, "  %-18s %s\n", styleDim.Render("Current branch"), info.Plan.Branch)
-		fmt.Fprintf(&b, "  %-18s %s\n", styleDim.Render("Default branch"), info.Plan.DefaultBranch)
+		// The label is padded before it is styled: escape codes would
+		// otherwise count toward the column width.
+		fmt.Fprintf(&b, "  %s %s\n", styleDim.Render(fmt.Sprintf("%-16s", "Current branch")), info.Plan.Branch)
+		fmt.Fprintf(&b, "  %s %s\n", styleDim.Render(fmt.Sprintf("%-16s", "Default branch")), info.Plan.DefaultBranch)
 		b.WriteString("\n")
 		b.WriteString("  This will:\n")
 		fmt.Fprintf(&b, "    %s Move .git to .bare\n", styleDim.Render("●"))

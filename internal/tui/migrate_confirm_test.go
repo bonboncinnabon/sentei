@@ -276,3 +276,41 @@ func TestLoadMigrateInfo(t *testing.T) {
 		t.Errorf("err = %v, want the detached HEAD refusal", info.err)
 	}
 }
+
+// columnOf returns the display column at which text starts on its line.
+func columnOf(t *testing.T, view, text string) int {
+	t.Helper()
+	for _, line := range strings.Split(view, "\n") {
+		if index := strings.Index(line, text); index >= 0 {
+			return len([]rune(line[:index]))
+		}
+	}
+	t.Fatalf("%q not found in:\n%s", text, view)
+	return 0
+}
+
+func TestMigrateConfirmView_WrappedRefusalKeepsItsIndent(t *testing.T) {
+	m := makeMigrateConfirmModel(nil)
+	m.repo.migrateInfo = MigrateInfo{Loaded: true, Err: errors.New(strings.Repeat("blocked ", 30))}
+
+	assertWrappedIndent(t, stripAnsi(m.viewMigrateConfirm()), "blocked")
+}
+
+// assertWrappedIndent checks that a message long enough to wrap keeps the
+// four-space indent on every line it spans.
+func assertWrappedIndent(t *testing.T, view, word string) {
+	t.Helper()
+	wrapped := 0
+	for _, line := range strings.Split(view, "\n") {
+		if !strings.Contains(line, word) {
+			continue
+		}
+		wrapped++
+		if !strings.HasPrefix(line, "    ") {
+			t.Errorf("wrapped line lost its indent: %q", line)
+		}
+	}
+	if wrapped < 2 {
+		t.Fatalf("fixture: the message was meant to wrap, got %d line(s):\n%s", wrapped, view)
+	}
+}
