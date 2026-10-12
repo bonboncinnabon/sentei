@@ -1,0 +1,37 @@
+internal/tui/chrome_test.go
+  s_b5d41ab2ae0f4c::t_5a4b038cb1e30c 144-183
+  s_b5d41ab2ae0f4c::t_fa48ded1d70809 8-10
+internal/tui/progress_layout.go
+  s_b5d41ab2ae0f4c::t_8099dd1751727b 95-96,98,100,119,123,132,134,154,157,163,172,175,178
+internal/tui/confirm_overflow_test.go
+  s_b5d41ab2ae0f4c::t_54542a5eb51d8f 85-108
+  s_b5d41ab2ae0f4c::t_9a04900064883b 8-9
+internal/tui/confirm.go
+  s_b5d41ab2ae0f4c::t_54542a5eb51d8f 14,172,206-207
+internal/tui/help.go
+  s_b5d41ab2ae0f4c::t_8099dd1751727b 227
+internal/tui/portal.go
+  s_b5d41ab2ae0f4c::t_8099dd1751727b 121,123,126,134,151
+internal/tui/chrome.go
+  s_b5d41ab2ae0f4c::t_8099dd1751727b 10,101-105,110
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_8099dd1751727b 856
+internal/tui/summary.go
+  s_b5d41ab2ae0f4c::t_8099dd1751727b 123,131,149,159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8ae4225bbe7ab0205713fcd852a6ddeded1c3bc6",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
