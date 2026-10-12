@@ -156,15 +156,24 @@ func (p preparedCreation) run(execution *progress.Execution, runner git.CommandR
 }
 
 // addWorktree runs git worktree add and records on result what now exists on
-// disk. An existing branch is checked out as it is; the base only starts a new
-// one. Refs follow "--", so a name beginning with "-" is never read as an option.
+// disk. The base only starts a branch that exists nowhere: a local branch is
+// checked out as it is, and one that only origin has becomes a local branch
+// tracking it. The remote ref is named in full because git refuses to guess
+// when a second remote carries the same branch. Refs follow "--", so a name
+// beginning with "-" is never read as an option.
 func (p preparedCreation) addWorktree(runner git.CommandRunner, result *Result) (string, error) {
-	branchExisted := git.BranchExists(runner, p.opts.RepoPath, p.opts.BranchName)
-	args := []string{"worktree", "add", "-b", p.opts.BranchName, "--", p.worktreePath, p.opts.BaseBranch}
-	message := p.worktreePath
-	if branchExisted {
-		args = []string{"worktree", "add", "--", p.worktreePath, p.opts.BranchName}
-		message = fmt.Sprintf("%s (checked out existing branch %s; base %s was not applied)", p.worktreePath, p.opts.BranchName, p.opts.BaseBranch)
+	branch, base := p.opts.BranchName, p.opts.BaseBranch
+	remoteRef := "refs/remotes/origin/" + branch
+	args := []string{"worktree", "add", "-b", branch, "--", p.worktreePath, base}
+	existing, message := "", p.worktreePath
+	if git.BranchExists(runner, p.opts.RepoPath, branch) {
+		args = []string{"worktree", "add", "--", p.worktreePath, branch}
+		existing = branch
+		message = fmt.Sprintf("%s (checked out existing branch %s; base %s was not applied)", p.worktreePath, branch, base)
+	} else if _, err := runner.Run(p.opts.RepoPath, "show-ref", "--verify", remoteRef); err == nil {
+		args = []string{"worktree", "add", "--track", "-b", branch, "--", p.worktreePath, remoteRef}
+		existing = "origin/" + branch
+		message = fmt.Sprintf("%s (checked out remote branch %s; base %s was not applied)", p.worktreePath, existing, base)
 	}
 	_, statErr := os.Lstat(p.worktreePath)
 	pathWasFree := errors.Is(statErr, os.ErrNotExist)
@@ -179,7 +188,7 @@ func (p preparedCreation) addWorktree(runner git.CommandRunner, result *Result) 
 		}
 	}
 	result.WorktreePath = p.worktreePath
-	result.BranchExisted = branchExisted
+	result.ExistingBranch = existing
 	if err != nil {
 		return "", fmt.Errorf("worktree created, but git reported an error (a post-checkout hook may have failed): %w", err)
 	}

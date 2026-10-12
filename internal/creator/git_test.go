@@ -136,8 +136,8 @@ func TestRun_ExistingBranchIsCheckedOutAndReported(t *testing.T) {
 	if result.HasFailures() {
 		t.Fatalf("unexpected failure: %+v", result)
 	}
-	if !result.BranchExisted {
-		t.Error("BranchExisted = false, want true for a branch that was already there")
+	if result.ExistingBranch != "feature/existing" {
+		t.Errorf("ExistingBranch = %q, want feature/existing for a branch that was already there", result.ExistingBranch)
 	}
 	message := stepByName(t, result, "Create worktree").Message
 	if !strings.Contains(message, "existing branch feature/existing") || !strings.Contains(message, "base main was not applied") {
@@ -150,8 +150,47 @@ func TestRun_ExistingBranchIsCheckedOutAndReported(t *testing.T) {
 	fresh := Run(&git.GitRunner{}, &git.DefaultShellRunner{}, Options{
 		BranchName: "feature/fresh", BaseBranch: "main", RepoPath: root,
 	}, func(progress.Event) {})
-	if fresh.BranchExisted {
-		t.Error("BranchExisted = true for a branch this run created")
+	if fresh.ExistingBranch != "" {
+		t.Errorf("ExistingBranch = %q for a branch this run created", fresh.ExistingBranch)
+	}
+}
+
+// A branch that exists only on origin is the user's branch: the worktree must
+// check it out at the remote tip and track it, not start a new branch of the
+// same name from the base. A second remote carrying the same branch is the
+// case git's own name guessing refuses.
+func TestRun_RemoteOnlyBranchIsCheckedOutTrackingOrigin(t *testing.T) {
+	root := newGitRepo(t)
+	seed := filepath.Join(filepath.Dir(root), "seed")
+	gitIn(t, seed, "checkout", "-q", "-b", "feature/remote-only")
+	gitIn(t, seed, "commit", "-q", "--allow-empty", "-m", "work that only the remote has")
+	remoteTip := gitIn(t, seed, "rev-parse", "HEAD")
+	gitIn(t, root, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	gitIn(t, root, "remote", "add", "fork", seed)
+	gitIn(t, root, "fetch", "-q", "--all")
+	if git.BranchExists(&git.GitRunner{}, root, "feature/remote-only") {
+		t.Fatal("fixture: the branch must have no local head")
+	}
+
+	result := Run(&git.GitRunner{}, &git.DefaultShellRunner{}, Options{
+		BranchName: "feature/remote-only", BaseBranch: "main", RepoPath: root,
+	}, func(progress.Event) {})
+
+	if result.HasFailures() {
+		t.Fatalf("unexpected failure: %+v", result)
+	}
+	if head := gitIn(t, result.WorktreePath, "rev-parse", "HEAD"); head != remoteTip {
+		t.Errorf("worktree HEAD = %s, want the remote tip %s, not the base", head, remoteTip)
+	}
+	if upstream := gitIn(t, root, "rev-parse", "--abbrev-ref", "feature/remote-only@{upstream}"); upstream != "origin/feature/remote-only" {
+		t.Errorf("upstream = %q, want origin/feature/remote-only", upstream)
+	}
+	if result.ExistingBranch != "origin/feature/remote-only" {
+		t.Errorf("ExistingBranch = %q, want origin/feature/remote-only", result.ExistingBranch)
+	}
+	message := stepByName(t, result, "Create worktree").Message
+	if !strings.Contains(message, "remote branch origin/feature/remote-only") || !strings.Contains(message, "base main was not applied") {
+		t.Errorf("create step message = %q, want it to say the remote branch was used and the base was not", message)
 	}
 }
 
