@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func repoNameModel(repoPath string) Model {
@@ -47,6 +49,9 @@ func TestUpdateRepoName_TabSwitchesFields(t *testing.T) {
 
 func TestUpdateRepoName_EnterValidates(t *testing.T) {
 	tmp := t.TempDir()
+	if err := os.Mkdir(filepath.Join(tmp, "taken"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	cases := []struct {
 		name     string
 		repoName string
@@ -55,9 +60,10 @@ func TestUpdateRepoName_EnterValidates(t *testing.T) {
 	}{
 		{"empty name", "", tmp, "name is required"},
 		{"name with space", "my repo", tmp, "cannot contain spaces"},
-		{"empty location", "myrepo", "", "location is required"},
-		{"missing parent dir", "myrepo", filepath.Join(tmp, "nope", "child"), "parent directory does not exist"},
-		{"destination exists", "myrepo", tmp, "directory already exists"},
+		{"name with a slash would nest", "org/repo", tmp, "not a path"},
+		{"name that is a parent reference", "..", tmp, "not a path"},
+		{"missing location", "myrepo", filepath.Join(tmp, "nope"), "location is not an existing directory"},
+		{"destination exists", "taken", tmp, "directory already exists"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -78,11 +84,71 @@ func TestUpdateRepoName_EnterValidates(t *testing.T) {
 	}
 }
 
+// createRepoPath walks the form to the end and returns where the pipeline
+// was told to put the repository.
+func createRepoPath(t *testing.T, m Model, name, location string) string {
+	t.Helper()
+	m.runner = &stubRunner{responses: map[string]stubResponse{}}
+	m.shell = &mock.Runner{}
+	m.repo.nameInput.SetValue(name)
+	m.repo.locationInput.SetValue(location)
+
+	updated, _ := m.updateRepoName(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if updated.(Model).view != repoOptionsView {
+		t.Fatalf("form did not advance: %q", updated.(Model).repo.validationErr)
+	}
+	updated, _ = updated.(Model).updateRepoOptions(tea.KeyPressMsg{Code: tea.KeyEnter})
+	result, _ := drainRepoPipeline(t, updated.(Model))
+	return result.(repo.CreateResult).RepoPath
+}
+
+// The Location field names the directory the repository is created in. The
+// run used to take its parent instead, so an edited Location was ignored.
+func TestCreateRepo_LandsInTheLocationField(t *testing.T) {
+	launch, elsewhere := t.TempDir(), t.TempDir()
+
+	got := createRepoPath(t, repoNameModel(launch), "myrepo", elsewhere)
+
+	if want := filepath.Join(elsewhere, "myrepo"); got != want {
+		t.Errorf("repository path = %q, want %q", got, want)
+	}
+}
+
+// A relative Location reached the pipeline as a relative path and broke the
+// run. It resolves against the directory sentei was opened on.
+func TestCreateRepo_RelativeLocationResolvesAgainstTheLaunchDirectory(t *testing.T) {
+	launch := t.TempDir()
+	if err := os.Mkdir(filepath.Join(launch, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got := createRepoPath(t, repoNameModel(launch), "myrepo", "sub")
+
+	if want := filepath.Join(launch, "sub", "myrepo"); got != want {
+		t.Errorf("repository path = %q, want %q", got, want)
+	}
+}
+
+func TestCreateRepo_LocationExpandsHomeAndDefaultsToTheLaunchDirectory(t *testing.T) {
+	launch, home := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.Mkdir(filepath.Join(home, "code"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := createRepoPath(t, repoNameModel(launch), "myrepo", "~/code"), filepath.Join(home, "code", "myrepo"); got != want {
+		t.Errorf("repository path = %q, want %q", got, want)
+	}
+	if got, want := createRepoPath(t, repoNameModel(launch), "other", ""), filepath.Join(launch, "other"); got != want {
+		t.Errorf("repository path with an empty Location = %q, want %q", got, want)
+	}
+}
+
 func TestUpdateRepoName_EnterValidAdvancesToOptions(t *testing.T) {
 	tmp := t.TempDir()
 	m := repoNameModel(tmp)
+	m.shell = &mock.Runner{}
 	m.repo.nameInput.SetValue("myrepo")
-	m.repo.locationInput.SetValue(filepath.Join(tmp, "myrepo"))
 
 	updated, cmd := m.updateRepoName(tea.KeyPressMsg{Code: tea.KeyEnter})
 	model := updated.(Model)
@@ -93,8 +159,8 @@ func TestUpdateRepoName_EnterValidAdvancesToOptions(t *testing.T) {
 	if model.repo.validationErr != "" {
 		t.Errorf("unexpected validation error %q", model.repo.validationErr)
 	}
-	if !model.repo.createWorktree || model.repo.publishGitHub {
-		t.Error("options should reset to worktree on, publish off")
+	if model.repo.publishGitHub {
+		t.Error("options should reset to publish off")
 	}
 	if model.repo.optionsCursor != repoOptPublish {
 		t.Errorf("cursor = %d, want repoOptPublish", model.repo.optionsCursor)
@@ -104,37 +170,28 @@ func TestUpdateRepoName_EnterValidAdvancesToOptions(t *testing.T) {
 	}
 }
 
-func TestUpdateRepoName_TypingAutoFillsLocation(t *testing.T) {
+// Location is the user's field. Typing or pasting the name must leave it
+// alone; the destination preview is what follows the name.
+func TestUpdateRepoName_NameEditsLeaveLocationAlone(t *testing.T) {
 	m := repoNameModel("/repo")
-
-	updated, _ := m.updateRepoName(keyMsg("a"))
-	model := updated.(Model)
-	if got := model.repo.locationInput.Value(); got != filepath.Join("/repo", "a") {
-		t.Errorf("location = %q, want %q", got, "/repo/a")
-	}
-
-	updated, _ = model.updateRepoName(tea.KeyPressMsg{Code: tea.KeyBackspace})
-	model = updated.(Model)
-	if got := model.repo.locationInput.Value(); got != "/repo" {
-		t.Errorf("location after clearing name = %q, want %q", got, "/repo")
-	}
-}
-
-func TestUpdateRepoName_PasteAutoFillsLocation(t *testing.T) {
-	m := repoNameModel("/repo")
+	m.repo.locationInput.SetValue("/elsewhere")
 	m.repo.validationErr = "repository name is required"
 
-	updated, _ := m.updateRepoName(tea.PasteMsg{Content: "myrepo"})
+	updated, _ := m.updateRepoName(keyMsg("a"))
+	updated, _ = updated.(Model).updateRepoName(tea.PasteMsg{Content: "bc"})
 	model := updated.(Model)
 
-	if got := model.repo.nameInput.Value(); got != "myrepo" {
-		t.Errorf("name = %q, want myrepo", got)
+	if got := model.repo.nameInput.Value(); got != "abc" {
+		t.Errorf("name = %q, want abc", got)
 	}
-	if got := model.repo.locationInput.Value(); got != filepath.Join("/repo", "myrepo") {
-		t.Errorf("location = %q, want derived path", got)
+	if got := model.repo.locationInput.Value(); got != "/elsewhere" {
+		t.Errorf("location = %q, want it untouched", got)
 	}
 	if model.repo.validationErr != "" {
-		t.Errorf("paste should clear validation error, got %q", model.repo.validationErr)
+		t.Errorf("an edit should clear the validation error, got %q", model.repo.validationErr)
+	}
+	if view := stripANSI(model.viewRepoName()); !strings.Contains(view, "→ /elsewhere/abc") {
+		t.Errorf("view should preview the destination:\n%s", view)
 	}
 }
 
