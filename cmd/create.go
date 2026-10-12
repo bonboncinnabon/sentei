@@ -39,6 +39,10 @@ func RunCreate(args []string) error {
 		return fmt.Errorf("create requires a bare repository (detected: %v)", context)
 	}
 
+	// Normalize to the bare root: run from inside a worktree, the repo path is
+	// that worktree, and the new one would be created nested inside it.
+	repoPath = repo.ResolveBareRoot(runner, repoPath)
+
 	// Build creator.Options from CLI flags.
 	creatorOpts := creator.Options{
 		BranchName:   opts.Branch,
@@ -91,24 +95,26 @@ func createResultError(result creator.Result) error {
 	return nil
 }
 
+// printCreateEvent prints labels, not the Phase/Step identities: those are
+// opaque hashes ("create-worktree:217d2bf51f16e9dc") meant for matching events.
 func printCreateEvent(e progress.Event) {
 	switch e.Status {
 	case progress.StepRunning:
-		fmt.Printf("%s→%s %s: %s\n", blue, nc, e.Phase, e.Step)
+		fmt.Printf("%s→%s %s: %s\n", blue, nc, e.PhaseLabel, e.StepLabel)
 	case progress.StepDone:
 		msg := ""
 		if e.Message != "" {
 			msg = " — " + e.Message
 		}
-		fmt.Printf("%s✓%s %s%s\n", green, nc, e.Step, msg)
+		fmt.Printf("%s✓%s %s%s\n", green, nc, e.StepLabel, msg)
 	case progress.StepFailed:
 		msg := ""
 		if e.Error != nil {
 			msg = " — " + e.Error.Error()
 		}
-		fmt.Printf("%s✗%s %s%s\n", yellow, nc, e.Step, msg)
+		fmt.Printf("%s✗%s %s%s\n", yellow, nc, e.StepLabel, msg)
 	case progress.StepSkipped:
-		fmt.Printf("  %s%s (skipped)%s\n", dim, e.Step, nc)
+		fmt.Printf("  %s%s (skipped)%s\n", dim, e.StepLabel, nc)
 	}
 }
 
@@ -128,15 +134,21 @@ func matchEcosystems(available []config.EcosystemConfig, requested []string) []c
 }
 
 // findSource picks a source worktree for env file copying (prefers main/master).
+// The bare repo's own entry is listed first and holds no working files, so it
+// is never a source.
 func findSource(worktrees []git.Worktree) string {
+	fallback := ""
 	for _, wt := range worktrees {
+		if wt.IsBare || wt.IsPrunable {
+			continue
+		}
 		branch := strings.TrimPrefix(wt.Branch, "refs/heads/")
 		if branch == "main" || branch == "master" {
 			return wt.Path
 		}
+		if fallback == "" {
+			fallback = wt.Path
+		}
 	}
-	if len(worktrees) > 0 {
-		return worktrees[0].Path
-	}
-	return ""
+	return fallback
 }

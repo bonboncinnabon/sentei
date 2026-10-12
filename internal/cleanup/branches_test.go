@@ -146,12 +146,12 @@ func TestCleanNonWorktreeBranches(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			runner := &mock.Runner{Responses: map[string]mock.Response{
-				"/repo:[worktree list --porcelain]":        {Output: worktreeList},
-				"/repo:[branch --format=%(refname:short)]": {Output: branchList},
-				"/repo:[branch -d feature/old]":            {Output: ""},
-				"/repo:[branch -d fix/stale]":              {Output: ""},
-				"/repo:[branch -D feature/old]":            {Output: ""},
-				"/repo:[branch -D fix/stale]":              {Output: ""},
+				"/repo:[worktree list --porcelain]":           {Output: worktreeList},
+				"/repo:[branch --format=%(refname:lstrip=2)]": {Output: branchList},
+				"/repo:[branch -d feature/old]":               {Output: ""},
+				"/repo:[branch -d fix/stale]":                 {Output: ""},
+				"/repo:[branch -D feature/old]":               {Output: ""},
+				"/repo:[branch -D fix/stale]":                 {Output: ""},
 			}}
 			opts := Options{Mode: tt.mode, Force: tt.force, DryRun: tt.dryRun}
 			events := collectEvents(t)

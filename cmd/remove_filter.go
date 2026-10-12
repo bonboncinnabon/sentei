@@ -14,7 +14,9 @@ type MergedChecker func(branch string) bool
 
 // ResolveFilters returns the worktrees that match the given filter options.
 // Filters combine with OR logic: a worktree matching any active filter is included.
-// Protected branches (built-in + custom) and bare worktrees are always excluded.
+// Protected branches (built-in + custom), bare worktrees, and the worktree
+// holding the current directory are always excluded: removing the last would
+// leave the caller's shell in a directory that no longer exists.
 // Locked worktrees are included so the caller can unlock them before deletion.
 func ResolveFilters(worktrees []git.Worktree, opts *RemoveOptions, protectedBranches []string, defaultBranch string, isMerged MergedChecker) []git.Worktree {
 	protectedSet := make(map[string]bool, len(protectedBranches))
@@ -23,10 +25,12 @@ func ResolveFilters(worktrees []git.Worktree, opts *RemoveOptions, protectedBran
 	}
 
 	now := time.Now()
+	// An unreadable working directory leaves cwd empty, which matches nothing.
+	cwd, _ := os.Getwd()
 	var result []git.Worktree
 
 	for _, wt := range worktrees {
-		if wt.IsBare {
+		if wt.IsBare || git.PathContains(wt.Path, cwd) {
 			continue
 		}
 

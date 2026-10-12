@@ -68,27 +68,24 @@ func buildRegistry() *cli.Registry {
 	})
 
 	r.Register(&cli.Command{
-		Name:        "cleanup",
-		Type:        cli.Decision,
-		Destructive: true,
+		Name: "cleanup",
+		Type: cli.Decision,
 		RunCLI: func(args []string) error {
 			return cmd.RunCleanup(args)
 		},
 	})
 
 	r.Register(&cli.Command{
-		Name:        "migrate",
-		Type:        cli.Decision,
-		Destructive: true,
+		Name: "migrate",
+		Type: cli.Decision,
 		RunCLI: func(args []string) error {
 			return cmd.RunMigrate(args)
 		},
 	})
 
 	r.Register(&cli.Command{
-		Name:        "remove",
-		Type:        cli.Decision,
-		Destructive: true,
+		Name: "remove",
+		Type: cli.Decision,
 		RunCLI: func(args []string) error {
 			return cmd.RunRemove(args)
 		},
@@ -148,9 +145,9 @@ func main() {
 		case cli.Decision:
 			if result.NonInteractive || result.Yes {
 				args := result.Args
-				// cleanup and remove have their own --force semantics that the
-				// global flag extractor consumed. Re-inject it so one --force
-				// both passes the destructive gate and reaches the command.
+				// cleanup and remove have their own --force semantics, and the
+				// global flag extractor consumed the flag. Re-inject it so it
+				// reaches the command.
 				// Prepend it: the flag parser stops at the first positional
 				// (the repo path), so appending would be silently ignored.
 				if result.Force && (result.Command.Name == "cleanup" || result.Command.Name == "remove") {
@@ -169,11 +166,59 @@ func main() {
 	runRoot(result.Args)
 }
 
-func launchInteractiveDecision(result cli.DispatchResult) {
-	repoPath := "."
-	if absPath, err := filepath.Abs(repoPath); err == nil {
-		repoPath = absPath
+// decisionOpts holds one interactive decision command's parsed flags and the
+// repository it targets. Exactly one of the option pointers is set.
+type decisionOpts struct {
+	repoPath string
+	cleanup  *cleanup.Options
+	create   *cmd.CreateOptions
+	clone    *cmd.CloneOptions
+	remove   *cmd.RemoveOptions
+	migrate  *cmd.MigrateOptions
+}
+
+// parseDecision parses a decision command's flags before any repository
+// detection, so the positional repo path decides which repository the TUI
+// opens. Detecting from the current directory first made
+// `sentei cleanup /path/repoB` act on the repository in the cwd.
+func parseDecision(name string, args []string) (decisionOpts, error) {
+	parsed := decisionOpts{repoPath: "."}
+	var err error
+	switch name {
+	case "cleanup":
+		if parsed.cleanup, err = cmd.ParseCleanupFlags(args); err == nil {
+			parsed.repoPath = cmd.ParseCleanupRepoPath(args)
+		}
+	case "create":
+		if parsed.create, err = cmd.ParseCreateFlags(args); err == nil && parsed.create.RepoPath != "" {
+			parsed.repoPath = parsed.create.RepoPath
+		}
+	case "clone":
+		parsed.clone, err = cmd.ParseCloneFlags(args)
+	case "remove":
+		if parsed.remove, err = cmd.ParseRemoveFlags(args); err == nil && parsed.remove.RepoPath != "" {
+			parsed.repoPath = parsed.remove.RepoPath
+		}
+	case "migrate":
+		if parsed.migrate, err = cmd.ParseMigrateFlags(args); err == nil && parsed.migrate.RepoPath != "" {
+			parsed.repoPath = parsed.migrate.RepoPath
+		}
 	}
+	if err != nil {
+		return decisionOpts{}, err
+	}
+	absPath, err := filepath.Abs(parsed.repoPath)
+	if err != nil {
+		return decisionOpts{}, fmt.Errorf("resolving repository path %q: %w", parsed.repoPath, err)
+	}
+	parsed.repoPath = absPath
+	return parsed, nil
+}
+
+func launchInteractiveDecision(result cli.DispatchResult) {
+	parsed, err := parseDecision(result.Command.Name, result.Args)
+	exitOnFlagError(err)
+	repoPath := parsed.repoPath
 
 	runner := &git.GitRunner{}
 	shell := &git.DefaultShellRunner{}
@@ -199,8 +244,7 @@ func launchInteractiveDecision(result cli.DispatchResult) {
 
 	switch result.Command.Name {
 	case "cleanup":
-		opts, err := cmd.ParseCleanupFlags(result.Args)
-		exitOnFlagError(err)
+		opts := parsed.cleanup
 		if result.Force {
 			opts.Force = true // global --force also force-deletes unmerged branches
 		}
@@ -210,8 +254,7 @@ func launchInteractiveDecision(result cli.DispatchResult) {
 		model.SetCleanupOpts(opts)
 
 	case "create":
-		opts, err := cmd.ParseCreateFlags(result.Args)
-		exitOnFlagError(err)
+		opts := parsed.create
 		model.SetCreateOpts(&tui.CreateOpts{
 			Branch:     opts.Branch,
 			Base:       opts.Base,
@@ -222,16 +265,14 @@ func launchInteractiveDecision(result cli.DispatchResult) {
 		})
 
 	case "clone":
-		opts, err := cmd.ParseCloneFlags(result.Args)
-		exitOnFlagError(err)
+		opts := parsed.clone
 		model.SetCloneOpts(&tui.CloneOpts{
 			URL:  opts.URL,
 			Name: opts.Name,
 		})
 
 	case "remove":
-		opts, err := cmd.ParseRemoveFlags(result.Args)
-		exitOnFlagError(err)
+		opts := parsed.remove
 		if opts.Merged || opts.All || opts.Stale > 0 {
 			worktrees, err := git.ListWorktrees(runner, repoPath)
 			if err != nil {
@@ -259,11 +300,9 @@ func launchInteractiveDecision(result cli.DispatchResult) {
 		}
 
 	case "migrate":
-		opts, err := cmd.ParseMigrateFlags(result.Args)
-		exitOnFlagError(err)
 		model.SetMigrateOpts(&tui.MigrateOpts{
-			DeleteBackup: opts.DeleteBackup,
-			RepoPath:     opts.RepoPath,
+			DeleteBackup: parsed.migrate.DeleteBackup,
+			RepoPath:     repoPath,
 		})
 	}
 
@@ -292,6 +331,12 @@ func runRoot(args []string) {
 	if *versionFlag {
 		fmt.Printf("sentei %s (%s, %s)\n", version, commit, date)
 		os.Exit(0)
+	}
+	// The flag package stops at the first positional, so a flag written after
+	// the repo path (`sentei <path> --dry-run`) would be silently dropped.
+	if fs.NArg() > 1 {
+		log.Error(fmt.Sprintf("unexpected argument %q after repository path %q: flags must come before the path", fs.Arg(1), fs.Arg(0)))
+		os.Exit(1)
 	}
 
 	repoPath := "."

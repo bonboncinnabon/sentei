@@ -48,6 +48,10 @@ func RunCleanupWithOpts(opts *cleanup.Options, repoPath string) error {
 		fmt.Printf("     Run %ssentei cleanup --mode=aggressive%s to remove them.\n", dim, nc)
 	}
 
+	// A script or agent reads the exit status, not the warnings above.
+	if len(result.Errors) > 0 {
+		return fmt.Errorf("cleanup finished with %d failed step(s)", len(result.Errors))
+	}
 	return nil
 }
 

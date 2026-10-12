@@ -42,9 +42,11 @@ func ParseCreateFlags(args []string) (*CreateOptions, error) {
 		opts.Ecosystems = strings.Split(*ecosystems, ",")
 	}
 
-	if fs.NArg() > 0 {
-		opts.RepoPath = fs.Arg(0)
+	repoPath, err := repoPathArg(fs)
+	if err != nil {
+		return nil, err
 	}
+	opts.RepoPath = repoPath
 
 	return opts, nil
 }

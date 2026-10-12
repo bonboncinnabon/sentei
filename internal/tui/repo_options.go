@@ -54,10 +54,13 @@ func (m Model) updateRepoOptions(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if msg, ok := msg.(tea.KeyPressMsg); ok {
-		// When description is focused, forward all keys except navigation/action to the text input
+		// When description is focused, forward all keys except navigation/action
+		// to the text input. Printable keys always belong to the input: j/k
+		// double as navigation and space as toggle, so matching them here would
+		// move the cursor and flip visibility in the middle of a sentence.
 		if m.repo.optionsCursor == repoOptDescription && m.repo.publishGitHub {
-			if !key.Matches(msg, keys.Back) && !key.Matches(msg, keys.Confirm) &&
-				!key.Matches(msg, keys.Up) && !key.Matches(msg, keys.Down) {
+			if msg.Text != "" || (!key.Matches(msg, keys.Back) && !key.Matches(msg, keys.Confirm) &&
+				!key.Matches(msg, keys.Up) && !key.Matches(msg, keys.Down)) {
 				var cmd tea.Cmd
 				m.repo.descInput, cmd = m.repo.descInput.Update(msg)
 				return m, cmd

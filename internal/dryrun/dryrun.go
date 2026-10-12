@@ -66,6 +66,9 @@ func statusIndicator(wt git.Worktree) string {
 	switch {
 	case wt.IsLocked:
 		return "[L]"
+	case wt.EnrichmentError != "":
+		// Unknown is not clean: the row must not read as [ok].
+		return "[?]"
 	case wt.HasUncommittedChanges:
 		return "[~]"
 	case wt.HasUntrackedFiles:

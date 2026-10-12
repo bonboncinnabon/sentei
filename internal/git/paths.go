@@ -24,6 +24,23 @@ func CommonDir(runner CommandRunner, repoPath string) (string, error) {
 	return filepath.Clean(commonDir), nil
 }
 
+// PathContains reports whether dir is root itself or lies inside it. Symlinks
+// are resolved first so two spellings of the same place compare equal (on
+// macOS os.Getwd reports /private/tmp for a directory reached as /tmp).
+func PathContains(root, dir string) bool {
+	if root == "" || dir == "" {
+		return false
+	}
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	rel, err := filepath.Rel(root, dir)
+	return err == nil && filepath.IsLocal(rel)
+}
+
 // WorktreeDirName returns the directory name sentei uses for a branch's
 // worktree. Slashes are flattened ("feature/auth" -> "feature-auth") so every
 // worktree sits directly under the repo root instead of nesting.

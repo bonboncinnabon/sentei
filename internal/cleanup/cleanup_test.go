@@ -61,13 +61,13 @@ func setupOrchestratorTest(t *testing.T) (*mock.Runner, string) {
 	os.WriteFile(configPath, configData, 0644)
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		tmpDir + ":[rev-parse --git-common-dir]":       {Output: bareDir},
-		tmpDir + ":[remote]":                           {Output: "origin"},
-		tmpDir + ":[remote prune origin --dry-run]":    {Output: ""},
-		tmpDir + ":[fetch --prune origin]":             {Output: ""},
-		tmpDir + ":[branch -vv]":                       {Output: "  main abc123 [origin/main] latest"},
-		tmpDir + ":[worktree list --porcelain]":        {Output: "worktree " + tmpDir + "\nbare\n\nworktree " + tmpDir + "/main\nHEAD abc\nbranch refs/heads/main"},
-		tmpDir + ":[branch --format=%(refname:short)]": {Output: "main\nfeature/old"},
+		tmpDir + ":[rev-parse --git-common-dir]":          {Output: bareDir},
+		tmpDir + ":[remote]":                              {Output: "origin"},
+		tmpDir + ":[remote prune origin --dry-run]":       {Output: ""},
+		tmpDir + ":[fetch --prune origin]":                {Output: ""},
+		tmpDir + ":[branch -vv]":                          {Output: "  main abc123 [origin/main] latest"},
+		tmpDir + ":[worktree list --porcelain]":           {Output: "worktree " + tmpDir + "\nbare\n\nworktree " + tmpDir + "/main\nHEAD abc\nbranch refs/heads/main"},
+		tmpDir + ":[branch --format=%(refname:lstrip=2)]": {Output: "main\nfeature/old"},
 	}}
 
 	return runner, tmpDir

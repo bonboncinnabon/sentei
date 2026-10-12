@@ -78,8 +78,8 @@ func TestRunCleanupWithOpts_ReportsStepErrors(t *testing.T) {
 	out := captureStdout(t, func() {
 		err = RunCleanupWithOpts(&cleanup.Options{Mode: cleanup.ModeSafe}, notARepo)
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("a failed step must return an error so the exit status is non-zero")
 	}
 	if !strings.Contains(out, "⚠") || !strings.Contains(out, "resolve-config") {
 		t.Errorf("expected step error report, got:\n%s", out)

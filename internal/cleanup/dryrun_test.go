@@ -28,8 +28,8 @@ func dryRunMock(t *testing.T) (*mock.Runner, string) {
 		"/repo:[branch -vv]": {Output: "  feature/gone abc123 [origin/feature/gone: gone] old work\n" +
 			"+ main def456 (/repo/main) [origin/main] latest\n" +
 			"  feature/extra aaa111 [origin/feature/extra] wip"},
-		"/repo:[worktree list --porcelain]":        {Output: "worktree /repo\nbare\n\nworktree /repo/main\nHEAD def456\nbranch refs/heads/main\n"},
-		"/repo:[branch --format=%(refname:short)]": {Output: "feature/gone\nfeature/extra\nmain"},
+		"/repo:[worktree list --porcelain]":           {Output: "worktree /repo\nbare\n\nworktree /repo/main\nHEAD def456\nbranch refs/heads/main\n"},
+		"/repo:[branch --format=%(refname:lstrip=2)]": {Output: "feature/gone\nfeature/extra\nmain"},
 		"/repo:[for-each-ref --format=%(refname:short)\x1f%(committerdate:iso8601-strict)\x1f%(subject) refs/heads/]": {Output: "feature/gone\x1f2026-02-10T19:00:00+05:30\x1fold work\nfeature/extra\x1f2026-06-01T10:00:00+05:30\x1fwip\nmain\x1f2026-06-10T12:00:00+05:30\x1flatest"},
 		// feature/extra is merged into its live upstream; feature/gone's upstream
 		// is gone, so the ancestor check against it fails (conservatively unmerged).

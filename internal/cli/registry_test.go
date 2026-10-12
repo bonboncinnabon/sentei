@@ -17,9 +17,8 @@ func newTestRegistry() *Registry {
 	})
 
 	r.Register(&Command{
-		Name:        "cleanup",
-		Type:        Decision,
-		Destructive: true,
+		Name: "cleanup",
+		Type: Decision,
 		RunCLI: func(args []string) error {
 			return nil
 		},
@@ -146,50 +145,38 @@ func TestDispatch_ForceFlag(t *testing.T) {
 	}
 }
 
-func TestDispatch_DestructiveWithoutForce(t *testing.T) {
+// --non-interactive used to demand --force for cleanup, remove and migrate.
+// That same --force switches off each command's own safety (the at-risk gate,
+// branch -d versus -D), so the gate taught scripts and agents to discard work.
+func TestDispatch_NonInteractiveDoesNotRequireForce(t *testing.T) {
 	r := newTestRegistry()
 
-	_, err := r.Dispatch([]string{"cleanup", "--non-interactive"})
-	if !errors.Is(err, ErrMissingForce) {
-		t.Errorf("expected ErrMissingForce, got %v", err)
+	for _, command := range []string{"cleanup", "create"} {
+		result, err := r.Dispatch([]string{command, "--non-interactive"})
+		if err != nil {
+			t.Fatalf("%s --non-interactive: unexpected error: %v", command, err)
+		}
+		if !result.NonInteractive || result.Force {
+			t.Errorf("%s: NonInteractive=%v Force=%v, want true and false", command, result.NonInteractive, result.Force)
+		}
 	}
 }
 
-func TestDispatch_DestructiveWithForce(t *testing.T) {
+// `sentei <repo path>` is the documented way to open another repository and
+// what the TUI relaunches itself with; it used to fail as an unknown command.
+func TestDispatch_DirectoryIsRootWithRepoPath(t *testing.T) {
 	r := newTestRegistry()
+	dir := t.TempDir()
 
-	result, err := r.Dispatch([]string{"cleanup", "--non-interactive", "--force"})
+	result, err := r.Dispatch([]string{dir, "--dry-run"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !result.NonInteractive || !result.Force {
-		t.Error("expected both NonInteractive and Force to be true")
+	if !result.IsRoot || result.Command != nil {
+		t.Errorf("a directory argument must dispatch to the root command, got %+v", result)
 	}
-}
-
-func TestDispatch_DestructiveInteractiveWithoutForce(t *testing.T) {
-	r := newTestRegistry()
-
-	// Without --non-interactive, --force requirement doesn't apply.
-	result, err := r.Dispatch([]string{"cleanup"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result.NonInteractive {
-		t.Error("expected NonInteractive=false")
-	}
-}
-
-func TestDispatch_NonDestructiveNonInteractive(t *testing.T) {
-	r := newTestRegistry()
-
-	// create is not destructive, so --non-interactive alone is fine.
-	result, err := r.Dispatch([]string{"create", "--non-interactive"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !result.NonInteractive {
-		t.Error("expected NonInteractive=true")
+	if len(result.Args) != 2 || result.Args[0] != dir {
+		t.Errorf("args = %v, want the path kept for the root command", result.Args)
 	}
 }
 

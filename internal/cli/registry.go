@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 )
@@ -18,9 +19,8 @@ const (
 
 // Command defines a registered CLI command with its type and handlers.
 type Command struct {
-	Name        string
-	Type        CommandType
-	Destructive bool // When true, --non-interactive requires --force.
+	Name string
+	Type CommandType
 
 	// RunCLI executes the command in non-interactive mode.
 	// For output commands, this is the only execution path.
@@ -54,21 +54,21 @@ type DispatchResult struct {
 	// Args are the remaining arguments after the command name.
 	Args []string
 
-	// NonInteractive is true when --non-interactive was provided.
+	// NonInteractive is true when --non-interactive was provided: run the CLI
+	// path instead of the TUI. Each command's own safeties stay in effect.
 	NonInteractive bool
 
-	// Force is true when --force was provided.
+	// Force is true when --force was provided. It is the per-command override
+	// (remove at-risk worktrees, force-delete unmerged branches) and nothing
+	// else: requiring it for every non-interactive run made scripts and
+	// agents switch those safeties off just to get past the gate.
 	Force bool
-	// Yes is true when --yes/-y was provided: skip the interactive
-	// confirmation and run the CLI path. Unlike --non-interactive it does
-	// not require --force; each command's own safeties stay in effect.
+	// Yes is true when --yes/-y was provided. It is an alias for
+	// --non-interactive.
 	Yes bool
 }
 
-var (
-	ErrUnknownCommand = errors.New("unknown command")
-	ErrMissingForce   = errors.New("destructive operation requires --force with --non-interactive")
-)
+var ErrUnknownCommand = errors.New("unknown command")
 
 // IsUnknownCommand returns true if the error wraps ErrUnknownCommand.
 func IsUnknownCommand(err error) bool {
@@ -76,7 +76,7 @@ func IsUnknownCommand(err error) bool {
 }
 
 // Dispatch parses the command name from args and returns a DispatchResult.
-// It extracts --non-interactive and --force from the args before returning.
+// It extracts --non-interactive, --yes and --force from the args before returning.
 func (r *Registry) Dispatch(args []string) (*DispatchResult, error) {
 	if len(args) == 0 {
 		return &DispatchResult{IsRoot: true}, nil
@@ -91,26 +91,25 @@ func (r *Registry) Dispatch(args []string) (*DispatchResult, error) {
 
 	cmd, ok := r.commands[name]
 	if !ok {
+		// A directory is the `sentei <repo path>` form: the documented way to
+		// open another repository, and what the TUI relaunches itself with
+		// after create, clone and migrate.
+		if info, err := os.Stat(name); err == nil && info.IsDir() {
+			return &DispatchResult{IsRoot: true, Args: args}, nil
+		}
 		return nil, fmt.Errorf("%w: %s", ErrUnknownCommand, name)
 	}
 
 	remaining := args[1:]
 	nonInteractive, force, yes, remaining := extractGlobalFlags(remaining)
 
-	result := &DispatchResult{
+	return &DispatchResult{
 		Command:        cmd,
 		Args:           remaining,
 		NonInteractive: nonInteractive,
 		Force:          force,
 		Yes:            yes,
-	}
-
-	// Validate flag combinations.
-	if nonInteractive && cmd.Destructive && !force {
-		return nil, ErrMissingForce
-	}
-
-	return result, nil
+	}, nil
 }
 
 // Lookup returns a command by name, or nil if not found.
@@ -145,9 +144,9 @@ func (r *Registry) UsageString() string {
 	}
 
 	b.WriteString("\nGlobal flags:\n")
-	b.WriteString("  --non-interactive  run without the TUI (destructive commands also need --force)\n")
-	b.WriteString("  --yes, -y          skip the confirmation prompt; command safeties stay active\n")
-	b.WriteString("  --force            pass destructive gates / force-delete where the command supports it\n")
+	b.WriteString("  --non-interactive  run without the TUI; command safeties stay active\n")
+	b.WriteString("  --yes, -y          same as --non-interactive\n")
+	b.WriteString("  --force            override a command's safeties: remove at-risk worktrees, force-delete unmerged branches\n")
 	b.WriteString("\nRun 'sentei <command> --help' for command-specific options.\n")
 	return b.String()
 }

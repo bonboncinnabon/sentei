@@ -105,8 +105,11 @@ type CloneOpts struct {
 
 // removeState holds all state for the worktree removal flow.
 type removeState struct {
-	worktrees      []git.Worktree
-	defaultBranch  string // repo default branch; always protected from removal
+	worktrees     []git.Worktree
+	defaultBranch string // repo default branch; always protected from removal
+	// launchedFrom holds the paths of the worktrees containing the directory
+	// sentei was started in; they are protected from removal like a default branch.
+	launchedFrom   map[string]bool
 	selected       map[string]bool
 	milestone      int // power of ten crossed by the last run, 0 if none
 	visibleIndices []int
@@ -623,6 +626,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if ctx.generation == m.worktreeGeneration && ctx.err == nil {
 			m.remove.worktrees = ctx.worktrees
 			m.remove.defaultBranch = ctx.defaultBranch
+			m.remove.launchedFrom = ctx.launchedFrom
 			m.reindex()
 			m.updateMenuHints()
 		}

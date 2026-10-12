@@ -72,19 +72,18 @@ func TestCleanupNonInteractive_MissingMode(t *testing.T) {
 	}
 }
 
-func TestCleanupNonInteractive_DestructiveWithoutForce(t *testing.T) {
+// Every e2e command names a throwaway repository. A destructive command run
+// without a path acts on the repository holding the test's working directory,
+// which is the developer's own checkout.
+func TestCleanupNonInteractive_DoesNotRequireForce(t *testing.T) {
 	bin := buildBinary(t)
+	bareRepo := setupBareRepo(t)
 
-	cmd := exec.Command(bin, "cleanup", "--non-interactive")
+	cmd := exec.Command(bin, "cleanup", "--mode", "safe", "--non-interactive", bareRepo)
 	cmd.Env = testtmp.HermeticGitEnv()
 	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("expected non-zero exit for destructive without --force")
-	}
-
-	output := string(out)
-	if !strings.Contains(output, "destructive operation requires --force") {
-		t.Errorf("expected '--force required' error, got:\n%s", output)
+	if err != nil {
+		t.Fatalf("--non-interactive must not demand --force (it also switches -d to -D): %v\n%s", err, out)
 	}
 }
 
@@ -274,22 +273,6 @@ func TestCreateNonInteractive_MissingBranch(t *testing.T) {
 	}
 }
 
-func TestMigrateNonInteractive_DestructiveWithoutForce(t *testing.T) {
-	bin := buildBinary(t)
-
-	cmd := exec.Command(bin, "migrate", "--non-interactive")
-	cmd.Env = testtmp.HermeticGitEnv()
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("expected non-zero exit for destructive without --force")
-	}
-
-	output := string(out)
-	if !strings.Contains(output, "destructive operation requires --force") {
-		t.Errorf("expected '--force required' error, got:\n%s", output)
-	}
-}
-
 func TestMigrateNonInteractive_Success(t *testing.T) {
 	bin := buildBinary(t)
 
@@ -373,19 +356,40 @@ func TestRemoveNonInteractive_MergedBranch(t *testing.T) {
 	}
 }
 
-func TestRemoveNonInteractive_DestructiveWithoutForce(t *testing.T) {
+// Without --force, a non-interactive remove keeps the at-risk gate: it takes
+// clean worktrees and refuses ones holding work that exists nowhere else.
+func TestRemoveNonInteractive_KeepsAtRiskGateWithoutForce(t *testing.T) {
 	bin := buildBinary(t)
+	bareRepo := setupBareRepoWithMergedBranch(t)
+	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
+	draft := filepath.Join(wtPath, "draft.txt")
+	if err := os.WriteFile(draft, []byte("unsaved\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 
-	cmd := exec.Command(bin, "remove", "--merged", "--non-interactive")
+	cmd := exec.Command(bin, "remove", "--merged", "--non-interactive", bareRepo)
 	cmd.Env = testtmp.HermeticGitEnv()
 	out, err := cmd.CombinedOutput()
 	if err == nil {
-		t.Fatal("expected non-zero exit for destructive without --force")
+		t.Fatalf("expected the at-risk gate to refuse, got success:\n%s", out)
+	}
+	if !strings.Contains(string(out), "--force") {
+		t.Errorf("the refusal should name --force as the override, got:\n%s", out)
+	}
+	if _, statErr := os.Stat(draft); statErr != nil {
+		t.Errorf("the untracked file must survive: %v", statErr)
 	}
 
-	output := string(out)
-	if !strings.Contains(output, "destructive operation requires --force") {
-		t.Errorf("expected '--force required' error, got:\n%s", output)
+	if err := os.Remove(draft); err != nil {
+		t.Fatal(err)
+	}
+	cmd = exec.Command(bin, "remove", "--merged", "--non-interactive", bareRepo)
+	cmd.Env = testtmp.HermeticGitEnv()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("a clean worktree must be removed without --force: %v\n%s", err, out)
+	}
+	if _, statErr := os.Stat(wtPath); !os.IsNotExist(statErr) {
+		t.Errorf("expected the clean merged worktree to be removed (stat err: %v)", statErr)
 	}
 }
 
