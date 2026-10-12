@@ -211,7 +211,9 @@ func (l ProgressLayout) stepLine(step progress.StepState) string {
 		return "    " + styleIndicatorDone.Render(indicatorDone) + " " + label
 	case progress.StepFailed:
 		if step.Error != nil {
-			label += ": " + step.Error.Error()
+			// One row per step: the error's last line says what went wrong,
+			// and the details portal carries the full text.
+			label += ": " + errorPeekLast(step.Error.Error(), max(l.Width, 1))
 		}
 		return "    " + styleIndicatorFailed.Render(indicatorFailed) + " " + label
 	case progress.StepSkipped:
