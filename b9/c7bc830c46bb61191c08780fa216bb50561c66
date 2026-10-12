@@ -1,0 +1,150 @@
+internal/tui/cleanup_confirm_test.go
+  s_b5d41ab2ae0f4c::t_67f7f52da2f326 160
+internal/tui/progress_layout_test.go
+  s_b5d41ab2ae0f4c::t_339fa722daf260 22,114
+openspec/specs/tui-chrome/spec.md
+  s_b5d41ab2ae0f4c::t_339fa722daf260 164
+internal/tui/copy.go
+  s_b5d41ab2ae0f4c::t_98d189bbb6c06b 32-34
+internal/tui/create_options.go
+  s_b5d41ab2ae0f4c::t_1b713b53d92c8c 139
+  s_b5d41ab2ae0f4c::t_b474ac21d6910e 123
+internal/tui/removal_plan_test.go
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 16
+internal/tui/worktree_files_test.go
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 42
+internal/tui/golden_test.go
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 55
+docs/PRD.md
+  s_b5d41ab2ae0f4c::t_339fa722daf260 176
+openspec/specs/tui-progress/spec.md
+  s_b5d41ab2ae0f4c::t_339fa722daf260 100,104
+internal/tui/chrome_migration_test.go
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 17,34,74,97
+cmd/remove.go
+  s_b5d41ab2ae0f4c::t_22496be849e7f0 62
+internal/tui/menu_test.go
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 103,282-283
+  s_b5d41ab2ae0f4c::t_67f7f52da2f326 102
+internal/config/config.go
+  s_b5d41ab2ae0f4c::t_11ece84131af55 215
+  s_b5d41ab2ae0f4c::t_964f674b9754f8 97-99,102-103,111-112
+  s_b5d41ab2ae0f4c::t_466cdad470b90e 170
+internal/progress/execution_test.go
+  s_b5d41ab2ae0f4c::t_339fa722daf260 13-15,22,36
+internal/tui/removal_preparation_test.go
+  s_b5d41ab2ae0f4c::t_0964ee8e61e023 16,20,44
+internal/creator/worktree_files_test.go
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 18,43
+  s_b5d41ab2ae0f4c::t_6789ddc6b3469b 131-132
+internal/config/config_test.go
+  s_b5d41ab2ae0f4c::t_fc047faa612839 152-153
+  s_b5d41ab2ae0f4c::t_70078bde2b084e 450
+  s_b5d41ab2ae0f4c::t_e175ee5d09edaf 478
+README.md
+  s_b5d41ab2ae0f4c::t_339fa722daf260 74
+internal/creator/creator.go
+  s_b5d41ab2ae0f4c::t_7680d58daab9b6 36
+internal/tui/confirm_test.go
+  s_b5d41ab2ae0f4c::t_0964ee8e61e023 243-244
+internal/fileutil/copy.go
+  s_b5d41ab2ae0f4c::t_314b9e69f37943 3
+internal/config/config_e2e_test.go
+  s_b5d41ab2ae0f4c::t_9acd2d707166fc 88-90
+internal/tui/errpeek_test.go
+  s_b5d41ab2ae0f4c::t_339fa722daf260 17,49
+internal/tui/portal_test.go
+  s_b5d41ab2ae0f4c::t_0964ee8e61e023 251
+internal/tui/remove_run.go
+  s_b5d41ab2ae0f4c::t_5f8bf0aad272f7 11-14,32-34
+internal/tui/removal_e2e_test.go
+  s_b5d41ab2ae0f4c::t_0964ee8e61e023 70,116
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 68,92
+internal/tui/motion_test.go
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 169,190
+internal/tui/confirm.go
+  s_b5d41ab2ae0f4c::t_1a82879be9b43e 44-46,51,53,59
+  s_b5d41ab2ae0f4c::t_32c8a327c9ced5 85
+  s_b5d41ab2ae0f4c::t_c27d3d0e860f18 70
+  s_b5d41ab2ae0f4c::t_9da4cbf950c473 22-25
+internal/tui/migrate_summary.go
+  s_b5d41ab2ae0f4c::t_fd31734cf19d17 37,41-42,45-47
+internal/creator/contract_test.go
+  s_b5d41ab2ae0f4c::t_b0de8e8c453ac3 112
+  s_b5d41ab2ae0f4c::t_c45b01726ea5e9 168-169
+  s_b5d41ab2ae0f4c::t_4567c6ac3e5e06 198
+internal/creator/creator_test.go
+  s_b5d41ab2ae0f4c::t_d45addb355823f 43-44
+  s_b5d41ab2ae0f4c::t_fc047faa612839 16-19
+internal/tui/tab_presence_test.go
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 20
+internal/state/state.go
+  s_b5d41ab2ae0f4c::t_623ca6feda0a12 13-15
+internal/config/worktree_files_test.go
+  s_b5d41ab2ae0f4c::t_fc047faa612839 95,118
+internal/tui/help.go
+  s_b5d41ab2ae0f4c::t_2c72fbd9787e3e 97
+  s_b5d41ab2ae0f4c::t_a25db1a917b060 79
+.demos/progress-arc/README.md
+  s_b5d41ab2ae0f4c::t_7432839f661dcf 30
+cmd/remove_flags_test.go
+  s_b5d41ab2ae0f4c::t_fc047faa612839 205,224,239,251,268,297,316,332
+internal/state/state_test.go
+  s_b5d41ab2ae0f4c::t_37baa9537bcb0e 16,35-36,41,48-49,55,63-80,82-94,104,112,124-125,134,137,145-146
+internal/tui/milestone_test.go
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 55
+internal/tui/menu.go
+  s_b5d41ab2ae0f4c::t_bfb21d43649970 125-128,130-141
+  s_b5d41ab2ae0f4c::t_fc51cda70d0653 92
+cmd/remove_protection_test.go
+  s_b5d41ab2ae0f4c::t_977446f4959ad0 68
+internal/tui/progress_layout.go
+  s_b5d41ab2ae0f4c::t_a2c09f0473f4a6 288
+internal/tui/remove_run_test.go
+  s_b5d41ab2ae0f4c::t_0964ee8e61e023 32-33,57-58
+  s_b5d41ab2ae0f4c::t_9c5e9de56880d1 85,100,158
+internal/progress/progress.go
+  s_b5d41ab2ae0f4c::t_ae819c3001db05 2-3
+internal/tui/create_options_test.go
+  s_b5d41ab2ae0f4c::t_0964ee8e61e023 299,308
+internal/tui/cleanup_preview_test.go
+  s_b5d41ab2ae0f4c::t_67f7f52da2f326 288
+internal/tui/create_summary_test.go
+  s_b5d41ab2ae0f4c::t_67f7f52da2f326 94,108
+internal/tui/create_summary.go
+  s_b5d41ab2ae0f4c::t_cd8f3a708d578c 73,76
+cmd/cli_e2e_test.go
+  s_b5d41ab2ae0f4c::t_2ae8693ddcd98a 438-440,446-447,449-450
+internal/creator/prepared.go
+  s_b5d41ab2ae0f4c::t_c24d675515ffde 38
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_7520a4f9f6c55c 335
+  s_b5d41ab2ae0f4c::t_a5731bf899bd2f 142-146
+  s_b5d41ab2ae0f4c::t_0bd2c58453c602 671
+internal/config/types.go
+  s_b5d41ab2ae0f4c::t_5107c88e8318e7 5-8,10-11,16-21
+main.go
+  s_b5d41ab2ae0f4c::t_c1ae54eb387f4f 224,393
+  s_b5d41ab2ae0f4c::t_6410a9b6ce52cd 276
+internal/tui/helpers.go
+  s_b5d41ab2ae0f4c::t_a9bdb3b51f9e2f 41-47
+cmd/remove_filter.go
+  s_b5d41ab2ae0f4c::t_1e283b43f439f6 17-19,21
+  s_b5d41ab2ae0f4c::t_e86ea1052aa868 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b9c7bc830c46bb61191c08780fa216bb50561c66",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
