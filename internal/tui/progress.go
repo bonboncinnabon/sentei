@@ -74,7 +74,6 @@ func (m Model) updateProgress(msg tea.Msg) (tea.Model, tea.Cmd) {
 		syncCmd := m.syncProgressBar()
 		updated, holdCmd := m.holdOrAdvance(summaryView)
 		return updated, tea.Batch(syncCmd, holdCmd,
-			recordRemovals(m.repoPath, m.remove.run.result.SuccessCount),
 			loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration))
 
 	}

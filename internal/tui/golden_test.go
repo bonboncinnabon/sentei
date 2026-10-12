@@ -55,7 +55,6 @@ func TestGoldenSummaryView(t *testing.T) {
 	m.remove.run = removalRun{}
 	m.remove.run.result = worktree.DeletionResult{SuccessCount: 3}
 	m.remove.run.pruned = true
-	m.remove.milestone = 10
 	golden.RequireEqual(t, []byte(m.viewSummary()))
 }
 

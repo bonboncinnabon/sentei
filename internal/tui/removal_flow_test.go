@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -65,21 +66,15 @@ func loadedListModel(t *testing.T, runner git.CommandRunner, bare string) Model 
 
 // removalToSummary wraps a Model for a real Bubble Tea program and quits once
 // the removal has reached its summary and nothing is still running against
-// the repository: the worktree reload has landed and the run is recorded.
-type removalToSummary struct {
-	model    Model
-	recorded bool
-}
+// the repository: the worktree reload has landed.
+type removalToSummary struct{ model Model }
 
 func (r removalToSummary) Init() tea.Cmd { return nil }
 
 func (r removalToSummary) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if _, ok := msg.(milestoneMsg); ok {
-		r.recorded = true
-	}
 	updated, cmd := r.model.Update(msg)
 	r.model = updated.(Model)
-	if r.model.view == summaryView && r.recorded && !r.model.worktreesLoading() {
+	if r.model.view == summaryView && !r.model.worktreesLoading() {
 		return r, tea.Quit
 	}
 	return r, cmd
@@ -151,4 +146,31 @@ func TestRemoval_PruneFailureIsAWarningNotAFailedRemoval(t *testing.T) {
 			t.Errorf("summary does not carry the prune warning (%q):\n%s", want, summary)
 		}
 	}
+}
+
+// A removal changes the repository root by exactly the worktrees it removed.
+// It used to leave a sentei.json there to count lifetime removals.
+func TestRemoval_LeavesNothingBehindInTheRepositoryRoot(t *testing.T) {
+	bare := realBareRepo(t, "alpha", "beta")
+	before := dirNames(t, bare)
+
+	runRemoval(t, loadedListModel(t, &recordingRunner{}, bare), filepath.Join(bare, "alpha"))
+
+	want := slices.DeleteFunc(before, func(name string) bool { return name == "alpha" })
+	if got := dirNames(t, bare); !slices.Equal(got, want) {
+		t.Errorf("repository root after removing alpha = %v, want %v", got, want)
+	}
+}
+
+func dirNames(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, len(entries))
+	for i, entry := range entries {
+		names[i] = entry.Name()
+	}
+	return names
 }

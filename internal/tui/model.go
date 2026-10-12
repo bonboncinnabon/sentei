@@ -109,7 +109,6 @@ type removeState struct {
 	// preSelect holds the paths a `sentei remove` filter chose. They are
 	// selected when the worktree load lands, then the set is dropped.
 	preSelect      map[string]bool
-	milestone      int // power of ten crossed by the last run, 0 if none
 	visibleIndices []int
 	cursor         int
 	offset         int
@@ -584,13 +583,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, settledProgressTransitionCmd(m.progressToken)
 			}
 		}
-		return m, nil
-	}
-
-	if ms, ok := msg.(milestoneMsg); ok {
-		// Handled globally: the hold may have expired and advanced the view
-		// to the summary before the recording command finished.
-		m.remove.milestone = ms.Crossed
 		return m, nil
 	}
 
