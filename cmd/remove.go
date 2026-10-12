@@ -83,19 +83,18 @@ func RunRemove(args []string) error {
 	}
 
 	// At-risk gate: without --force, refuse deletions that would lose work
-	// existing nowhere else or override a lock. Dry-run is exempt (it deletes
-	// nothing).
-	if !opts.Force && !opts.DryRun {
-		var atRisk []string
-		for _, wt := range filtered {
-			if worktree.AtRisk(wt) {
-				atRisk = append(atRisk, shortBranch(wt.Branch))
-			}
+	// existing nowhere else or override a lock. A dry run deletes nothing, so
+	// it is not refused; its preview says that the real run would be.
+	var atRisk []string
+	for _, wt := range filtered {
+		if worktree.AtRisk(wt) {
+			atRisk = append(atRisk, shortBranch(wt.Branch))
 		}
-		if len(atRisk) > 0 {
-			return fmt.Errorf("%d worktree(s) are locked, have uncommitted, untracked, or unpushed work, or have a status that could not be read (%s); re-run with --force to delete them, or confirm interactively",
-				len(atRisk), strings.Join(atRisk, ", "))
-		}
+	}
+	refused := len(atRisk) > 0 && !opts.Force
+	if refused && !opts.DryRun {
+		return fmt.Errorf("%d worktree(s) are locked, have uncommitted, untracked, or unpushed work, or have a status that could not be read (%s); re-run with --force to delete them, or confirm interactively",
+			len(atRisk), strings.Join(atRisk, ", "))
 	}
 
 	if len(filtered) == 0 {
@@ -113,11 +112,19 @@ func RunRemove(args []string) error {
 				dirtyCount++
 			} else if wt.EnrichmentError != "" {
 				marker = yellow + "  (status could not be read: treated as at risk)" + nc
+			} else if wt.HasUnpushedCommits {
+				marker = yellow + "  (commits not on any remote)" + nc
+			} else if wt.IsLocked {
+				marker = yellow + "  (locked)" + nc
 			}
 			fmt.Printf("  %s%s\n", shortBranch(wt.Branch), marker)
 		}
 		if dirtyCount > 0 {
 			fmt.Printf("\n%sWarning:%s %d worktree(s) have changes that removal will discard.\n", yellow, nc, dirtyCount)
+		}
+		if refused {
+			fmt.Printf("\n%sWithout --force nothing is removed:%s %d worktree(s) are at risk (%s).\n",
+				yellow, nc, len(atRisk), strings.Join(atRisk, ", "))
 		}
 		return nil
 	}

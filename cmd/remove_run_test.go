@@ -159,6 +159,45 @@ func TestRunRemove_DryRunWarnsAboutDirtyWorktrees(t *testing.T) {
 	}
 }
 
+// A script reads the preview to decide whether to pass --force, so a match
+// the real run refuses must be marked, and the preview must say that the run
+// is refused as a whole.
+func TestRunRemove_DryRunSaysWhatTheRealRunRefuses(t *testing.T) {
+	bareRepo := setupBareRepoWithMergedBranch(t)
+	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
+	mustGit(t, bareRepo, "worktree", "lock", wtPath)
+	lockFile := filepath.Join(bareRepo, "worktrees", "feature-merged-branch", "locked")
+
+	var err error
+	out := captureStdout(t, func() {
+		err = RunRemove([]string{"--all", "--dry-run", bareRepo})
+	})
+	if err != nil {
+		t.Fatalf("a dry run is never refused: %v", err)
+	}
+	for _, want := range []string{"feature/merged-branch", "(locked)", "Without --force nothing is removed", "1 worktree(s) are at risk"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("preview missing %q:\n%s", want, out)
+		}
+	}
+
+	out = captureStdout(t, func() {
+		err = RunRemove([]string{"--all", "--dry-run", "--force", bareRepo})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "(locked)") {
+		t.Errorf("preview with --force must still mark the locked worktree:\n%s", out)
+	}
+	if strings.Contains(out, "nothing is removed") {
+		t.Errorf("with --force the real run is not refused:\n%s", out)
+	}
+	if _, statErr := os.Stat(lockFile); statErr != nil {
+		t.Errorf("a dry run must leave the lock in place: %v", statErr)
+	}
+}
+
 func TestRunRemove_RemovesMergedWorktree(t *testing.T) {
 	bareRepo := setupBareRepoWithMergedBranch(t)
 
