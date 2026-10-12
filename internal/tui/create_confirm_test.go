@@ -254,7 +254,7 @@ func directCreateModel(t *testing.T, opts *CreateOpts) (Model, string) {
 	return m, source
 }
 
-func ecosystemNames(ecosystems []config.EcosystemConfig) []string {
+func installNames(ecosystems []config.EcosystemConfig) []string {
 	var names []string
 	for _, eco := range ecosystems {
 		names = append(names, eco.Name)
@@ -269,7 +269,7 @@ func ecosystemNames(ecosystems []config.EcosystemConfig) []string {
 func TestSetCreateOpts_DirectRunInstallsTheRequestedEcosystems(t *testing.T) {
 	m, _ := directCreateModel(t, &CreateOpts{Branch: "feature/x", Base: "main", Ecosystems: []string{"pnpm", "go"}})
 
-	if got := ecosystemNames(m.buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"go", "pnpm"}) {
+	if got := installNames(m.buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"go", "pnpm"}) {
 		t.Errorf("installs = %v, want exactly the --ecosystems selection [go pnpm]", got)
 	}
 	confirm := stripAnsi(m.viewCreateConfirm())
@@ -286,7 +286,7 @@ func TestSetCreateOpts_DirectRunDoesNotAddUnrequestedSteps(t *testing.T) {
 	opts := m.buildCreatorOptions()
 	if opts.MergeBase || opts.CopyEnvFiles || len(opts.Ecosystems) != 0 {
 		t.Errorf("MergeBase=%v CopyEnvFiles=%v installs=%v, want none: no such flag was passed",
-			opts.MergeBase, opts.CopyEnvFiles, ecosystemNames(opts.Ecosystems))
+			opts.MergeBase, opts.CopyEnvFiles, installNames(opts.Ecosystems))
 	}
 	confirm := stripAnsi(m.viewCreateConfirm())
 	for _, flag := range []string{"--merge-base", "--copy-env", "--ecosystems"} {
@@ -313,7 +313,7 @@ func TestSetCreateOpts_DirectRunCopiesEnvFromTheSourceWorktree(t *testing.T) {
 // start checked.
 func TestSetCreateOpts_OptionsScreenStartsFromTheEcosystemsFlag(t *testing.T) {
 	selected, _ := directCreateModel(t, &CreateOpts{Branch: "feature/x", Ecosystems: []string{"go", "pnpm"}})
-	if got := ecosystemNames(selected.buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"go"}) {
+	if got := installNames(selected.buildCreatorOptions().Ecosystems); !slices.Equal(got, []string{"go"}) {
 		t.Errorf("installs = %v, want [go] from --ecosystems", got)
 	}
 	view := stripAnsi(selected.viewCreateOptions())
@@ -326,7 +326,7 @@ func TestSetCreateOpts_OptionsScreenStartsFromTheEcosystemsFlag(t *testing.T) {
 
 	defaults, _ := directCreateModel(t, &CreateOpts{Branch: "feature/x"})
 	opts := defaults.buildCreatorOptions()
-	if got := ecosystemNames(opts.Ecosystems); !slices.Equal(got, []string{"uv", "go"}) || !opts.MergeBase || !opts.CopyEnvFiles {
+	if got := installNames(opts.Ecosystems); !slices.Equal(got, []string{"uv", "go"}) || !opts.MergeBase || !opts.CopyEnvFiles {
 		t.Errorf("installs=%v MergeBase=%v CopyEnvFiles=%v, want the interactive defaults (detected uv and go, both on)", got, opts.MergeBase, opts.CopyEnvFiles)
 	}
 }

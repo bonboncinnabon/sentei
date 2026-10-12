@@ -24,6 +24,8 @@ func (m Model) updateRepoName(msg tea.Msg) (tea.Model, tea.Cmd) {
 			name := strings.TrimSpace(m.repo.nameInput.Value())
 			location := m.repoLocation()
 			dest := filepath.Join(location, name)
+			locationInfo, locationErr := os.Stat(location)
+			_, destErr := os.Lstat(dest)
 
 			switch {
 			case name == "":
@@ -32,9 +34,9 @@ func (m Model) updateRepoName(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.repo.validationErr = "repository name cannot contain spaces"
 			case name == "." || name == ".." || strings.ContainsAny(name, `/\`):
 				m.repo.validationErr = "repository name must be a directory name, not a path"
-			case !isDir(location):
+			case locationErr != nil || !locationInfo.IsDir():
 				m.repo.validationErr = fmt.Sprintf("location is not an existing directory: %s", location)
-			case pathExists(dest):
+			case destErr == nil:
 				m.repo.validationErr = fmt.Sprintf("directory already exists: %s", dest)
 			default:
 				m.repo.validationErr = ""
@@ -71,16 +73,6 @@ func (m Model) repoLocation() string {
 		location = filepath.Join(m.repoPath, location)
 	}
 	return filepath.Clean(location)
-}
-
-func isDir(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
-}
-
-func pathExists(path string) bool {
-	_, err := os.Lstat(path)
-	return err == nil
 }
 
 func (m Model) updateRepoNameInput(msg tea.Msg) (tea.Model, tea.Cmd) {
