@@ -205,30 +205,6 @@ func TestViewStatLine_ZeroCountsOmitted(t *testing.T) {
 	}
 }
 
-func TestRenderProgressBar_Halfway(t *testing.T) {
-	got := stripANSI(renderProgressBar(10, 20, 20))
-	want := "  " + strings.Repeat("█", 10) + strings.Repeat("░", 10) + " 50%"
-	if got != want {
-		t.Errorf("renderProgressBar(10,20) = %q, want %q", got, want)
-	}
-}
-
-func TestRenderProgressBar_DoneExceedsTotal_ClampsNoPanic(t *testing.T) {
-	got := stripANSI(renderProgressBar(3, 1, 20))
-	want := "  " + strings.Repeat("█", 20) + " 100%"
-	if got != want {
-		t.Errorf("renderProgressBar(3,1) = %q, want clamped 100%%", got)
-	}
-}
-
-func TestRenderProgressBar_ZeroTotal(t *testing.T) {
-	got := stripANSI(renderProgressBar(0, 0, 20))
-	want := "  " + strings.Repeat("░", 20) + " 0%"
-	if got != want {
-		t.Errorf("renderProgressBar(0,0) = %q, want empty bar at 0%%", got)
-	}
-}
-
 // stripANSI removes escape sequences so assertions hold regardless of the
 // test terminal's color profile.
 func stripANSI(s string) string {

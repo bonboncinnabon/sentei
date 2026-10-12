@@ -1,8 +1,7 @@
 package tui
 
 import (
-	"fmt"
-	"strconv"
+	"math"
 	"strings"
 	"time"
 
@@ -27,6 +26,10 @@ const (
 	// shimmerBandHalf is the band's half-width in cells: runes this close
 	// to the band center blend toward the ramp peak.
 	shimmerBandHalf = 6.0
+
+	// shimmerShades is how many colors the band steps through between a
+	// ramp's base and its peak.
+	shimmerShades = 16
 )
 
 // starFrames is the working twinkle: a star growing out of the pending dot
@@ -86,41 +89,14 @@ func shimmerLine(text string, ramp shimmerRamp, tick int) string {
 	progress -= float64(int(progress))
 	center := travel*(1-progress) - shimmerBandHalf
 
+	shades := lipgloss.Blend1D(shimmerShades, lipgloss.Color(ramp.base), lipgloss.Color(ramp.peak))
 	var b strings.Builder
 	for i, r := range runes {
-		d := float64(i) - center
-		if d < 0 {
-			d = -d
-		}
-		intensity := 1 - d/shimmerBandHalf
-		if intensity < 0 {
-			intensity = 0
-		}
-		color := lerpHex(ramp.base, ramp.peak, intensity)
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(color)).Render(string(r)))
+		intensity := max(1-math.Abs(float64(i)-center)/shimmerBandHalf, 0)
+		shade := shades[int(intensity*float64(len(shades)-1))]
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(shade).Render(string(r)))
 	}
 	return b.String()
-}
-
-// lerpHex interpolates two #rrggbb colors; t is clamped to [0,1].
-func lerpHex(a, b string, t float64) string {
-	t = min(max(t, 0), 1)
-	ar, ag, ab := splitHex(a)
-	br, bg, bb := splitHex(b)
-	lerp := func(x, y int) int { return x + int(float64(y-x)*t) }
-	return fmt.Sprintf("#%02x%02x%02x", lerp(ar, br), lerp(ag, bg), lerp(ab, bb))
-}
-
-func splitHex(h string) (r, g, b int) {
-	h = strings.TrimPrefix(h, "#")
-	if len(h) != 6 {
-		return 0, 0, 0
-	}
-	parse := func(s string) int {
-		v, _ := strconv.ParseInt(s, 16, 32)
-		return int(v)
-	}
-	return parse(h[0:2]), parse(h[2:4]), parse(h[4:6])
 }
 
 // Motion is the presentation bundle the model injects into pure layouts:

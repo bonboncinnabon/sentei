@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
@@ -137,10 +139,18 @@ func TestProgressLayout_OverallBarAggregatesPhases(t *testing.T) {
 	}
 	view := stripANSI(l.View())
 
-	barWidth := 80 - 2 - progressBarPercentReserve
-	want := strings.Repeat("█", barWidth/2) + strings.Repeat("░", barWidth-barWidth/2) + " 50%"
-	if !strings.Contains(view, want) {
-		t.Errorf("expected aggregated 50%% bar, view:\n%s", view)
+	var bar string
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "█") {
+			bar = line
+		}
+	}
+	filled, empty := strings.Count(bar, "█"), strings.Count(bar, "░")
+	if !strings.HasSuffix(bar, " 50%") || filled-empty > 1 || empty-filled > 1 {
+		t.Errorf("expected an aggregated bar half full and labelled 50%%, got %d filled and %d empty cells in %q", filled, empty, bar)
+	}
+	if width := lipgloss.Width(bar); width != 80 {
+		t.Errorf("bar row is %d cells wide, want it to fill the 80-cell layout", width)
 	}
 }
 

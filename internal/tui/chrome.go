@@ -132,29 +132,6 @@ func viewStatLine(stats WindowStats, activeGlyph string) string {
 	return "    " + legend + showing
 }
 
-// renderProgressBar renders the static fallback bar at the given cell width:
-// accent-colored fill, dim track, percentage in the default foreground.
-// Inputs are clamped so done > total can never produce a negative repeat
-// count or a percentage above 100.
-func renderProgressBar(done, total, width int) string {
-	width = max(width, minProgressBarWidth)
-	pct := 0
-	if total > 0 {
-		pct = (done * 100) / total
-	}
-	if pct > 100 {
-		pct = 100
-	}
-	filled := 0
-	if total > 0 {
-		filled = (done * width) / total
-	}
-	filled = min(max(filled, 0), width)
-	fill := styleAccent.Render(strings.Repeat("█", filled))
-	track := styleDim.Render(strings.Repeat("░", width-filled))
-	return fmt.Sprintf("  %s%s %d%%", fill, track, pct)
-}
-
 // inputFieldLabel renders a form field's label line: accent while the
 // field has focus, plain otherwise. Fields render persistently — focus
 // moves the accent, never the geometry.

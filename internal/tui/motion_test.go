@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
@@ -55,15 +56,26 @@ func TestShimmerLine_PreservesContentAndMoves(t *testing.T) {
 	}
 }
 
-func TestLerpHex_Endpoints(t *testing.T) {
-	if got := lerpHex("#000000", "#ffffff", 0); got != "#000000" {
-		t.Errorf("t=0 = %q", got)
+// The band blends each ramp from its base to its peak: text away from the
+// band stays at the base color and only the band moves off it.
+func TestShimmerLine_BlendsFromTheRampBase(t *testing.T) {
+	ramp := shimmerRamp{base: "#5f5fd7", peak: "#d3d3ff"}
+	baseRune := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ramp.base)).Render("x")
+	text := strings.Repeat("x", 60)
+
+	// A quarter of the way through its sweep the band sits inside the text.
+	quarter := int(shimmerPeriod / motionResolution / 4)
+	out := shimmerLine(text, ramp, quarter)
+
+	if got := stripANSI(out); got != text {
+		t.Fatalf("stripped shimmer = %q, want the input", got)
 	}
-	if got := lerpHex("#000000", "#ffffff", 1); got != "#ffffff" {
-		t.Errorf("t=1 = %q", got)
+	atBase := strings.Count(out, baseRune)
+	if atBase == 0 || atBase == len(text) {
+		t.Errorf("%d of %d runes are at the base color, want most but not all", atBase, len(text))
 	}
-	if got := lerpHex("#202020", "#404040", 0.5); got != "#303030" {
-		t.Errorf("midpoint = %q", got)
+	if atBase < len(text)-2*int(shimmerBandHalf) {
+		t.Errorf("only %d of %d runes are at the base color: the band is wider than %v cells either side", atBase, len(text), shimmerBandHalf)
 	}
 }
 

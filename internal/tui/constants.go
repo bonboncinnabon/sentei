@@ -20,11 +20,6 @@ const (
 	// for the elapsed readout ("  elapsed 9999s"). A fixed reserve keeps the
 	// bar from shrinking a cell every time the elapsed digits grow.
 	progressBarElapsedReserve = 15
-
-	// progressBarPercentReserve is the budget for the static fallback bar's
-	// trailing percentage ("  100%"); the animated bar renders its own
-	// percentage inside its width.
-	progressBarPercentReserve = 6
 )
 
 // overallBarWidth is the single sizing rule for the overall bar: fill the

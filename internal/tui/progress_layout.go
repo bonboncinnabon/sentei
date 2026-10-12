@@ -30,8 +30,8 @@ type ProgressLayout struct {
 
 	// Bar, Elapsed, and ActiveGlyph are injected by the model's render path
 	// (animated spring bar, stopwatch readout, spinner frame). Left empty,
-	// View falls back to the static bar, no elapsed line, and the static
-	// active-indicator fallback: direct constructions stay pure.
+	// View falls back to the same bar drawn at rest, no elapsed line, and
+	// the static active-indicator fallback: direct constructions stay pure.
 	Bar         string
 	Elapsed     string
 	ActiveGlyph string
@@ -246,10 +246,13 @@ func (l ProgressLayout) barLine() string {
 	} else if l.Completed {
 		pct = 100
 	}
-	if l.Width < minProgressBarWidth+progressBarPercentReserve+2 {
+	if l.Width < minProgressBarWidth+2 {
 		return fmt.Sprintf("  %d%%", pct)
 	}
-	return renderProgressBar(done, total, l.Width-2-progressBarPercentReserve)
+	bar := newOverallBar()
+	bar.EmptyColor = colorDim
+	bar.SetWidth(l.Width - 2)
+	return "  " + bar.ViewAs(float64(pct)/100)
 }
 
 func padProgressLines(lines []string, rows int) []string {
