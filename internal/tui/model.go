@@ -478,12 +478,10 @@ func settledProgressTransitionCmd(token int) tea.Cmd {
 }
 
 func (m Model) completeProgressTransition() Model {
-	leavingProgress := m.determinateProgressActive()
 	m.progressTransitionPending = false
 	m.view = m.progressTargetView
-	if leavingProgress && m.portal.trigger == portalDetails {
-		m.portal = m.portal.Close()
-	}
+	// Details and help both describe the progress view that just ended.
+	m.portal = m.portal.Close()
 	// Leaving the progress view: discard the spring state so the next
 	// flow starts from zero, not easing down from 100%.
 	m.bar = newOverallBar()
