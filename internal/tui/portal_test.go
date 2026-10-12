@@ -248,8 +248,7 @@ func TestHelp_AllViewsProduceContent(t *testing.T) {
 		createBranchView, createOptionsView, createProgressView, createSummaryView,
 		repoNameView, repoOptionsView, repoProgressView, repoSummaryView,
 		cloneInputView, migrateConfirmView, migrateProgressView, migrateSummaryView,
-		migrateNextView, integrationListView, integrationProgressView,
-		integrationSummaryView, migrateIntegrationsView, cleanupConfirmView,
+		migrateNextView, cleanupConfirmView,
 		cleanupResultView, createConfirmView, cloneConfirmView,
 	}
 	for _, v := range views {
@@ -326,18 +325,6 @@ func TestDetails_HelpAndDetailsSwitch(t *testing.T) {
 	m = updated.(Model)
 	if m.portal.title != "Help — Worktree List" {
 		t.Errorf("expected switch back to help, got %q", m.portal.title)
-	}
-}
-
-func TestDetails_IntegrationListKeepsOwnInfoCard(t *testing.T) {
-	m := portalTestModel()
-	m.view = integrationListView
-	m.integ.integrations = nil // empty: info key is a no-op there too
-
-	updated, _ := m.Update(keyRune('?'))
-	m = updated.(Model)
-	if m.portal.Visible() {
-		t.Error("? on the integration list must fall through to the view's own handling")
 	}
 }
 

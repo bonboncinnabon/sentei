@@ -59,7 +59,7 @@ func RunRemove(args []string) error {
 		isMerged = CheckMerged(runner, repoPath, defaultBranch)
 	}
 
-	filtered := ResolveFilters(worktrees, opts, nil, defaultBranch, isMerged)
+	filtered := ResolveFilters(worktrees, opts, defaultBranch, isMerged)
 	if cwd, err := os.Getwd(); err == nil {
 		for _, wt := range worktrees {
 			if !wt.IsBare && !git.IsProtectedBranchWith(wt.Branch, defaultBranch) && git.PathContains(wt.Path, cwd) {

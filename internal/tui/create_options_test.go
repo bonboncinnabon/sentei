@@ -296,17 +296,16 @@ func TestWaitForCreateEvent_DeliversEventThenCompletion(t *testing.T) {
 	}
 }
 
-func TestViewCreateOptions_RendersOptionsAndIntegrations(t *testing.T) {
+func TestViewCreateOptions_RendersOptions(t *testing.T) {
 	m := createOptionsModel()
 	m.create.ecosystems = []config.EcosystemConfig{{Name: "node"}}
 	m.create.ecoEnabled = map[string]bool{"node": true}
-	m.create.activeIntegrationNames = []string{"code-review-graph"}
 
 	view := stripANSI(m.viewCreateOptions())
 
 	for _, want := range []string{
 		"Create worktree", "feature/x", "from main", "Setup",
-		"[x]", "Integrations from main: code-review-graph", "space toggle",
+		"[x]", "space toggle",
 	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("view missing %q:\n%s", want, view)

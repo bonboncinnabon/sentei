@@ -34,12 +34,6 @@ func (r *GitRunner) Run(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-// ShellQuote single-quotes a value so shell metacharacters in it are inert when
-// it is interpolated into a command passed to a ShellRunner (which runs sh -c).
-func ShellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
 // ShellRunner executes arbitrary shell commands (not git-specific).
 type ShellRunner interface {
 	RunShell(dir string, command string) (string, error)

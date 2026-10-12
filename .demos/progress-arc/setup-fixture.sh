@@ -121,27 +121,6 @@ fi
 exec /usr/bin/git "$@"
 SHIM
 
-cat >"$ROOT/shims/ccc" <<'SHIM'
-#!/usr/bin/env bash
-set -euo pipefail
-ROOT=/tmp/sentei-vhs-progress-arc
-printf 'ccc %s\n' "$*" >>"$ROOT/logs/ccc.log"
-case "${1:-}" in
-  init|--version) exit 0 ;;
-  index) printf 'deterministic index failure\n' >&2; exit 17 ;;
-  *) exit 0 ;;
-esac
-SHIM
-
-cat >"$ROOT/shims/python3" <<'SHIM'
-#!/usr/bin/env bash
-exit 0
-SHIM
-cat >"$ROOT/shims/uv" <<'SHIM'
-#!/usr/bin/env bash
-exit 0
-SHIM
-
 for denied in gh curl wget brew npm npx pnpm yarn pip pip3 pipx; do
   cat >"$ROOT/shims/$denied" <<'SHIM'
 #!/usr/bin/env bash

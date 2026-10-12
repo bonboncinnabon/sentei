@@ -161,7 +161,7 @@ The system SHALL provide a truncation helper used wherever paths, branch names, 
 When a progress flow completes, its layout SHALL reach a coherent terminal state before transitioning: the overall bar's final target SHALL be 100%, and any phase that never discovered work SHALL render as a dim `– <Name>  skipped` line and SHALL NOT count as outstanding work. Quitting the application from a live progress view SHALL print a one-line stderr notice naming the interrupted operation.
 
 #### Scenario: No-work phases at completion
-- **WHEN** a worktree creation completes with no dependencies or integrations enabled
+- **WHEN** a worktree creation completes with no dependencies enabled
 - **THEN** those phases SHALL read `– skipped` (dim) and the overall bar SHALL target and settle at 100%
 
 #### Scenario: Mid-run pending unchanged

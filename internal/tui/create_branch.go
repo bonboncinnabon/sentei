@@ -11,7 +11,6 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/ecosystem"
 	"github.com/bonboncinnabon/sentei/internal/git"
-	"github.com/bonboncinnabon/sentei/internal/state"
 )
 
 // defaultBaseBranch is the base-branch input's construction default; the
@@ -144,24 +143,6 @@ func (m *Model) prepareCreateOptions() {
 		for _, eco := range detected {
 			m.create.ecosystems = append(m.create.ecosystems, eco.Config)
 			m.create.ecoEnabled[eco.Name] = true
-		}
-	}
-
-	// Load active integration names from repo state for display. A corrupt
-	// sentei.json returns (nil, err); default to empty so we never nil-deref.
-	st, err := m.loadRepoState()
-	if err != nil || st == nil {
-		st = &state.State{}
-	}
-	m.create.activeIntegrationNames = nil
-	for _, name := range st.Integrations {
-		switch name {
-		case "code-review-graph":
-			m.create.activeIntegrationNames = append(m.create.activeIntegrationNames, "crg")
-		case "cocoindex-code":
-			m.create.activeIntegrationNames = append(m.create.activeIntegrationNames, "ccc")
-		default:
-			m.create.activeIntegrationNames = append(m.create.activeIntegrationNames, name)
 		}
 	}
 }

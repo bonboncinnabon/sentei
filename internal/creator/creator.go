@@ -6,7 +6,6 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/git"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/worktreefile"
 )
@@ -20,7 +19,6 @@ type Options struct {
 	CopyEnvFiles   bool
 	WorktreeFiles  []worktreefile.Rule
 	Ecosystems     []config.EcosystemConfig
-	Integrations   []integration.Integration
 }
 
 type Result struct {
@@ -35,7 +33,7 @@ func (r *Result) HasFailures() bool {
 
 func Run(runner git.CommandRunner, shell git.ShellRunner, opts Options, emit func(progress.Event)) Result {
 	result := Result{}
-	prepared, err := prepareCreation(runner, shell, opts)
+	prepared, err := prepareCreation(opts)
 	if err != nil {
 		result.Err = err
 		return result

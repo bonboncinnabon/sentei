@@ -27,9 +27,7 @@ retained output trees, before resetting anything. It isolates HOME/XDG and Git
 identity and installs runtime shims. The Git shim denies
 network-capable verbs and
 rejects absolute worktree paths outside the fixture. Network clients, package
-managers, and `gh` fail closed. The `ccc` shim proves presence and initialization,
-then exits 17 from `ccc index`, making the integration-failure tape show the
-failed index and skipped dependent work.
+managers, and `gh` fail closed.
 
 The tapes set the PTY to 80 columns by 24 rows and use `SENTEI_MOTION=off`.
 Their 960×672 pixel canvas leaves enough physical room for all 24 rows at the

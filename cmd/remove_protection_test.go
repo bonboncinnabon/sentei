@@ -65,7 +65,7 @@ func TestRemove_DefaultBranchProtectedFromWorktree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListWorktrees: %v", err)
 	}
-	filtered := ResolveFilters(worktrees, &RemoveOptions{All: true}, nil, def, nil)
+	filtered := ResolveFilters(worktrees, &RemoveOptions{All: true}, def, nil)
 
 	var hasProduction, hasFeature bool
 	for _, wt := range filtered {

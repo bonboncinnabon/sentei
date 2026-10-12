@@ -12,13 +12,6 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
-const (
-	statusPending  = "pending"
-	statusRemoving = "removing"
-	statusRemoved  = "removed"
-	statusFailed   = "failed"
-)
-
 type cleanupCompleteMsg struct {
 	Result cleanup.Result
 }
@@ -60,34 +53,8 @@ func (m Model) updateProgress(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case teardownCompleteMsg:
-		// Yes switches to progressView before teardown runs, so completion
-		// lands here, not in updateConfirm.
-		m.remove.run.teardownRunning = false
-		m.remove.run.teardownResults = msg.results
-		m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, msg.err)
-		return m.startDeletions()
-
 	case removalEventMsg:
 		m.remove.run.events = append(m.remove.run.events, msg.event)
-		if msg.event.Phase != worktree.RemovalPhaseID {
-			return m, tea.Batch(m.syncProgressBar(), waitForRemovalEvent(m.remove.run.progressCh))
-		}
-		path := msg.event.Step
-		for _, target := range m.remove.run.targets {
-			if target.StepID == msg.event.Step {
-				path = target.Worktree.Path
-				break
-			}
-		}
-		switch msg.event.Status {
-		case progress.StepRunning:
-			m.remove.run.statuses[path] = statusRemoving
-		case progress.StepDone:
-			m.remove.run.statuses[path] = statusRemoved
-		case progress.StepFailed:
-			m.remove.run.statuses[path] = statusFailed
-		}
 		return m, tea.Batch(m.syncProgressBar(), waitForRemovalEvent(m.remove.run.progressCh))
 
 	case deletionsCompleteMsg:

@@ -166,7 +166,7 @@ func TestCleanupRunningLine_Shimmers(t *testing.T) {
 func TestVocabulary_NoRetiredGlyphsInMajorViews(t *testing.T) {
 	m := NewModel([]git.Worktree{{Path: "/work/a", Branch: "refs/heads/a"}}, nil, "/repo")
 	m.width, m.height = 100, 40
-	m.remove.run = newRemovalRun([]git.Worktree{{Path: "/work/a", Branch: "refs/heads/a"}})
+	m.remove.run = removalRun{}
 	m.remove.run.result.SuccessCount = 1
 
 	views := map[string]string{
@@ -187,7 +187,7 @@ func TestVocabulary_NoRetiredGlyphsInMajorViews(t *testing.T) {
 func TestSummaryVerdict_CrystallizedStar(t *testing.T) {
 	m := NewModel(nil, nil, "/repo")
 	m.width = 80
-	m.remove.run = newRemovalRun(nil)
+	m.remove.run = removalRun{}
 	m.remove.run.result.SuccessCount = 2
 	m.view = summaryView
 

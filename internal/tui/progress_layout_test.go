@@ -19,7 +19,7 @@ func TestProgressLayout_WithSubtitle(t *testing.T) {
 				{Name: "Merge base branch", Status: progress.StepRunning},
 			}},
 			{Name: "Dependencies"},
-			{Name: "Integrations"},
+			{Name: "Publish"},
 		},
 	}
 	view := stripANSI(l.View())
@@ -111,7 +111,7 @@ func TestProgressLayout_ZeroTotalPhaseIsPending(t *testing.T) {
 	l := ProgressLayout{
 		Title: "T", Width: 80, Height: 30,
 		Phases: []progress.PhaseState{
-			{Name: "Integrations", Total: 0, Done: 0, Steps: []progress.StepState{
+			{Name: "Publish", Total: 0, Done: 0, Steps: []progress.StepState{
 				{Name: "queued work", Status: progress.StepPending},
 			}},
 		},

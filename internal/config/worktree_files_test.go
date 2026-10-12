@@ -92,7 +92,7 @@ worktree_files:
   - source: `+tc.source+`
     destination: `+tc.destination+`
 `)
-			err := validate(&cfg, nil)
+			err := validate(&cfg)
 			if tc.wantError == "" {
 				if err != nil {
 					t.Fatalf("validate() error: %v", err)
@@ -115,7 +115,7 @@ worktree_files:
     destination: .codex/config.toml
 `)
 
-	err := validate(&cfg, nil)
+	err := validate(&cfg)
 	if err == nil || !strings.Contains(err.Error(), "duplicate destination") {
 		t.Fatalf("validate() error = %v, want duplicate destination error", err)
 	}

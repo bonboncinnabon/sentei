@@ -7,19 +7,16 @@ import (
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func TestRun_FullPipeline(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[show-ref --verify refs/heads/feature/auth]":                {Err: fmt.Errorf("not found")},
-		"/repo:[worktree add /repo/feature-auth -b feature/auth main]":     {Output: ""},
-		"/repo/feature-auth:[merge main --no-edit]":                        {Output: ""},
-		"/repo/feature-auth:shell[go mod download]":                        {Output: ""},
-		"/repo/main:shell[code-review-graph --version]":                    {Output: "1.0"},
-		"/repo:shell[code-review-graph build --repo '/repo/feature-auth']": {Output: ""},
+		"/repo:[show-ref --verify refs/heads/feature/auth]":            {Err: fmt.Errorf("not found")},
+		"/repo:[worktree add /repo/feature-auth -b feature/auth main]": {Output: ""},
+		"/repo/feature-auth:[merge main --no-edit]":                    {Output: ""},
+		"/repo/feature-auth:shell[go mod download]":                    {Output: ""},
 	}}
 
 	opts := Options{
@@ -35,18 +32,6 @@ func TestRun_FullPipeline(t *testing.T) {
 				Install: config.InstallConfig{Command: "go mod download"},
 			},
 		},
-		Integrations: []integration.Integration{
-			{
-				Name: "code-review-graph",
-				Detect: integration.DetectSpec{
-					Command: "code-review-graph --version",
-				},
-				Setup: integration.SetupSpec{
-					Command:    "code-review-graph build --repo {path}",
-					WorkingDir: "repo",
-				},
-			},
-		},
 	}
 
 	ec := &mock.EventCollector[progress.Event]{}
@@ -55,17 +40,14 @@ func TestRun_FullPipeline(t *testing.T) {
 	if result.WorktreePath != "/repo/feature-auth" {
 		t.Errorf("WorktreePath = %q, want %q", result.WorktreePath, "/repo/feature-auth")
 	}
-	if len(result.Phases) != 3 {
-		t.Fatalf("phase count = %d, want 3", len(result.Phases))
+	if len(result.Phases) != 2 {
+		t.Fatalf("phase count = %d, want 2", len(result.Phases))
 	}
 	if result.Phases[0].Name != "Setup" {
 		t.Errorf("phase[0] = %q, want Setup", result.Phases[0].Name)
 	}
 	if result.Phases[1].Name != "Dependencies" {
 		t.Errorf("phase[1] = %q, want Dependencies", result.Phases[1].Name)
-	}
-	if result.Phases[2].Name != "Integrations" {
-		t.Errorf("phase[2] = %q, want Integrations", result.Phases[2].Name)
 	}
 	if result.HasFailures() {
 		t.Error("expected no failures in full pipeline")

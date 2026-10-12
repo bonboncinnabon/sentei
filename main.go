@@ -17,7 +17,6 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/dryrun"
 	"github.com/bonboncinnabon/sentei/internal/git"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/playground"
 	"github.com/bonboncinnabon/sentei/internal/repo"
 	"github.com/bonboncinnabon/sentei/internal/tui"
@@ -38,15 +37,6 @@ func buildRegistry() *cli.Registry {
 		Type: cli.Output,
 		RunCLI: func(args []string) error {
 			cmd.RunEcosystems(args)
-			return nil
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "integrations",
-		Type: cli.Output,
-		RunCLI: func(args []string) error {
-			cmd.RunIntegrations()
 			return nil
 		},
 	})
@@ -231,10 +221,7 @@ func launchInteractiveDecision(result cli.DispatchResult) {
 	var cfg *config.Config
 	if context == repo.ContextBareRepo {
 		var err error
-		cfg, err = config.LoadConfig(repoPath,
-			config.WithRunner(runner),
-			config.WithKnownIntegrations(integration.Names()),
-		)
+		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
 		if err != nil {
 			log.Warn("failed to load config", "err", err)
 		}
@@ -286,7 +273,7 @@ func launchInteractiveDecision(result cli.DispatchResult) {
 			if opts.Merged {
 				isMerged = cmd.CheckMerged(runner, repoPath, defaultBranch)
 			}
-			filtered := cmd.ResolveFilters(worktrees, opts, nil, defaultBranch, isMerged)
+			filtered := cmd.ResolveFilters(worktrees, opts, defaultBranch, isMerged)
 
 			var paths []string
 			for _, wt := range filtered {
@@ -403,10 +390,7 @@ func runRoot(args []string) {
 	var cfg *config.Config
 	if context == repo.ContextBareRepo {
 		var err error
-		cfg, err = config.LoadConfig(repoPath,
-			config.WithRunner(runner),
-			config.WithKnownIntegrations(integration.Names()),
-		)
+		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
 		if err != nil {
 			log.Warn("failed to load config", "err", err)
 		}

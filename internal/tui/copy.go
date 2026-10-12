@@ -24,21 +24,14 @@ const (
 	titleMigrate           = "Migrate to bare repository"
 	titleConfirmMigration  = "Confirm migration"
 	titleMigrationComplete = "Migration complete"
-	titleIntegrations      = "Integrations"
-	titleSetUpIntegrations = "Set up integrations"
-	titleApplyingChanges   = "Applying integration changes"
-	titleApplyComplete     = "Apply complete"
-	titleApplyErrors       = "Apply finished with errors"
 	titleCleanupPreview    = "Cleanup preview"
 	titleConfirmCleanup    = "Confirm cleanup"
 	titleRunningCleanup    = "Running cleanup"
 	titleCleanupComplete   = "Cleanup complete"
 
-	portalWorktreeDetails    = "Worktree details"
-	portalApplyDetails       = "Apply details"
-	portalIntegrationDetails = "Integration details"
-	portalAggressiveDetails  = "Aggressive cleanup details"
-	portalProgressDetails    = "Progress details"
+	portalWorktreeDetails   = "Worktree details"
+	portalAggressiveDetails = "Aggressive cleanup details"
+	portalProgressDetails   = "Progress details"
 )
 
 // whisperMilestone is the dim celebration line on the removal summary when

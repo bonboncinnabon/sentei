@@ -38,3 +38,10 @@ func worktreeLabel(wt git.Worktree) string {
 	}
 	return filepath.Base(wt.Path)
 }
+
+func pluralize(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
+}

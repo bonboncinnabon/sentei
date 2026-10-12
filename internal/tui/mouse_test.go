@@ -96,18 +96,3 @@ func TestPortal_FullWidthLineDoesNotWrapInsideBox(t *testing.T) {
 		t.Errorf("a contentWidth-wide line must render unwrapped inside the portal box:\n%s", out)
 	}
 }
-
-func TestIntegrationList_WheelMovesCursor(t *testing.T) {
-	m := makeIntegrationModel()
-	m.integ.cursor = 0
-
-	updated, _ := m.updateIntegrationList(wheelDown())
-	if got := updated.(Model).integ.cursor; got != 1 {
-		t.Errorf("cursor = %d after wheel down, want 1", got)
-	}
-
-	updated, _ = updated.(Model).updateIntegrationList(wheelUp())
-	if got := updated.(Model).integ.cursor; got != 0 {
-		t.Errorf("cursor = %d after wheel up, want 0", got)
-	}
-}

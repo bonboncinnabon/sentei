@@ -202,7 +202,7 @@ func TestResolveFilters_StaleFilter(t *testing.T) {
 		{Path: "/new", Branch: "refs/heads/feature/new", LastCommitDate: now.Add(-5 * 24 * time.Hour)},
 	}
 	opts := &RemoveOptions{Stale: 30 * 24 * time.Hour}
-	result := ResolveFilters(worktrees, opts, nil, "", nil)
+	result := ResolveFilters(worktrees, opts, "", nil)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 worktree, got %d", len(result))
 	}
@@ -221,7 +221,7 @@ func TestResolveFilters_MergedFilter(t *testing.T) {
 		return branch == "feature/merged"
 	}
 	opts := &RemoveOptions{Merged: true}
-	result := ResolveFilters(worktrees, opts, nil, "", isMerged)
+	result := ResolveFilters(worktrees, opts, "", isMerged)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 worktree, got %d", len(result))
 	}
@@ -236,7 +236,7 @@ func TestResolveFilters_AllFilter(t *testing.T) {
 		{Path: "/b", Branch: "refs/heads/feature/b"},
 	}
 	opts := &RemoveOptions{All: true}
-	result := ResolveFilters(worktrees, opts, nil, "", nil)
+	result := ResolveFilters(worktrees, opts, "", nil)
 	if len(result) != 2 {
 		t.Fatalf("expected 2 worktrees, got %d", len(result))
 	}
@@ -248,7 +248,7 @@ func TestResolveFilters_ProtectedExclusion(t *testing.T) {
 		{Path: "/feature", Branch: "refs/heads/feature/x"},
 	}
 	opts := &RemoveOptions{All: true}
-	result := ResolveFilters(worktrees, opts, nil, "", nil)
+	result := ResolveFilters(worktrees, opts, "", nil)
 	// main is protected and should be excluded
 	if len(result) != 1 {
 		t.Fatalf("expected 1 worktree, got %d", len(result))
@@ -265,7 +265,7 @@ func TestResolveFilters_ProtectsNonStandardDefaultBranch(t *testing.T) {
 	}
 	opts := &RemoveOptions{All: true}
 	// Default branch is "production" (non-standard) — it must be excluded.
-	result := ResolveFilters(worktrees, opts, nil, "production", nil)
+	result := ResolveFilters(worktrees, opts, "production", nil)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 worktree, got %d", len(result))
 	}
@@ -283,21 +283,6 @@ func TestCheckMerged_DefaultBranchNeverMergedIntoItself(t *testing.T) {
 	}
 }
 
-func TestResolveFilters_CustomProtectedBranches(t *testing.T) {
-	worktrees := []git.Worktree{
-		{Path: "/staging", Branch: "refs/heads/staging"},
-		{Path: "/feature", Branch: "refs/heads/feature/x"},
-	}
-	opts := &RemoveOptions{All: true}
-	result := ResolveFilters(worktrees, opts, []string{"staging"}, "", nil)
-	if len(result) != 1 {
-		t.Fatalf("expected 1 worktree, got %d", len(result))
-	}
-	if result[0].Path != "/feature" {
-		t.Errorf("expected /feature, got %s", result[0].Path)
-	}
-}
-
 func TestResolveFilters_CombinedORLogic(t *testing.T) {
 	now := time.Now()
 	worktrees := []git.Worktree{
@@ -309,7 +294,7 @@ func TestResolveFilters_CombinedORLogic(t *testing.T) {
 		return branch == "feature/merged"
 	}
 	opts := &RemoveOptions{Stale: 30 * 24 * time.Hour, Merged: true}
-	result := ResolveFilters(worktrees, opts, nil, "", isMerged)
+	result := ResolveFilters(worktrees, opts, "", isMerged)
 	if len(result) != 2 {
 		t.Fatalf("expected 2 worktrees, got %d", len(result))
 	}
@@ -328,7 +313,7 @@ func TestResolveFilters_ExcludesBareWorktrees(t *testing.T) {
 		{Path: "/feature", Branch: "refs/heads/feature/x"},
 	}
 	opts := &RemoveOptions{All: true}
-	result := ResolveFilters(worktrees, opts, nil, "", nil)
+	result := ResolveFilters(worktrees, opts, "", nil)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 worktree, got %d", len(result))
 	}
@@ -344,7 +329,7 @@ func TestResolveFilters_IncludesLockedWorktrees(t *testing.T) {
 		{Path: "/clean", Branch: "refs/heads/feature/clean"},
 	}
 	opts := &RemoveOptions{All: true}
-	result := ResolveFilters(worktrees, opts, nil, "", nil)
+	result := ResolveFilters(worktrees, opts, "", nil)
 
 	paths := make(map[string]bool)
 	for _, wt := range result {

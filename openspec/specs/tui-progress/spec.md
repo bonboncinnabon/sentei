@@ -97,11 +97,11 @@ The TUI SHALL exit or return to menu when the user presses the appropriate key f
 - **THEN** the TUI SHALL return to the menu view
 
 ### Requirement: Create worktree progress uses shared layout
-The create worktree progress view SHALL use the shared `ProgressLayout` renderer with phases (Setup, Dependencies, Integrations), an overall progress bar, and standard chrome.
+The create worktree progress view SHALL use the shared `ProgressLayout` renderer with phases (Setup, Dependencies), an overall progress bar, and standard chrome.
 
 #### Scenario: Create progress renders with bar
 - **WHEN** the create worktree operation is in progress with Setup complete and Dependencies at 50%
-- **THEN** the view SHALL show Setup with `100% ●`, Dependencies expanded with steps, Integrations as pending, and an overall progress bar
+- **THEN** the view SHALL show Setup with `100% ●`, Dependencies expanded with steps, and an overall progress bar
 
 #### Scenario: Create progress uses standard title
 - **WHEN** the create progress view is rendered
@@ -117,11 +117,4 @@ The repo operations progress view (create, clone, migrate) SHALL use the shared 
 #### Scenario: Repo clone progress
 - **WHEN** a repository clone operation is in progress
 - **THEN** the view SHALL use `viewTitle("Cloning Repository")` with shared layout
-
-### Requirement: Integration apply progress uses shared layout
-The integration apply progress view SHALL use the shared `ProgressLayout` renderer, maintaining its existing worktree-grouped layout but adding standard chrome (title via `viewTitle`, separators, key hints).
-
-#### Scenario: Integration progress with shared chrome
-- **WHEN** integration changes are being applied
-- **THEN** the view SHALL use `viewTitle("Applying Integration Changes")`, `viewSeparator`, and `viewKeyHints` for consistent framing
 

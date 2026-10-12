@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/worktreefile"
 )
@@ -15,7 +14,6 @@ import (
 const (
 	setupPhaseID        progress.PhaseID = "setup"
 	dependenciesPhaseID progress.PhaseID = "dependencies"
-	integrationsPhaseID progress.PhaseID = "integrations"
 )
 
 type preparedDependency struct {
@@ -34,12 +32,10 @@ type preparedCreation struct {
 	envStepID          progress.StepID
 	envFiles           []string
 	dependencies       []preparedDependency
-	integrations       integration.PreparedApply
 	hasDependencies    bool
-	hasIntegrations    bool
 }
 
-func prepareCreation(runner git.CommandRunner, shell git.ShellRunner, opts Options) (preparedCreation, error) {
+func prepareCreation(opts Options) (preparedCreation, error) {
 	if strings.TrimSpace(opts.BranchName) == "" || strings.TrimSpace(opts.BaseBranch) == "" || strings.TrimSpace(opts.RepoPath) == "" {
 		return preparedCreation{}, errors.New("preparing worktree creation: branch, base branch, and repository path are required")
 	}
@@ -91,26 +87,6 @@ func prepareCreation(runner git.CommandRunner, shell git.ShellRunner, opts Optio
 	if len(dependencyPhase.Steps) > 0 {
 		prepared.hasDependencies = true
 		prepared.plan.Phases = append(prepared.plan.Phases, dependencyPhase)
-	}
-
-	if len(opts.Integrations) > 0 {
-		probeDir := opts.SourceWorktree
-		if probeDir == "" {
-			probeDir = opts.RepoPath
-		}
-		apply, err := integration.PrepareApplyForTarget(shell, opts.RepoPath, opts.SourceWorktree, probeDir, opts.Integrations, nil, []string{prepared.worktreePath})
-		if err != nil {
-			return preparedCreation{}, err
-		}
-		apply, err = apply.BindPhase(integrationsPhaseID, "Integrations")
-		if err != nil {
-			return preparedCreation{}, err
-		}
-		if !apply.Empty() {
-			prepared.hasIntegrations = true
-			prepared.integrations = apply
-			prepared.plan.Phases = append(prepared.plan.Phases, apply.Plan().Phases...)
-		}
 	}
 	return prepared, nil
 }
@@ -177,9 +153,6 @@ func (p preparedCreation) run(execution *progress.Execution, runner git.CommandR
 	if p.hasDependencies {
 		runErr = errors.Join(runErr, p.runDependencies(execution, shell))
 	}
-	if p.hasIntegrations {
-		runErr = errors.Join(runErr, p.integrations.RunIn(execution, shell))
-	}
 	return runErr
 }
 
@@ -188,9 +161,6 @@ func (p preparedCreation) skipBlocked(execution *progress.Execution, reason stri
 	err = errors.Join(err, execution.SkipPending(setupPhaseID, reason))
 	if p.hasDependencies {
 		err = errors.Join(err, execution.SkipPending(dependenciesPhaseID, reason))
-	}
-	if p.hasIntegrations {
-		err = errors.Join(err, execution.SkipPending(integrationsPhaseID, reason))
 	}
 	return err
 }

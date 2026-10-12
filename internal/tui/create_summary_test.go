@@ -91,7 +91,7 @@ func TestViewCreateSummary_NilResultFallsBackToDerivedPath(t *testing.T) {
 	}
 }
 
-func TestViewCreateSummary_FailuresShowDepsAndIndexSteps(t *testing.T) {
+func TestViewCreateSummary_FailuresShowDepsSteps(t *testing.T) {
 	m := createOptionsModel()
 	m.create.result = &creator.Result{
 		WorktreePath: "/repo/feature-x",
@@ -100,15 +100,12 @@ func TestViewCreateSummary_FailuresShowDepsAndIndexSteps(t *testing.T) {
 			{Name: "Dependencies", Steps: []progress.StepResult{
 				{Name: "npm install", Status: progress.StepFailed, Error: errors.New("npm exploded")},
 			}},
-			{Name: "Integrations", Steps: []progress.StepResult{
-				{Name: "Index code-review-graph", Status: progress.StepDone},
-			}},
 		},
 	}
 
 	view := stripANSI(m.viewCreateSummary())
 
-	for _, want := range []string{"created with issues", "Deps", "npm install", "npm exploded", "Index", "Index code-review-graph"} {
+	for _, want := range []string{"created with issues", "Deps", "npm install", "npm exploded"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("view missing %q:\n%s", want, view)
 		}

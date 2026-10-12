@@ -99,8 +99,8 @@ func TestEmptyListReload_IncrementsGeneration(t *testing.T) {
 	m.view = menuView
 	// Init uses generation 1. Worktrees are empty (Init response hasn't arrived yet).
 	// Navigate cursor to "Remove worktrees" (index 2) and enable it.
-	m.menuCursor = 2
-	m.menuItems[2].enabled = true
+	m.menuCursor = 1
+	m.menuItems[1].enabled = true
 
 	updated, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	model := updated.(Model)
@@ -167,37 +167,6 @@ func TestUpdateCreateProgress_Complete_IncrementsGeneration(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Fatal("expected a Cmd (tea.Batch with holdOrAdvance + loadWorktreeContext)")
-	}
-}
-
-func TestUpdateIntegrationProgress_Finalized_IncrementsGeneration(t *testing.T) {
-	m := makeIntegrationModel()
-	m.view = integrationProgressView
-	m.integ.returnView = integrationListView
-	m.worktreeGeneration = 1
-
-	updated, cmd := m.updateIntegrationProgress(integrationFinalizedMsg{})
-	model := updated.(Model)
-
-	if model.worktreeGeneration != 2 {
-		t.Errorf("worktreeGeneration = %d, want 2", model.worktreeGeneration)
-	}
-	if cmd == nil {
-		t.Fatal("expected a Cmd (tea.Batch with holdOrAdvance + loadWorktreeContext)")
-	}
-}
-
-func TestUpdateIntegrationProgress_Finalized_MigrateView_NoReload(t *testing.T) {
-	m := makeIntegrationModel()
-	m.view = integrationProgressView
-	m.integ.returnView = migrateNextView
-	m.worktreeGeneration = 1
-
-	updated, _ := m.updateIntegrationProgress(integrationFinalizedMsg{})
-	model := updated.(Model)
-
-	if model.worktreeGeneration != 1 {
-		t.Errorf("worktreeGeneration = %d, want 1 (no reload for migrate flow)", model.worktreeGeneration)
 	}
 }
 
@@ -310,7 +279,7 @@ func TestE2E_CreationToMenu_CountUpdated(t *testing.T) {
 	if len(m.remove.worktrees) != 3 {
 		t.Errorf("expected 3 worktrees after creation, got %d", len(m.remove.worktrees))
 	}
-	if m.menuItems[2].hint != "3 available" {
-		t.Errorf("menu hint = %q, want %q", m.menuItems[2].hint, "3 available")
+	if m.menuItems[1].hint != "3 available" {
+		t.Errorf("menu hint = %q, want %q", m.menuItems[1].hint, "3 available")
 	}
 }

@@ -285,7 +285,7 @@ func newOverallBar() progressbar.Model {
 // is on screen: the only place bar frames and stopwatch ticks may animate.
 func (m Model) determinateProgressActive() bool {
 	switch m.view {
-	case progressView, createProgressView, repoProgressView, migrateProgressView, integrationProgressView:
+	case progressView, createProgressView, repoProgressView, migrateProgressView:
 		return true
 	}
 	return false
@@ -301,8 +301,6 @@ func (m Model) activeProgressLayout() (ProgressLayout, bool) {
 		return m.createLayout(), true
 	case repoProgressView, migrateProgressView:
 		return m.repoLayout(), true
-	case integrationProgressView:
-		return m.integrationLayout(), true
 	}
 	return ProgressLayout{}, false
 }

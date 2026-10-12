@@ -70,15 +70,10 @@ func (m Model) viewCreateSummary() string {
 
 	if result != nil {
 		for _, phase := range result.Phases {
-			label := ""
-			switch phase.Name {
-			case "Dependencies":
-				label = "Deps"
-			case "Integrations":
-				label = "Index"
-			default:
+			if phase.Name != "Dependencies" {
 				continue
 			}
+			label := "Deps"
 			for _, step := range phase.Steps {
 				status := styleIndicatorDone.Render(indicatorDone)
 				if step.Status == progress.StepFailed {

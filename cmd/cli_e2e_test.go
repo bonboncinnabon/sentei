@@ -435,20 +435,18 @@ func TestRemoveNonInteractive_DryRun(t *testing.T) {
 	}
 }
 
-func TestIntegrationsCLI(t *testing.T) {
+// The integrations feature and its command are gone; the name must fall
+// through to the unknown-command path, not linger as a silent no-op.
+func TestIntegrationsCommandIsRemoved(t *testing.T) {
 	bin := buildBinary(t)
 
 	cmd := exec.Command(bin, "integrations")
 	cmd.Env = testtmp.HermeticGitEnv()
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("sentei integrations failed: %v\n%s", err, out)
+	if err == nil {
+		t.Fatalf("expected a non-zero exit for the removed command, got:\n%s", out)
 	}
-
-	output := string(out)
-	for _, want := range []string{"Integrations (2", "code-review-graph", "cocoindex-code", "https://github.com/"} {
-		if !strings.Contains(output, want) {
-			t.Errorf("output missing %q\nfull output:\n%s", want, output)
-		}
+	if !strings.Contains(string(out), "unknown command") {
+		t.Errorf("expected an unknown-command error, got:\n%s", out)
 	}
 }

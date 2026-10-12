@@ -50,10 +50,6 @@ Mutation completion sites that return to the menu SHALL fire `loadWorktreeContex
 - **WHEN** `createCompleteMsg` is received in the create progress handler
 - **THEN** the handler SHALL increment `worktreeGeneration` and return `tea.Batch(holdCmd, loadWorktreeContext(runner, repoPath, generation))`
 
-#### Scenario: Integration apply completes (returning to menu flow)
-- **WHEN** `integrationFinalizedMsg` is received and `returnView != migrateNextView`
-- **THEN** the handler SHALL increment `worktreeGeneration` and return `tea.Batch(holdCmd, loadWorktreeContext(runner, repoPath, generation))`
-
 #### Scenario: Mutation in tea.Quit flow does not reload
 - **WHEN** `repoDoneMsg` is received in repo progress (flow exits with tea.Quit)
 - **THEN** the handler SHALL NOT fire `loadWorktreeContext`

@@ -1,6 +1,6 @@
 // Package progress is the single vocabulary for multi-phase operation
-// progress (worktree removal, integration apply, teardown, worktree
-// creation, repo create/clone/migrate, cleanup): step statuses, per-step
+// progress (worktree removal, worktree creation, repo
+// create/clone/migrate, cleanup): step statuses, per-step
 // results grouped into phases, the events emitted while a phase runs, and
 // the fold from an event stream to per-phase display state.
 package progress

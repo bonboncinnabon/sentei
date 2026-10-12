@@ -71,8 +71,7 @@ created automatically. Existing destinations are preserved unless
 Both paths must be non-empty relative paths without `..` components. Sentei
 rejects source symlinks that escape the container and any destination symlink.
 A missing source or failed copy is reported as a failed Setup step; Sentei
-keeps the created worktree and continues independent dependency and integration
-steps. File contents are never included in diagnostics.
+keeps the created worktree and continues the independent dependency steps. File contents are never included in diagnostics.
 
 `worktree_files` is automatic repository setup. Ecosystem `env_files` remains
 an independent, opt-in create option controlled by `--copy-env`.

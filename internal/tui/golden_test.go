@@ -52,7 +52,7 @@ func TestGoldenConfirmView(t *testing.T) {
 func TestGoldenSummaryView(t *testing.T) {
 	m := goldenModel(t)
 	m.view = summaryView
-	m.remove.run = newRemovalRun(nil)
+	m.remove.run = removalRun{}
 	m.remove.run.result = worktree.DeletionResult{SuccessCount: 3}
 	m.remove.run.cleanupResult = &cleanup.Result{StaleRefsRemoved: 2}
 	m.remove.milestone = 10

@@ -13,7 +13,7 @@ import (
 func TestSave_LeavesNoTempFileAndRoundTrips(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := state.Save(dir, &state.State{Integrations: []string{"a", "b"}}); err != nil {
+	if err := state.Save(dir, &state.State{LifetimeRemoved: 7}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
@@ -32,30 +32,27 @@ func TestSave_LeavesNoTempFileAndRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load after Save: %v", err)
 	}
-	if len(got.Integrations) != 2 || got.Integrations[0] != "a" || got.Integrations[1] != "b" {
-		t.Errorf("round-trip mismatch: %v", got.Integrations)
+	if got.LifetimeRemoved != 7 {
+		t.Errorf("round-trip mismatch: LifetimeRemoved = %d, want 7", got.LifetimeRemoved)
 	}
 }
 
 func TestLoad_FileNotExist_ReturnsEmpty(t *testing.T) {
-	dir := t.TempDir()
-
-	s, err := state.Load(dir)
+	s, err := state.Load(t.TempDir())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	if s == nil {
 		t.Fatal("expected non-nil state")
 	}
-	if len(s.Integrations) != 0 {
-		t.Errorf("expected empty integrations, got %v", s.Integrations)
+	if s.LifetimeRemoved != 0 {
+		t.Errorf("expected an empty state, got %+v", s)
 	}
 }
 
 func TestLoad_ValidFile(t *testing.T) {
 	dir := t.TempDir()
-	data := `{"integrations":["github","linear"]}` + "\n"
-	if err := os.WriteFile(filepath.Join(dir, "sentei.json"), []byte(data), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "sentei.json"), []byte(`{"lifetime_removed":12}`+"\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -63,11 +60,38 @@ func TestLoad_ValidFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if len(s.Integrations) != 2 {
-		t.Fatalf("expected 2 integrations, got %d", len(s.Integrations))
+	if s.LifetimeRemoved != 12 {
+		t.Errorf("LifetimeRemoved = %d, want 12", s.LifetimeRemoved)
 	}
-	if s.Integrations[0] != "github" || s.Integrations[1] != "linear" {
-		t.Errorf("unexpected integrations: %v", s.Integrations)
+}
+
+// Files written before the integrations feature was removed still carry its
+// list. They must keep loading, and the key goes away on the next save.
+func TestLoad_IgnoresRetiredIntegrationsKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sentei.json")
+	legacy := `{"integrations":["code-review-graph","cocoindex-code"],"lifetime_removed":3}` + "\n"
+	if err := os.WriteFile(path, []byte(legacy), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := state.Load(dir)
+	if err != nil {
+		t.Fatalf("a legacy state file must load: %v", err)
+	}
+	if s.LifetimeRemoved != 3 {
+		t.Errorf("LifetimeRemoved = %d, want 3", s.LifetimeRemoved)
+	}
+
+	if err := state.Save(dir, s); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "integrations") {
+		t.Errorf("the retired key should be dropped on save, got:\n%s", data)
 	}
 }
 
@@ -77,17 +101,15 @@ func TestLoad_InvalidJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := state.Load(dir)
-	if err == nil {
+	if _, err := state.Load(dir); err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
 	}
 }
 
 func TestSave_CreatesFile(t *testing.T) {
 	dir := t.TempDir()
-	s := &state.State{Integrations: []string{"github"}}
 
-	if err := state.Save(dir, s); err != nil {
+	if err := state.Save(dir, &state.State{LifetimeRemoved: 1}); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
@@ -95,16 +117,13 @@ func TestSave_CreatesFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected file to exist, got %v", err)
 	}
-
 	var got state.State
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("file contains invalid JSON: %v", err)
 	}
-	if len(got.Integrations) != 1 || got.Integrations[0] != "github" {
-		t.Errorf("unexpected integrations: %v", got.Integrations)
+	if got.LifetimeRemoved != 1 {
+		t.Errorf("LifetimeRemoved = %d, want 1", got.LifetimeRemoved)
 	}
-
-	// Verify trailing newline.
 	if data[len(data)-1] != '\n' {
 		t.Error("expected trailing newline")
 	}
@@ -112,13 +131,10 @@ func TestSave_CreatesFile(t *testing.T) {
 
 func TestSave_OverwritesExisting(t *testing.T) {
 	dir := t.TempDir()
-	initial := &state.State{Integrations: []string{"github"}}
-	if err := state.Save(dir, initial); err != nil {
+	if err := state.Save(dir, &state.State{LifetimeRemoved: 1}); err != nil {
 		t.Fatal(err)
 	}
-
-	updated := &state.State{Integrations: []string{"linear", "jira"}}
-	if err := state.Save(dir, updated); err != nil {
+	if err := state.Save(dir, &state.State{LifetimeRemoved: 9}); err != nil {
 		t.Fatalf("expected no error on overwrite, got %v", err)
 	}
 
@@ -126,29 +142,7 @@ func TestSave_OverwritesExisting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Integrations) != 2 || s.Integrations[0] != "linear" || s.Integrations[1] != "jira" {
-		t.Errorf("unexpected integrations after overwrite: %v", s.Integrations)
-	}
-}
-
-func TestHasIntegration(t *testing.T) {
-	s := &state.State{Integrations: []string{"github", "linear"}}
-
-	tests := []struct {
-		name string
-		want bool
-	}{
-		{"github", true},
-		{"linear", true},
-		{"jira", false},
-		{"", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := s.HasIntegration(tt.name); got != tt.want {
-				t.Errorf("HasIntegration(%q) = %v, want %v", tt.name, got, tt.want)
-			}
-		})
+	if s.LifetimeRemoved != 9 {
+		t.Errorf("LifetimeRemoved after overwrite = %d, want 9", s.LifetimeRemoved)
 	}
 }

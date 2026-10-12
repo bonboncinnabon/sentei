@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -76,17 +75,13 @@ func (m Model) helpForView() (string, []keySection) {
 		return "Creating Worktree", progressSections
 	case repoProgressView, migrateProgressView:
 		return "Repository Operation", progressSections
-	case integrationProgressView:
-		return "Applying Integrations", progressSections
 
-	case summaryView, createSummaryView, repoSummaryView, migrateSummaryView, integrationSummaryView:
+	case summaryView, createSummaryView, repoSummaryView, migrateSummaryView:
 		return "Summary", summarySections
 	case createBranchView, repoNameView, cloneInputView:
 		return "Input", inputSections
 	case createOptionsView, repoOptionsView:
 		return "Options", optionsSections
-	case integrationListView, migrateIntegrationsView:
-		return "Integrations", integrationSections
 	case cleanupPreviewView:
 		return "Cleanup Preview", cleanupPreviewSections
 	case cleanupConfirmView, createConfirmView, cloneConfirmView, migrateConfirmView:
@@ -99,7 +94,7 @@ func (m Model) helpForView() (string, []keySection) {
 
 // detailContent returns the `?` portal content for the active view, or empty
 // when the view has no contextual details (the key then falls through to the
-// view's own handling, e.g. the integration info card).
+// view's own handling).
 func (m Model) detailContent() (string, string) {
 	if m.determinateProgressActive() {
 		layout, ok := m.activeProgressLayout()
@@ -111,17 +106,8 @@ func (m Model) detailContent() (string, string) {
 	if m.view == cleanupPreviewView {
 		return m.cleanupDetailContent()
 	}
-	if m.view == integrationSummaryView {
-		return m.integrationSummaryDetailContent()
-	}
 	if m.view == summaryView {
 		return m.removalSummaryDetailContent()
-	}
-	if m.view == integrationListView || m.view == migrateIntegrationsView {
-		if len(m.integ.integrations) == 0 {
-			return "", ""
-		}
-		return portalIntegrationDetails, m.renderIntegrationsDetail()
 	}
 	if m.view != listView || m.remove.filterActive {
 		return "", ""
@@ -168,8 +154,6 @@ func (m Model) progressTopLevelError() error {
 		case repo.MigrateResult:
 			return result.Err
 		}
-	case integrationProgressView:
-		return errors.Join(m.integ.prepareErr, m.integ.executionErr, m.integ.saveErr)
 	}
 	return nil
 }

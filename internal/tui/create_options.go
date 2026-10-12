@@ -10,9 +10,7 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/creator"
-	"github.com/bonboncinnabon/sentei/internal/integration"
 	"github.com/bonboncinnabon/sentei/internal/progress"
-	"github.com/bonboncinnabon/sentei/internal/state"
 )
 
 type optionItem struct {
@@ -122,22 +120,7 @@ func (m Model) updateCreateOptions(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) startCreation() {
-	st, err := m.loadRepoState()
-	if err != nil {
-		st = &state.State{}
-	}
-	var enabledInts []integration.Integration
-	enabledSet := make(map[string]bool)
-	for _, name := range st.Integrations {
-		enabledSet[name] = true
-	}
-	for _, integ := range integration.All() {
-		if enabledSet[integ.Name] {
-			enabledInts = append(enabledInts, integ)
-		}
-	}
-
-	opts := m.buildCreatorOptions(enabledInts)
+	opts := m.buildCreatorOptions()
 
 	ch := make(chan progress.Event, 50)
 	resultCh := make(chan creator.Result, 1)
@@ -153,7 +136,7 @@ func (m *Model) startCreation() {
 	}()
 }
 
-func (m Model) buildCreatorOptions(enabledInts []integration.Integration) creator.Options {
+func (m Model) buildCreatorOptions() creator.Options {
 	var enabledEcos []config.EcosystemConfig
 	for _, eco := range m.create.ecosystems {
 		if m.create.ecoEnabled[eco.Name] {
@@ -169,7 +152,6 @@ func (m Model) buildCreatorOptions(enabledInts []integration.Integration) creato
 		MergeBase:      m.create.mergeBase,
 		CopyEnvFiles:   m.create.copyEnvFiles,
 		Ecosystems:     enabledEcos,
-		Integrations:   enabledInts,
 	}
 	if m.cfg != nil {
 		opts.WorktreeFiles = m.cfg.WorktreeFiles
@@ -247,11 +229,6 @@ func (m Model) viewCreateOptions() string {
 	if m.cfg != nil && len(m.cfg.WorktreeFiles) > 0 {
 		b.WriteString(styleDim.Render(fmt.Sprintf("  %s %s",
 			worktreeFilesLabel, automaticWorktreeFiles(len(m.cfg.WorktreeFiles)))))
-		b.WriteString("\n")
-	}
-	if len(m.create.activeIntegrationNames) > 0 {
-		b.WriteString(styleDim.Render(fmt.Sprintf("  Integrations from main: %s",
-			strings.Join(m.create.activeIntegrationNames, ", "))))
 		b.WriteString("\n")
 	}
 	b.WriteString(viewSeparator(m.width))
