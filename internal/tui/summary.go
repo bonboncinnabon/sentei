@@ -98,17 +98,13 @@ func (m Model) renderRemovalSummary() string {
 				fmt.Fprintf(&b, "    %s %s: %s\n", styleIndicatorFailed.Render(indicatorFailed), operationErr.Step, operationErr.Err)
 			}
 		}
-		cleanupActions := cr.StaleRefsRemoved + cr.ConfigDedupResult.Removed +
-			cr.GoneBranchesDeleted + cr.ConfigOrphanResult.Removed
+		cleanupActions := cr.StaleRefsRemoved + cr.GoneBranchesDeleted + cr.ConfigOrphanResult.Removed
 		if cleanupActions > 0 {
 			b.WriteString("\n")
 			b.WriteString(styleDim.Render("  Cleanup:"))
 			b.WriteString("\n")
 			if cr.StaleRefsRemoved > 0 {
 				fmt.Fprintf(&b, "    %s Pruned %d remote %s\n", styleIndicatorDone.Render(indicatorDone), cr.StaleRefsRemoved, pluralize(cr.StaleRefsRemoved, "ref", "refs"))
-			}
-			if cr.ConfigDedupResult.Removed > 0 {
-				fmt.Fprintf(&b, "    %s Removed %d config %s\n", styleIndicatorDone.Render(indicatorDone), cr.ConfigDedupResult.Removed, pluralize(cr.ConfigDedupResult.Removed, "duplicate", "duplicates"))
 			}
 			if cr.GoneBranchesDeleted > 0 {
 				fmt.Fprintf(&b, "    %s Deleted %d %s with gone upstream\n", styleIndicatorDone.Render(indicatorDone), cr.GoneBranchesDeleted, pluralize(cr.GoneBranchesDeleted, "branch", "branches"))

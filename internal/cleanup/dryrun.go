@@ -13,7 +13,6 @@ import (
 // so the TUI never runs the repository inspection twice.
 type DryRunResult struct {
 	StaleRefs         int
-	ConfigDuplicates  int
 	GoneBranches      []string // safe mode deletes these (gone upstream, not in a worktree)
 	OrphanedConfigs   int
 	PrunableWorktrees int
@@ -38,7 +37,7 @@ type BranchInfo struct {
 
 // SafeHasWork reports whether a safe-mode cleanup would change anything.
 func (r DryRunResult) SafeHasWork() bool {
-	return r.StaleRefs > 0 || r.ConfigDuplicates > 0 || len(r.GoneBranches) > 0 ||
+	return r.StaleRefs > 0 || len(r.GoneBranches) > 0 ||
 		r.OrphanedConfigs > 0 || r.PrunableWorktrees > 0
 }
 
@@ -62,10 +61,9 @@ func (r DryRunResult) UnmergedAggressiveCount() int {
 
 // DryRun inspects the repository without mutating it and returns what both
 // cleanup modes would do. Individual probe failures are collected in
-// Errors; only an unresolvable repository aborts the scan.
+// Errors; only a path that is not a repository aborts the scan.
 func DryRun(runner git.CommandRunner, repoPath string) (DryRunResult, error) {
-	configPath, err := resolveConfigPath(runner, repoPath)
-	if err != nil {
+	if err := git.ValidateRepository(runner, repoPath); err != nil {
 		return DryRunResult{}, err
 	}
 
@@ -79,12 +77,6 @@ func DryRun(runner git.CommandRunner, repoPath string) (DryRunResult, error) {
 		result.StaleRefs = n
 	}
 
-	if r, err := DedupConfig(configPath, probe, noop); err != nil {
-		result.Errors = append(result.Errors, OperationError{Step: "dedup-config", Err: err})
-	} else {
-		result.ConfigDuplicates = r.Removed
-	}
-
 	if output, err := runner.Run(repoPath, "branch", "-vv"); err != nil {
 		result.Errors = append(result.Errors, OperationError{Step: "gone-branches", Err: err})
 	} else {
@@ -92,7 +84,7 @@ func DryRun(runner git.CommandRunner, repoPath string) (DryRunResult, error) {
 		result.GoneBranches = gone
 	}
 
-	if r, err := PurgeOrphanedBranchConfigs(runner, repoPath, configPath, probe, noop); err != nil {
+	if r, err := PurgeOrphanedBranchConfigs(runner, repoPath, probe, noop); err != nil {
 		result.Errors = append(result.Errors, OperationError{Step: "orphaned-configs", Err: err})
 	} else {
 		result.OrphanedConfigs = r.Removed

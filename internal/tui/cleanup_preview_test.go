@@ -58,16 +58,15 @@ func TestViewCleanupPreview_CleanRepository(t *testing.T) {
 
 func TestViewCleanupPreview_SafeResults(t *testing.T) {
 	m := previewModel()
-	m.cleanupScan = &cleanup.DryRunResult{StaleRefs: 3, ConfigDuplicates: 1, PrunableWorktrees: 1}
+	m.cleanupScan = &cleanup.DryRunResult{StaleRefs: 3, OrphanedConfigs: 1, PrunableWorktrees: 1}
 	view := stripANSI(m.viewCleanupPreview())
 
 	for _, want := range []string{
 		"Safe cleanup:",
 		"▸ 3 stale remote refs would be pruned",
-		"▸ 1 config duplicate would be removed",
+		"▸ 1 orphaned config section would be removed",
 		"▸ 1 stale worktree would be pruned",
 		"· No branches with gone upstream",
-		"· No orphaned config sections",
 	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("missing %q:\n%s", want, view)

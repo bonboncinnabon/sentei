@@ -81,7 +81,7 @@ func TestRunCleanupWithOpts_ReportsStepErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("a failed step must return an error so the exit status is non-zero")
 	}
-	if !strings.Contains(out, "⚠") || !strings.Contains(out, "resolve-config") {
+	if !strings.Contains(out, "⚠") || !strings.Contains(out, "repository") {
 		t.Errorf("expected step error report, got:\n%s", out)
 	}
 }

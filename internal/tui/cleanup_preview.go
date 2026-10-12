@@ -151,7 +151,6 @@ func (m Model) viewCleanupPreview() string {
 		// before running it, not after.
 		writePreviewLine(&b, 0, "stale remote %s would be pruned", "ref", "refs", "No stale remote refs")
 		writePreviewLine(&b, 0, "%s with gone upstream would be deleted", "branch", "branches", "No branches with gone upstream")
-		writePreviewLine(&b, 0, "config %s would be removed", "duplicate", "duplicates", "No config duplicates")
 		writePreviewLine(&b, 0, "orphaned config %s would be removed", "section", "sections", "No orphaned config sections")
 		writePreviewLine(&b, 0, "stale %s would be pruned", "worktree", "worktrees", "No stale worktrees")
 		b.WriteString("\n")
@@ -166,7 +165,6 @@ func (m Model) viewCleanupPreview() string {
 	b.WriteString("\n")
 	writePreviewLine(&b, scan.StaleRefs, "stale remote %s would be pruned", "ref", "refs", "No stale remote refs")
 	writePreviewLine(&b, len(scan.GoneBranches), "%s with gone upstream would be deleted", "branch", "branches", "No branches with gone upstream")
-	writePreviewLine(&b, scan.ConfigDuplicates, "config %s would be removed", "duplicate", "duplicates", "No config duplicates")
 	writePreviewLine(&b, scan.OrphanedConfigs, "orphaned config %s would be removed", "section", "sections", "No orphaned config sections")
 	writePreviewLine(&b, scan.PrunableWorktrees, "stale %s would be pruned", "worktree", "worktrees", "No stale worktrees")
 	b.WriteString("\n")

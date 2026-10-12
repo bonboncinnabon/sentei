@@ -2,7 +2,6 @@ package cleanup
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
@@ -22,7 +21,6 @@ type Options struct {
 }
 
 type Result struct {
-	ConfigDedupResult      ConfigResult
 	ConfigOrphanResult     ConfigResult
 	StaleRefsRemoved       int
 	GoneBranchesDeleted    int
@@ -45,8 +43,6 @@ func countPrunable(porcelain string) int {
 }
 
 type ConfigResult struct {
-	Before  int
-	After   int
 	Removed int
 }
 
@@ -83,21 +79,9 @@ const (
 	LevelDetail
 )
 
-func resolveConfigPath(runner git.CommandRunner, repoPath string) (string, error) {
-	commonDir, err := runner.Run(repoPath, "rev-parse", "--git-common-dir")
-	if err != nil {
-		return "", fmt.Errorf("resolving config path: %w", err)
-	}
-	if !filepath.IsAbs(commonDir) {
-		commonDir = filepath.Join(repoPath, commonDir)
-	}
-	return filepath.Join(commonDir, "config"), nil
-}
-
 func Run(runner git.CommandRunner, repoPath string, opts Options, emit func(Event)) Result {
-	configPath, err := resolveConfigPath(runner, repoPath)
-	if err != nil {
-		return Result{Errors: []OperationError{{Step: "resolve-config", Err: err}}}
+	if err := git.ValidateRepository(runner, repoPath); err != nil {
+		return Result{Errors: []OperationError{{Step: "repository", Err: err}}}
 	}
 
 	var result Result
@@ -106,12 +90,6 @@ func Run(runner git.CommandRunner, repoPath string, opts Options, emit func(Even
 		result.Errors = append(result.Errors, OperationError{Step: "prune-refs", Err: err})
 	} else {
 		result.StaleRefsRemoved = r
-	}
-
-	if r, err := DedupConfig(configPath, opts, emit); err != nil {
-		result.Errors = append(result.Errors, OperationError{Step: "dedup-config", Err: err})
-	} else {
-		result.ConfigDedupResult = r
 	}
 
 	if r, err := DeleteGoneBranches(runner, repoPath, opts, emit); err != nil {
@@ -129,11 +107,12 @@ func Run(runner git.CommandRunner, repoPath string, opts Options, emit func(Even
 		result.BranchesSkipped = append(result.BranchesSkipped, r.Skipped...)
 	}
 
-	if r, err := PurgeOrphanedBranchConfigs(runner, repoPath, configPath, opts, emit); err != nil {
+	// A failed removal still reports the sections removed before it.
+	orphans, err := PurgeOrphanedBranchConfigs(runner, repoPath, opts, emit)
+	if err != nil {
 		result.Errors = append(result.Errors, OperationError{Step: "orphaned-configs", Err: err})
-	} else {
-		result.ConfigOrphanResult = r
 	}
+	result.ConfigOrphanResult = orphans
 
 	// Prune worktrees with broken gitdir links.
 	if pruned, err := pruneWorktrees(runner, repoPath, opts, emit); err != nil {

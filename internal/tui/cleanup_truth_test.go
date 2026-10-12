@@ -107,9 +107,9 @@ func TestCleanupResult_CheckOrderMatchesPreview(t *testing.T) {
 	view := stripAnsi(m.viewCleanupResult())
 	refs := strings.Index(view, "stale remote refs")
 	gone := strings.Index(view, "gone upstream")
-	dup := strings.Index(view, "config duplicates")
-	if refs >= gone || gone >= dup {
-		t.Errorf("result check order must match the preview (refs, gone, duplicates):\n%s", view)
+	orphans := strings.Index(view, "orphaned config sections")
+	if refs >= gone || gone >= orphans {
+		t.Errorf("result check order must match the preview (refs, gone, orphaned sections):\n%s", view)
 	}
 }
 

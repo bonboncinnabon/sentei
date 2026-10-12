@@ -99,7 +99,6 @@ func TestViewSummary_CleanupLinesPluralizeSingular(t *testing.T) {
 	m.remove.run.cleanupResult = &cleanup.Result{
 		StaleRefsRemoved:    1,
 		GoneBranchesDeleted: 1,
-		ConfigDedupResult:   cleanup.ConfigResult{Removed: 1},
 		ConfigOrphanResult:  cleanup.ConfigResult{Removed: 1},
 	}
 	m.view = summaryView
@@ -109,7 +108,6 @@ func TestViewSummary_CleanupLinesPluralizeSingular(t *testing.T) {
 	for _, want := range []string{
 		"1 worktree removed successfully",
 		"Pruned 1 remote ref",
-		"Removed 1 config duplicate",
 		"Deleted 1 branch with gone upstream",
 		"Removed 1 orphaned config section",
 	} {
@@ -119,7 +117,7 @@ func TestViewSummary_CleanupLinesPluralizeSingular(t *testing.T) {
 	}
 	// Singular nouns are prefixes of their plurals, so guard against the naive
 	// always-plural regression explicitly.
-	for _, plural := range []string{"worktrees removed", "remote refs", "config duplicates", "branches with gone", "config sections"} {
+	for _, plural := range []string{"worktrees removed", "remote refs", "branches with gone", "config sections"} {
 		if strings.Contains(view, plural) {
 			t.Errorf("count of 1 must not read as plural %q, view:\n%s", plural, view)
 		}

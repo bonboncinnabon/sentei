@@ -2,191 +2,84 @@ package cleanup
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
-func DedupConfig(configPath string, opts Options, emit func(Event)) (ConfigResult, error) {
-	emit(Event{Step: "dedup-config", Message: "Deduplicating git config...", Level: LevelStep})
+// PurgeOrphanedBranchConfigs removes the branch.<name> sections of the
+// repository's config whose branch no longer exists. git does the writing, so
+// config.lock is honoured and the rest of the file is left byte for byte.
+func PurgeOrphanedBranchConfigs(runner git.CommandRunner, repoPath string, opts Options, emit func(Event)) (ConfigResult, error) {
+	emit(Event{Step: "orphaned-configs", Message: "Removing config sections for deleted branches...", Level: LevelStep})
 
-	data, err := os.ReadFile(configPath)
+	orphans, err := orphanedBranchSections(runner, repoPath)
 	if err != nil {
-		return ConfigResult{}, fmt.Errorf("reading config: %w", err)
+		return ConfigResult{}, err
 	}
 
-	lines := strings.Split(string(data), "\n")
-	before := len(lines)
-
-	var out []string
-	seen := make(map[string]bool)
-
-	for _, line := range lines {
-		if strings.HasPrefix(line, "[") {
-			seen = make(map[string]bool)
-			out = append(out, line)
-			continue
-		}
-
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			out = append(out, line)
-			continue
-		}
-
-		if seen[trimmed] {
-			continue
-		}
-		seen[trimmed] = true
-		out = append(out, line)
-	}
-
-	after := len(out)
-	removed := before - after
-	result := ConfigResult{Before: before, After: after, Removed: removed}
-
-	if removed == 0 {
-		emit(Event{Step: "dedup-config", Message: fmt.Sprintf("Config already clean (%d lines)", before), Level: LevelInfo})
-		return result, nil
+	if len(orphans) == 0 {
+		emit(Event{Step: "orphaned-configs", Message: "No orphaned branch config sections", Level: LevelInfo})
+		return ConfigResult{}, nil
 	}
 
 	if opts.DryRun {
-		emit(Event{Step: "dedup-config", Message: fmt.Sprintf("Would remove %d duplicate lines (%d → %d)", removed, before, after), Level: LevelDetail})
-		return result, nil
+		emit(Event{Step: "orphaned-configs", Message: fmt.Sprintf("Would remove %d orphaned branch config section(s)", len(orphans)), Level: LevelDetail})
+		return ConfigResult{Removed: len(orphans)}, nil
 	}
 
-	if err := atomicWriteConfig(configPath, strings.Join(out, "\n")); err != nil {
-		return result, fmt.Errorf("writing deduped config: %w", err)
+	var result ConfigResult
+	for _, name := range orphans {
+		if _, err := runner.Run(repoPath, "config", "--local", "--remove-section", "branch."+name); err != nil {
+			return result, fmt.Errorf("removing config section of branch %s: %w", name, err)
+		}
+		result.Removed++
 	}
 
-	emit(Event{Step: "dedup-config", Message: fmt.Sprintf("Deduplicated config: removed %d lines (%d → %d)", removed, before, after), Level: LevelInfo})
+	emit(Event{Step: "orphaned-configs", Message: fmt.Sprintf("Removed %d orphaned config section(s)", result.Removed), Level: LevelInfo})
 	return result, nil
 }
 
-func PurgeOrphanedBranchConfigs(runner git.CommandRunner, repoPath string, configPath string, opts Options, emit func(Event)) (ConfigResult, error) {
-	emit(Event{Step: "orphaned-configs", Message: "Removing config sections for deleted branches...", Level: LevelStep})
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return ConfigResult{}, fmt.Errorf("reading config: %w", err)
-	}
-
+// orphanedBranchSections returns the names that have a branch.<name> section
+// in the repository's own config file but no local branch.
+func orphanedBranchSections(runner git.CommandRunner, repoPath string) ([]string, error) {
 	// lstrip=2, not short: `short` abbreviates to "heads/<name>" when a tag
 	// shares the branch's name, and the live branch's section would look orphaned.
 	branchOutput, err := runner.Run(repoPath, "branch", "--format=%(refname:lstrip=2)")
 	if err != nil {
-		return ConfigResult{}, fmt.Errorf("listing branches: %w", err)
+		return nil, fmt.Errorf("listing branches: %w", err)
 	}
-
 	existing := make(map[string]bool)
 	for _, line := range strings.Split(branchOutput, "\n") {
-		b := strings.TrimSpace(line)
-		if b != "" {
+		if b := strings.TrimSpace(line); b != "" {
 			existing[b] = true
 		}
 	}
 
-	lines := strings.Split(string(data), "\n")
-	before := len(lines)
-	var out []string
-	skip := false
-	orphanCount := 0
-
-	for _, line := range lines {
-		if strings.HasPrefix(line, "[branch \"") {
-			// Trailing whitespace includes the \r of a CRLF file; left in, the
-			// suffix never matches and every live section looks orphaned.
-			branchName := strings.TrimRight(line, " \t\r")
-			branchName = strings.TrimPrefix(branchName, "[branch \"")
-			branchName = strings.TrimSuffix(branchName, "\"]")
-			if !existing[branchName] {
-				skip = true
-				orphanCount++
-				continue
-			}
-			skip = false
-			out = append(out, line)
-			continue
-		}
-
-		if strings.HasPrefix(line, "[") {
-			skip = false
-			out = append(out, line)
-			continue
-		}
-
-		if !skip {
-			out = append(out, line)
-		}
-	}
-
-	after := len(out)
-	result := ConfigResult{Before: before, After: after, Removed: orphanCount}
-
-	if orphanCount == 0 {
-		emit(Event{Step: "orphaned-configs", Message: "No orphaned branch config sections", Level: LevelInfo})
-		return result, nil
-	}
-
-	if opts.DryRun {
-		emit(Event{Step: "orphaned-configs", Message: fmt.Sprintf("Would remove %d orphaned branch config section(s)", orphanCount), Level: LevelDetail})
-		return result, nil
-	}
-
-	if err := atomicWriteConfig(configPath, strings.Join(out, "\n")); err != nil {
-		return result, fmt.Errorf("writing purged config: %w", err)
-	}
-
-	emit(Event{Step: "orphaned-configs", Message: fmt.Sprintf("Removed %d orphaned config sections (%d → %d lines)", orphanCount, before, after), Level: LevelInfo})
-	return result, nil
-}
-
-func atomicWriteConfig(configPath string, content string) error {
-	bakPath := configPath + ".bak"
-
-	info, err := os.Stat(configPath)
-	var perm os.FileMode = 0644
-	if err == nil {
-		perm = info.Mode().Perm()
-	}
-
-	if _, statErr := os.Stat(bakPath); os.IsNotExist(statErr) {
-		original, err := os.ReadFile(configPath)
-		if err == nil {
-			if err := os.WriteFile(bakPath, original, perm); err != nil {
-				return fmt.Errorf("creating backup: %w", err)
-			}
-		}
-	}
-
-	dir := filepath.Dir(configPath)
-	tmp, err := os.CreateTemp(dir, ".config-*.tmp")
+	keys, err := runner.Run(repoPath, "config", "--local", "--name-only", "--list")
 	if err != nil {
-		return fmt.Errorf("creating temp file: %w", err)
-	}
-	tmpPath := tmp.Name()
-
-	if _, err := tmp.WriteString(content); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("writing temp file: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("closing temp file: %w", err)
+		return nil, fmt.Errorf("reading config: %w", err)
 	}
 
-	if err := os.Chmod(tmpPath, perm); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("setting permissions: %w", err)
+	var orphans []string
+	seen := make(map[string]bool)
+	for _, key := range strings.Split(keys, "\n") {
+		// A key reads branch.<name>.<variable>. The name may contain dots, the
+		// variable cannot, so the name ends at the last dot.
+		rest, ok := strings.CutPrefix(key, "branch.")
+		if !ok {
+			continue
+		}
+		end := strings.LastIndex(rest, ".")
+		if end < 0 {
+			continue
+		}
+		name := rest[:end]
+		if existing[name] || seen[name] {
+			continue
+		}
+		seen[name] = true
+		orphans = append(orphans, name)
 	}
-
-	if err := os.Rename(tmpPath, configPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("renaming temp file: %w", err)
-	}
-
-	return nil
+	return orphans, nil
 }

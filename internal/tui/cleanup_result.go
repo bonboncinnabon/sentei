@@ -51,7 +51,7 @@ func (m Model) viewCleanupResult() string {
 	b.WriteString("\n\n")
 
 	// Check if anything was actually done
-	totalActions := r.StaleRefsRemoved + r.ConfigDedupResult.Removed +
+	totalActions := r.StaleRefsRemoved +
 		r.GoneBranchesDeleted + r.ConfigOrphanResult.Removed +
 		r.NonWtBranchesDeleted + r.WorktreesPruned
 
@@ -89,17 +89,6 @@ func (m Model) viewCleanupResult() string {
 			pluralize(r.GoneBranchesDeleted, "branch", "branches"))
 	} else if len(r.Errors) == 0 {
 		fmt.Fprintf(&b, "  %s No branches with gone upstream\n",
-			styleIndicatorPending.Render(indicatorPending))
-	}
-
-	// Config dedup
-	if r.ConfigDedupResult.Removed > 0 {
-		fmt.Fprintf(&b, "  %s Removed %d config %s\n",
-			styleIndicatorDone.Render(indicatorDone),
-			r.ConfigDedupResult.Removed,
-			pluralize(r.ConfigDedupResult.Removed, "duplicate", "duplicates"))
-	} else if len(r.Errors) == 0 {
-		fmt.Fprintf(&b, "  %s No config duplicates\n",
 			styleIndicatorPending.Render(indicatorPending))
 	}
 

@@ -2,8 +2,6 @@ package cleanup
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,24 +10,17 @@ import (
 
 // dryRunMock wires the git responses DryRun's scan needs: a gone-upstream
 // branch (feature/gone), a worktree-occupied branch (main), a non-worktree
-// branch with a live upstream (feature/extra), no origin remote work, and a
-// clean config file.
-func dryRunMock(t *testing.T) (*mock.Runner, string) {
-	t.Helper()
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config")
-	if err := os.WriteFile(configPath, []byte("[core]\n\tbare = true\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[rev-parse --git-common-dir]": {Output: dir},
-		"/repo:[remote]":                     {Output: ""},
+// branch with a live upstream (feature/extra) and no origin remote.
+func dryRunMock() *mock.Runner {
+	return &mock.Runner{Responses: map[string]mock.Response{
+		"/repo:[rev-parse --git-dir]": {Output: "/repo/.bare"},
+		"/repo:[remote]":              {Output: ""},
 		"/repo:[branch -vv]": {Output: "  feature/gone abc123 [origin/feature/gone: gone] old work\n" +
 			"+ main def456 (/repo/main) [origin/main] latest\n" +
 			"  feature/extra aaa111 [origin/feature/extra] wip"},
 		"/repo:[worktree list --porcelain]":           {Output: "worktree /repo\nbare\n\nworktree /repo/main\nHEAD def456\nbranch refs/heads/main\n"},
 		"/repo:[branch --format=%(refname:lstrip=2)]": {Output: "feature/gone\nfeature/extra\nmain"},
+		"/repo:[config --local --name-only --list]":   {Output: "core.bare\nbranch.main.remote"},
 		"/repo:[for-each-ref --format=%(refname:short)\x1f%(committerdate:iso8601-strict)\x1f%(subject) refs/heads/]": {Output: "feature/gone\x1f2026-02-10T19:00:00+05:30\x1fold work\nfeature/extra\x1f2026-06-01T10:00:00+05:30\x1fwip\nmain\x1f2026-06-10T12:00:00+05:30\x1flatest"},
 		// feature/extra is merged into its live upstream; feature/gone's upstream
 		// is gone, so the ancestor check against it fails (conservatively unmerged).
@@ -38,11 +29,10 @@ func dryRunMock(t *testing.T) (*mock.Runner, string) {
 		"/repo:[rev-parse --abbrev-ref feature/gone@{upstream}]":              {Output: "origin/feature/gone"},
 		"/repo:[merge-base --is-ancestor feature/gone origin/feature/gone]":   {Err: errors.New("not an ancestor")},
 	}}
-	return runner, configPath
 }
 
 func TestDryRun_CollectsBothModes(t *testing.T) {
-	runner, _ := dryRunMock(t)
+	runner := dryRunMock()
 
 	result, err := DryRun(runner, "/repo")
 	if err != nil {
@@ -103,7 +93,7 @@ func TestBranchDeletableByGit(t *testing.T) {
 }
 
 func TestDryRun_MutatesNothing(t *testing.T) {
-	runner, _ := dryRunMock(t)
+	runner := dryRunMock()
 
 	if _, err := DryRun(runner, "/repo"); err != nil {
 		t.Fatalf("DryRun() error: %v", err)
@@ -128,7 +118,6 @@ func TestDryRunResult_HasWork(t *testing.T) {
 		{"empty", DryRunResult{}, false, false},
 		{"stale refs only", DryRunResult{StaleRefs: 2}, true, false},
 		{"gone branches only", DryRunResult{GoneBranches: []string{"a"}}, true, false},
-		{"config duplicates only", DryRunResult{ConfigDuplicates: 1}, true, false},
 		{"orphaned configs only", DryRunResult{OrphanedConfigs: 1}, true, false},
 		{"prunable worktrees only", DryRunResult{PrunableWorktrees: 1}, true, false},
 		{"aggressive only", DryRunResult{AggressiveBranches: []BranchInfo{{Name: "x"}}}, false, true},
@@ -146,9 +135,9 @@ func TestDryRunResult_HasWork(t *testing.T) {
 	}
 }
 
-func TestDryRun_ErrorWhenConfigUnresolvable(t *testing.T) {
+func TestDryRun_ErrorWhenNotARepository(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{}}
 	if _, err := DryRun(runner, "/repo"); err == nil {
-		t.Error("expected an error when the repo config cannot be resolved")
+		t.Error("expected an error when the path is not a repository")
 	}
 }
