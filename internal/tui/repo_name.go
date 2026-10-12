@@ -18,16 +18,7 @@ func (m Model) updateRepoName(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, keys.Tab):
-			if m.repo.focusedField == 0 {
-				m.repo.focusedField = 1
-				m.repo.nameInput.Blur()
-				m.repo.locationInput.CursorEnd()
-				return m, m.repo.locationInput.Focus()
-			}
-			m.repo.focusedField = 0
-			m.repo.locationInput.Blur()
-			m.repo.nameInput.CursorEnd()
-			return m, m.repo.nameInput.Focus()
+			return m, switchFormField(&m.repo.focusedField, &m.repo.nameInput, &m.repo.locationInput)
 
 		case key.Matches(msg, keys.Confirm):
 			name := strings.TrimSpace(m.repo.nameInput.Value())
@@ -93,12 +84,9 @@ func pathExists(path string) bool {
 }
 
 func (m Model) updateRepoNameInput(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m.repo.validationErr = ""
-	var cmd tea.Cmd
-	if m.repo.focusedField == 0 {
-		m.repo.nameInput, cmd = m.repo.nameInput.Update(msg)
-	} else {
-		m.repo.locationInput, cmd = m.repo.locationInput.Update(msg)
+	cmd, edited := editFormField(m.repo.focusedField, &m.repo.nameInput, &m.repo.locationInput, msg)
+	if edited {
+		m.repo.validationErr = ""
 	}
 	return m, cmd
 }

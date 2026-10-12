@@ -68,16 +68,7 @@ func (m Model) updateCreateBranch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, keys.Tab):
-			if m.create.focusedField == 0 {
-				m.create.focusedField = 1
-				m.create.branchInput.Blur()
-				m.create.baseInput.CursorEnd()
-				return m, m.create.baseInput.Focus()
-			}
-			m.create.focusedField = 0
-			m.create.baseInput.Blur()
-			m.create.branchInput.CursorEnd()
-			return m, m.create.branchInput.Focus()
+			return m, switchFormField(&m.create.focusedField, &m.create.branchInput, &m.create.baseInput)
 
 		case key.Matches(msg, keys.QuickCreate):
 			branch := m.create.branchInput.Value()
@@ -120,12 +111,9 @@ func (m Model) updateCreateBranch(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateCreateBranchInput(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m.create.validationErr = ""
-	var cmd tea.Cmd
-	if m.create.focusedField == 0 {
-		m.create.branchInput, cmd = m.create.branchInput.Update(msg)
-	} else {
-		m.create.baseInput, cmd = m.create.baseInput.Update(msg)
+	cmd, edited := editFormField(m.create.focusedField, &m.create.branchInput, &m.create.baseInput, msg)
+	if edited {
+		m.create.validationErr = ""
 	}
 	return m, cmd
 }
