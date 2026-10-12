@@ -50,13 +50,15 @@ func motionPreference(getenv func(string) string) MotionPreference {
 	return MotionFull
 }
 
-// motionTickMsg advances the motion clock.
-type motionTickMsg struct{}
+// motionTickMsg advances the motion clock. chain names the tick chain it
+// belongs to: only the model's current chain may advance the clock, so a tick
+// still in flight from a chain that ended cannot run beside its successor.
+type motionTickMsg struct{ chain int }
 
-// motionTickCmd schedules the next clock tick.
-func motionTickCmd() tea.Cmd {
+// motionTickCmd schedules the next clock tick of a chain.
+func motionTickCmd(chain int) tea.Cmd {
 	return tea.Tick(motionResolution, func(time.Time) tea.Msg {
-		return motionTickMsg{}
+		return motionTickMsg{chain: chain}
 	})
 }
 

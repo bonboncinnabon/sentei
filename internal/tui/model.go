@@ -240,6 +240,7 @@ type Model struct {
 	// positions derive from it as pure functions. The tick chain runs only
 	// while a working surface is visible (motionActive).
 	motionTick       int
+	motionChain      int // current tick chain; bumped whenever a new one starts
 	motionPreference MotionPreference
 
 	// bar springs the overall progress toward each completion target and
@@ -547,7 +548,7 @@ func (m *Model) SetMigrateOpts(opts *MigrateOpts) {
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{tea.RequestBackgroundColor}
 	if m.motionActive() {
-		cmds = append(cmds, motionTickCmd())
+		cmds = append(cmds, motionTickCmd(m.motionChain))
 	}
 	// Every bare-repo entry point needs the worktrees, not only the menu: a
 	// direct `sentei remove` lists them, and any direct flow can end up on
@@ -659,8 +660,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	if _, ok := msg.(motionTickMsg); ok {
-		if !m.motionActive() {
+	if tick, ok := msg.(motionTickMsg); ok {
+		if tick.chain != m.motionChain || !m.motionActive() {
 			return m, nil
 		}
 		previousView := m.view
@@ -673,7 +674,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.view != previousView || !m.motionActive() {
 			return m, nil
 		}
-		return m, motionTickCmd()
+		return m, motionTickCmd(m.motionChain)
 	}
 
 	if bg, ok := msg.(tea.BackgroundColorMsg); ok {
@@ -749,7 +750,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if !wasMoving && model.motionActive() {
-			return model, tea.Batch(cmd, motionTickCmd())
+			model.motionChain++
+			return model, tea.Batch(cmd, motionTickCmd(model.motionChain))
 		}
 		return model, cmd
 	}
