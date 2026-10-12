@@ -1,0 +1,21 @@
+internal/repo/create_test.go
+  s_b5d41ab2ae0f4c::t_4a1bff03a2828d 7,293-325
+internal/repo/create.go
+  s_b5d41ab2ae0f4c::t_a889aa467a4cb7 30-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e91af6559f8020dbf5402fd1abc67ee860d7e481",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
