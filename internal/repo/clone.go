@@ -75,7 +75,11 @@ func prepareClone(runner git.CommandRunner, opts CloneOptions) (flow, func([]pro
 	clone.add("clone:bare", "Clone", step{
 		id: "bare-repository", label: "Clone bare repository",
 		run: func() (string, error) {
-			_, err := runner.Run(opts.Location, "clone", "--bare", opts.URL, barePath)
+			// --single-branch keeps the default branch as the only local head.
+			// A plain bare clone copies every remote branch into refs/heads,
+			// where the copies go stale and shadow origin/<branch>. The other
+			// branches arrive as remote-tracking refs with the fetch below.
+			_, err := runner.Run(opts.Location, "clone", "--bare", "--single-branch", "--", opts.URL, barePath)
 			return "", err
 		},
 		undo: func() error { return fileutil.RemoveAllRetry(repoPath) },
