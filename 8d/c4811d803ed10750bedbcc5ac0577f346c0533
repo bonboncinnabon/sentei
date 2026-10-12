@@ -1,0 +1,36 @@
+internal/creator/dependencies_test.go
+  s_b5d41ab2ae0f4c::t_87d5d46b1cfe2c 1-74
+internal/config/config_test.go
+  s_b5d41ab2ae0f4c::t_65ea0d40b41d6c 253-256,258-262,264-265,267
+  s_b5d41ab2ae0f4c::t_4a076502ecbc3b 39-44,46-49
+  s_b5d41ab2ae0f4c::t_79b6c1670a2a55 6-7
+  s_b5d41ab2ae0f4c::t_0c2a4f3c7cb744 181
+  s_b5d41ab2ae0f4c::t_b9af3f5d2034d5 177-180
+internal/creator/prepared.go
+  s_b5d41ab2ae0f4c::t_e32dc0a478d465 22-24
+  s_b5d41ab2ae0f4c::t_015fb548be46ba 76-78,80-81,86
+  s_b5d41ab2ae0f4c::t_6b8ed2e85196e3 200-201
+internal/ecosystem/ecosystem_e2e_test.go
+  s_b5d41ab2ae0f4c::t_13cf00c62a2ff8 6
+  s_b5d41ab2ae0f4c::t_877fa9dad215b5 90-92
+internal/config/defaults/ecosystems.yaml
+  s_b5d41ab2ae0f4c::t_2e7764c82694be 6-10,26
+internal/config/types.go
+  s_b5d41ab2ae0f4c::t_96539f5c6d2dca 35-36,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8dc4811d803ed10750bedbcc5ac0577f346c0533",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
