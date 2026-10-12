@@ -231,11 +231,12 @@ func TestParseDecision_FillsTheCommandsOptions(t *testing.T) {
 		}
 	})
 	t.Run("migrate", func(t *testing.T) {
-		parsed, err := parseDecision("migrate", []string{"--delete-backup", t.TempDir()})
+		dir := t.TempDir()
+		parsed, err := parseDecision("migrate", []string{dir})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if parsed.migrate == nil || !parsed.migrate.DeleteBackup {
+		if parsed.migrate == nil || parsed.migrate.RepoPath != dir {
 			t.Errorf("migrate options = %+v", parsed.migrate)
 		}
 	})
