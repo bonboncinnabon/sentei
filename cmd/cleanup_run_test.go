@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -68,6 +69,35 @@ func TestRunCleanup_SafeDryRun(t *testing.T) {
 	}
 	if !strings.Contains(out, "(dry run)") {
 		t.Errorf("expected '(dry run)' marker, got:\n%s", out)
+	}
+}
+
+// A dry run changes nothing, so none of its lines may carry the done mark.
+func TestRunCleanup_DryRunMarksNothingDone(t *testing.T) {
+	bareRepo := setupBareRepo(t)
+	stale := filepath.Join(bareRepo, "stale")
+	mustGit(t, bareRepo, "worktree", "add", "-b", "feature/stale", stale, "main")
+	if err := os.RemoveAll(stale); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	out := captureStdout(t, func() {
+		err = RunCleanup([]string{"--mode", "safe", "--dry-run", bareRepo})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "Would prune 1 stale worktree") {
+		t.Fatalf("expected the stale worktree to be announced, got:\n%s", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "✓") && strings.Contains(line, "Would") {
+			t.Errorf("a would-be action is marked done: %q", line)
+		}
+	}
+	if _, statErr := os.Stat(filepath.Join(bareRepo, "worktrees", "stale")); statErr != nil {
+		t.Errorf("the dry run pruned the worktree metadata: %v", statErr)
 	}
 }
 

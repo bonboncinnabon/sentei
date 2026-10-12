@@ -53,7 +53,7 @@ func (m Model) viewCleanupResult() string {
 	// Check if anything was actually done
 	totalActions := r.StaleRefsRemoved +
 		r.GoneBranchesDeleted + r.ConfigOrphanResult.Removed +
-		r.NonWtBranchesDeleted + r.WorktreesPruned
+		len(r.NonWtBranchesDeleted) + r.WorktreesPruned
 
 	switch {
 	case len(r.Errors) == 0 && totalActions == 0 && len(r.BranchesSkipped) > 0:

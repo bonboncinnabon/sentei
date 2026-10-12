@@ -2,6 +2,8 @@ package cleanup
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
@@ -21,7 +23,8 @@ func orchestratorMock() *mock.Runner {
 		"/repo:[remote]":                                       {Output: "origin"},
 		"/repo:[remote prune origin --dry-run]":                {Output: ""},
 		"/repo:[fetch --prune origin]":                         {Output: ""},
-		"/repo:[branch -vv]":                                   {Output: "  main abc123 [origin/main] latest"},
+		"/repo:[symbolic-ref --short HEAD]":                    {Output: "main"},
+		goneBranchCall:                                         {Output: refLine("main", "refs/remotes/origin/main", "", "/repo/main") + "\n" + refLine("feature/old", "", "", "")},
 		"/repo:[worktree list --porcelain]":                    {Output: "worktree /repo/.bare\nbare\n\nworktree /repo/main\nHEAD abc\nbranch refs/heads/main"},
 		"/repo:[branch --format=%(refname:lstrip=2)]":          {Output: "main\nfeature/old"},
 		"/repo:[config --local --name-only --list]":            {Output: "core.bare\nbranch.main.remote\nbranch.ghost.remote\nbranch.ghost.merge"},
@@ -34,8 +37,8 @@ func TestRun_SafeMode(t *testing.T) {
 
 	result := Run(runner, "/repo", Options{Mode: ModeSafe}, collectEvents(t).Emit)
 
-	if result.NonWtBranchesDeleted != 0 {
-		t.Error("safe mode should not delete non-worktree branches")
+	if len(result.NonWtBranchesDeleted) != 0 {
+		t.Errorf("safe mode deleted non-worktree branches: %v", result.NonWtBranchesDeleted)
 	}
 	if result.NonWtBranchesRemaining != 1 {
 		t.Errorf("NonWtBranchesRemaining = %d, want 1", result.NonWtBranchesRemaining)
@@ -54,8 +57,37 @@ func TestRun_AggressiveMode(t *testing.T) {
 
 	result := Run(runner, "/repo", Options{Mode: ModeAggressive}, collectEvents(t).Emit)
 
-	if result.NonWtBranchesDeleted == 0 {
-		t.Error("aggressive mode should delete non-worktree branches")
+	if want := []string{"feature/old"}; !slices.Equal(result.NonWtBranchesDeleted, want) {
+		t.Errorf("NonWtBranchesDeleted = %v, want %v", result.NonWtBranchesDeleted, want)
+	}
+}
+
+func TestRun_DryRunIssuesNoMutatingCall(t *testing.T) {
+	runner := orchestratorMock()
+	runner.Responses["/repo:[remote prune origin --dry-run]"] = mock.Response{Output: " * [would prune] origin/gone"}
+
+	result := Run(runner, "/repo", Options{Mode: ModeAggressive, Force: true, DryRun: true}, collectEvents(t).Emit)
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+	assertNoMutatingCall(t, runner)
+	if result.StaleRefsRemoved != 1 || len(result.NonWtBranchesDeleted) != 1 || result.ConfigOrphanResult.Removed != 1 {
+		t.Errorf("a dry run must still report what a real run would do, got %+v", result)
+	}
+}
+
+func assertNoMutatingCall(t *testing.T, runner *mock.Runner) {
+	t.Helper()
+	readOnly := []string{
+		"/repo:[rev-parse ", "/repo:[remote]", "/repo:[remote prune origin --dry-run]", "/repo:[symbolic-ref ",
+		"/repo:[for-each-ref ", "/repo:[worktree list ", "/repo:[branch --format=", "/repo:[config --local --name-only --list]",
+		"/repo:[merge-base ", "/repo:[show-ref ",
+	}
+	for _, call := range runner.Calls {
+		if !slices.ContainsFunc(readOnly, func(prefix string) bool { return strings.HasPrefix(call, prefix) }) {
+			t.Errorf("issued a git call that is not known to be read-only: %s", call)
+		}
 	}
 }
 

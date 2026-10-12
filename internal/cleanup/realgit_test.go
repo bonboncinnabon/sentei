@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,8 +13,8 @@ import (
 )
 
 // repoFixture is the layout sentei manages, built with real git under
-// t.TempDir(): a remote, and a repository root holding .bare, the .git
-// pointer and a worktree for main.
+// t.TempDir(): a remote to branch and delete in, and a repository root holding
+// .bare, the .git pointer and a worktree for main.
 type repoFixture struct {
 	t      *testing.T
 	origin string
@@ -45,6 +47,32 @@ func (f repoFixture) git(dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// trackRemoteBranch creates name on the remote and a local branch tracking it.
+func (f repoFixture) trackRemoteBranch(name string) {
+	f.t.Helper()
+	f.git(f.origin, "branch", name)
+	f.git(f.root, "fetch", "--quiet", "origin")
+	f.git(f.root, "branch", "--quiet", "--track", name, "origin/"+name)
+}
+
+// commitOn adds an empty commit to branch through a temporary worktree and,
+// when push is set, pushes it to the remote.
+func (f repoFixture) commitOn(branch string, push bool) {
+	f.t.Helper()
+	worktree := filepath.Join(f.root, "commit-worktree")
+	f.git(f.root, "worktree", "add", "--quiet", worktree, branch)
+	f.git(worktree, "commit", "--quiet", "--allow-empty", "-m", "work on "+branch)
+	if push {
+		f.git(worktree, "push", "--quiet", "origin", branch)
+	}
+	f.git(f.root, "worktree", "remove", worktree)
+}
+
+func (f repoFixture) branches() []string {
+	f.t.Helper()
+	return strings.Fields(f.git(f.root, "for-each-ref", "--format=%(refname:lstrip=2)", "refs/heads"))
+}
+
 func (f repoFixture) configPath() string {
 	return filepath.Join(f.root, ".bare", "config")
 }
@@ -74,6 +102,121 @@ func stepError(errs []OperationError, step string) error {
 		}
 	}
 	return nil
+}
+
+// A branch deleted on the remote is not reported as gone until its
+// remote-tracking ref is pruned, and a dry run does not prune. The preview
+// must still name the branch the real run goes on to delete.
+func TestDryRun_ListsBranchesThatPruningWillMakeGone(t *testing.T) {
+	f := newRepoFixture(t)
+	f.trackRemoteBranch("feature/old")
+	f.git(f.origin, "branch", "--quiet", "-D", "feature/old")
+	runner := &git.GitRunner{}
+
+	scan, err := DryRun(runner, f.root)
+	if err != nil {
+		t.Fatalf("DryRun: %v", err)
+	}
+	if want := []string{"feature/old"}; !slices.Equal(scan.GoneBranches, want) {
+		t.Errorf("preview GoneBranches = %v, want %v", scan.GoneBranches, want)
+	}
+
+	dry := Run(runner, f.root, Options{Mode: ModeSafe, DryRun: true}, discard)
+	if dry.GoneBranchesDeleted != 1 {
+		t.Errorf("dry run reports %d gone branch(es), want 1", dry.GoneBranchesDeleted)
+	}
+	if !slices.Contains(f.branches(), "feature/old") {
+		t.Fatal("the dry run deleted the branch")
+	}
+	f.git(f.root, "show-ref", "--verify", "--quiet", "refs/remotes/origin/feature/old")
+
+	result := Run(runner, f.root, Options{Mode: ModeSafe}, discard)
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+	if result.GoneBranchesDeleted != dry.GoneBranchesDeleted {
+		t.Errorf("real run deleted %d branch(es), the dry run announced %d", result.GoneBranchesDeleted, dry.GoneBranchesDeleted)
+	}
+	if slices.Contains(f.branches(), "feature/old") {
+		t.Error("the real run kept the gone branch")
+	}
+}
+
+// The upstream state must come from git's ref data, never from text that can
+// also appear in a commit subject.
+func TestRun_CommitSubjectIsNotUpstreamState(t *testing.T) {
+	f := newRepoFixture(t)
+	f.trackRemoteBranch("feature/live")
+	worktree := filepath.Join(f.root, "live")
+	f.git(f.root, "worktree", "add", "--quiet", worktree, "feature/live")
+	f.git(worktree, "commit", "--quiet", "--allow-empty", "-m", "handle [origin/x: gone] in the parser")
+	f.git(worktree, "push", "--quiet", "origin", "feature/live")
+	f.git(f.root, "worktree", "remove", worktree)
+	runner := &git.GitRunner{}
+
+	scan, err := DryRun(runner, f.root)
+	if err != nil {
+		t.Fatalf("DryRun: %v", err)
+	}
+	if len(scan.GoneBranches) != 0 {
+		t.Errorf("preview GoneBranches = %v, want none: the upstream of feature/live exists", scan.GoneBranches)
+	}
+
+	result := Run(runner, f.root, Options{Mode: ModeSafe}, discard)
+	if result.GoneBranchesDeleted != 0 {
+		t.Errorf("GoneBranchesDeleted = %d, want 0", result.GoneBranchesDeleted)
+	}
+	if !slices.Contains(f.branches(), "feature/live") {
+		t.Error("a branch with a live upstream was deleted because of its commit subject")
+	}
+}
+
+func TestRun_KeepsProtectedBranchWithGoneUpstream(t *testing.T) {
+	f := newRepoFixture(t)
+	f.trackRemoteBranch("develop")
+	f.git(f.origin, "branch", "--quiet", "-D", "develop")
+	runner := &git.GitRunner{}
+
+	scan, err := DryRun(runner, f.root)
+	if err != nil {
+		t.Fatalf("DryRun: %v", err)
+	}
+	if len(scan.GoneBranches) != 0 {
+		t.Errorf("preview GoneBranches = %v, want none: develop is protected", scan.GoneBranches)
+	}
+
+	result := Run(runner, f.root, Options{Mode: ModeSafe}, discard)
+	if !slices.Contains(f.branches(), "develop") {
+		t.Fatal("protected branch develop was deleted")
+	}
+	if want := (SkippedBranch{Name: "develop", Reason: SkipProtected}); !slices.Contains(result.BranchesSkipped, want) {
+		t.Errorf("BranchesSkipped = %v, want it to contain %v", result.BranchesSkipped, want)
+	}
+}
+
+// A deletion git refuses for any reason other than unmerged work is a failed
+// step, not a skip.
+func TestRun_DeleteFailureIsNotReportedAsUnmerged(t *testing.T) {
+	f := newRepoFixture(t)
+	f.trackRemoteBranch("feature/old")
+	f.git(f.origin, "branch", "--quiet", "-D", "feature/old")
+	// Another process holding the ref lock makes `git branch -d` fail although
+	// the branch is fully merged.
+	lock := filepath.Join(f.root, ".bare", "refs", "heads", "feature", "old.lock")
+	if err := os.WriteFile(lock, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := Run(&git.GitRunner{}, f.root, Options{Mode: ModeSafe}, discard)
+
+	if stepError(result.Errors, "gone-branches") == nil {
+		t.Errorf("expected a gone-branches error, got errors %v", result.Errors)
+	}
+	for _, s := range result.BranchesSkipped {
+		if s.Name == "feature/old" && s.Reason == SkipUnmerged {
+			t.Errorf("feature/old is fully merged but was reported as %q", s.Reason)
+		}
+	}
 }
 
 // Repeated lines are not always redundant: git reads the last value of a
@@ -148,5 +291,54 @@ func TestRun_HonoursConfigLock(t *testing.T) {
 	}
 	if after := f.readConfig(); after != before {
 		t.Errorf("config was rewritten while another writer held config.lock:\n%s", after)
+	}
+}
+
+// The dry run is a promise about the real run. On a repository that mixes
+// every case the steps tell apart, both must report the same result.
+func TestRun_DryRunReportsWhatTheRealRunDoes(t *testing.T) {
+	modes := []struct {
+		name string
+		opts Options
+	}{
+		{"safe", Options{Mode: ModeSafe}},
+		{"aggressive", Options{Mode: ModeAggressive}},
+		{"aggressive with force", Options{Mode: ModeAggressive, Force: true}},
+	}
+	for _, mode := range modes {
+		t.Run(mode.name, func(t *testing.T) {
+			f := newRepoFixture(t)
+			// Deleted on the remote, each still waiting for the prune:
+			// merged into main; pushed but never merged; holding a local commit.
+			for _, name := range []string{"gone/merged", "gone/pushed", "gone/local-work"} {
+				f.trackRemoteBranch(name)
+			}
+			f.commitOn("gone/pushed", true)
+			f.commitOn("gone/local-work", false)
+			for _, name := range []string{"gone/merged", "gone/pushed", "gone/local-work"} {
+				f.git(f.origin, "branch", "--quiet", "-D", name)
+			}
+			// Never on the remote: one merged, one with its own commit.
+			f.git(f.root, "branch", "--quiet", "local/merged", "main")
+			f.git(f.root, "branch", "--quiet", "local/work", "main")
+			f.commitOn("local/work", false)
+			f.git(f.root, "config", "branch.ghost.remote", "origin")
+			runner := &git.GitRunner{}
+
+			dryOpts := mode.opts
+			dryOpts.DryRun = true
+			dry := Run(runner, f.root, dryOpts, discard)
+			result := Run(runner, f.root, mode.opts, discard)
+
+			if len(dry.Errors) > 0 || len(result.Errors) > 0 {
+				t.Fatalf("unexpected errors: dry %v, real %v", dry.Errors, result.Errors)
+			}
+			if dry.StaleRefsRemoved != 3 {
+				t.Fatalf("fixture is off: %d stale refs, want 3", dry.StaleRefsRemoved)
+			}
+			if !reflect.DeepEqual(dry, result) {
+				t.Errorf("the dry run announced\n  %+v\nbut the real run did\n  %+v", dry, result)
+			}
+		})
 	}
 }

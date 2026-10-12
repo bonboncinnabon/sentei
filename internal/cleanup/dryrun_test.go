@@ -2,7 +2,6 @@ package cleanup
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
@@ -13,21 +12,22 @@ import (
 // branch with a live upstream (feature/extra) and no origin remote.
 func dryRunMock() *mock.Runner {
 	return &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[rev-parse --git-dir]": {Output: "/repo/.bare"},
-		"/repo:[remote]":              {Output: ""},
-		"/repo:[branch -vv]": {Output: "  feature/gone abc123 [origin/feature/gone: gone] old work\n" +
-			"+ main def456 (/repo/main) [origin/main] latest\n" +
-			"  feature/extra aaa111 [origin/feature/extra] wip"},
+		"/repo:[rev-parse --git-dir]":       {Output: "/repo/.bare"},
+		"/repo:[remote]":                    {Output: ""},
+		"/repo:[symbolic-ref --short HEAD]": {Output: "main"},
+		goneBranchCall: {Output: goneRef("feature/gone") + "\n" +
+			refLine("main", "refs/remotes/origin/main", "", "/repo/main") + "\n" +
+			refLine("feature/extra", "refs/remotes/origin/feature/extra", "", "")},
 		"/repo:[worktree list --porcelain]":           {Output: "worktree /repo\nbare\n\nworktree /repo/main\nHEAD def456\nbranch refs/heads/main\n"},
 		"/repo:[branch --format=%(refname:lstrip=2)]": {Output: "feature/gone\nfeature/extra\nmain"},
 		"/repo:[config --local --name-only --list]":   {Output: "core.bare\nbranch.main.remote"},
 		"/repo:[for-each-ref --format=%(refname:short)\x1f%(committerdate:iso8601-strict)\x1f%(subject) refs/heads/]": {Output: "feature/gone\x1f2026-02-10T19:00:00+05:30\x1fold work\nfeature/extra\x1f2026-06-01T10:00:00+05:30\x1fwip\nmain\x1f2026-06-10T12:00:00+05:30\x1flatest"},
-		// feature/extra is merged into its live upstream; feature/gone's upstream
-		// is gone, so the ancestor check against it fails (conservatively unmerged).
+		// feature/extra is merged into its live upstream. feature/gone has no
+		// upstream ref left, so git judges it against HEAD, where it is merged.
 		"/repo:[rev-parse --abbrev-ref feature/extra@{upstream}]":             {Output: "origin/feature/extra"},
 		"/repo:[merge-base --is-ancestor feature/extra origin/feature/extra]": {Output: ""},
-		"/repo:[rev-parse --abbrev-ref feature/gone@{upstream}]":              {Output: "origin/feature/gone"},
-		"/repo:[merge-base --is-ancestor feature/gone origin/feature/gone]":   {Err: errors.New("not an ancestor")},
+		"/repo:[rev-parse --abbrev-ref feature/gone@{upstream}]":              {Err: errors.New("no such ref")},
+		"/repo:[merge-base --is-ancestor feature/gone HEAD]":                  {Output: ""},
 	}}
 }
 
@@ -42,25 +42,35 @@ func TestDryRun_CollectsBothModes(t *testing.T) {
 	if len(result.GoneBranches) != 1 || result.GoneBranches[0] != "feature/gone" {
 		t.Errorf("GoneBranches = %v, want [feature/gone]", result.GoneBranches)
 	}
-	// feature/extra and feature/gone are both non-worktree candidates that
-	// only aggressive mode would delete; main is protected and in a worktree.
-	for _, b := range result.AggressiveBranches {
-		if b.Name == "main" {
-			t.Fatalf("aggressive candidates include protected branch: %v", result.AggressiveBranches)
-		}
+	// feature/gone goes in safe mode already, so the only branch aggressive
+	// mode adds is feature/extra; main is protected and in a worktree.
+	if len(result.AggressiveBranches) != 1 {
+		t.Fatalf("AggressiveBranches = %v, want only feature/extra", result.AggressiveBranches)
 	}
-	if len(result.AggressiveBranches) != 2 {
-		t.Fatalf("AggressiveBranches = %v, want feature/gone + feature/extra", result.AggressiveBranches)
-	}
-	extra := result.AggressiveBranches[1]
+	extra := result.AggressiveBranches[0]
 	if extra.Name != "feature/extra" || extra.LastCommitSubject != "wip" || extra.LastCommitDate.IsZero() {
 		t.Errorf("expected metadata on aggressive branches, got %+v", extra)
 	}
 	if !extra.Merged {
 		t.Error("feature/extra is merged into its upstream and should be marked Merged")
 	}
-	if gone := result.AggressiveBranches[0]; gone.Name == "feature/gone" && gone.Merged {
-		t.Error("feature/gone has a gone upstream and must be marked unmerged (git branch -d would skip it)")
+}
+
+// A gone branch git would refuse to delete is not promised by the safe
+// preview. It stays an aggressive candidate, marked unmerged.
+func TestDryRun_UnmergedGoneBranchIsNotPromised(t *testing.T) {
+	runner := dryRunMock()
+	runner.Responses["/repo:[merge-base --is-ancestor feature/gone HEAD]"] = mock.Response{Err: errors.New("exit status 1")}
+
+	result, err := DryRun(runner, "/repo")
+	if err != nil {
+		t.Fatalf("DryRun() error: %v", err)
+	}
+	if len(result.GoneBranches) != 0 {
+		t.Errorf("GoneBranches = %v, want none: git branch -d refuses feature/gone", result.GoneBranches)
+	}
+	if len(result.AggressiveBranches) != 2 || result.AggressiveBranches[0].Name != "feature/gone" || result.AggressiveBranches[0].Merged {
+		t.Errorf("AggressiveBranches = %+v, want feature/gone (unmerged) and feature/extra", result.AggressiveBranches)
 	}
 }
 
@@ -85,7 +95,7 @@ func TestBranchDeletableByGit(t *testing.T) {
 				"/repo:[rev-parse --abbrev-ref b@{upstream}]":        tt.upstream,
 				"/repo:[merge-base --is-ancestor b " + tt.base + "]": tt.ancestor,
 			}}
-			if got := branchDeletableByGit(runner, "/repo", "b"); got != tt.want {
+			if got := branchDeletableByGit(runner, "/repo", "b", nil); got != tt.want {
 				t.Errorf("branchDeletableByGit = %v, want %v", got, tt.want)
 			}
 		})
@@ -99,12 +109,27 @@ func TestDryRun_MutatesNothing(t *testing.T) {
 		t.Fatalf("DryRun() error: %v", err)
 	}
 
-	for _, call := range runner.Calls {
-		for _, destructive := range []string{"branch -d", "branch -D", "remote prune", "worktree prune", "update-ref"} {
-			if strings.Contains(call, destructive) {
-				t.Errorf("DryRun issued a mutating git call: %s", call)
-			}
+	assertNoMutatingCall(t, runner)
+}
+
+// A probe that fails must surface: its count stays zero, and without the
+// error the preview would read that as "nothing to do".
+func TestDryRun_CollectsProbeErrors(t *testing.T) {
+	runner := dryRunMock()
+	runner.Responses["/repo:[remote]"] = mock.Response{Err: errors.New("remote unreachable")}
+	runner.Responses["/repo:[config --local --name-only --list]"] = mock.Response{Err: errors.New("bad config line 3")}
+
+	result, err := DryRun(runner, "/repo")
+	if err != nil {
+		t.Fatalf("a failed probe must not abort the scan: %v", err)
+	}
+	for _, step := range []string{"prune-refs", "orphaned-configs"} {
+		if stepError(result.Errors, step) == nil {
+			t.Errorf("missing %s error, got %v", step, result.Errors)
 		}
+	}
+	if len(result.GoneBranches) != 1 {
+		t.Errorf("the other probes must still report, GoneBranches = %v", result.GoneBranches)
 	}
 }
 

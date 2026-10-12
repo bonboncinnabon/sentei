@@ -19,7 +19,7 @@ func TestListNonWorktreeCandidates_ProtectsDetectedDefaultBranch(t *testing.T) {
 		"/repo:[symbolic-ref --short HEAD]":           {Output: "trunk"},
 	}}
 
-	got, err := listNonWorktreeCandidates(runner, "/repo")
+	got, err := listNonWorktreeCandidates(runner, "/repo", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
