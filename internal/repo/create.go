@@ -123,7 +123,9 @@ func prepareCreate(runner git.CommandRunner, gh GhRunner, opts CreateOptions) pr
 		if err := os.MkdirAll(barePath, 0755); err != nil {
 			return "", err
 		}
-		_, err := runner.Run(barePath, "init", "--bare")
+		// The branch is named here, not left to init.defaultBranch: HEAD has
+		// to name the branch the main worktree is created on.
+		_, err := runner.Run(barePath, "init", "--bare", "--initial-branch=main")
 		return "", err
 	})
 	add(createSetupPhaseID, "Setup", "git-pointer", "Create .git pointer", func() (string, error) {

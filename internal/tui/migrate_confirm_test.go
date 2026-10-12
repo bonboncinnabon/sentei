@@ -28,7 +28,7 @@ func makeMigrateConfirmModel(opts *MigrateOpts) Model {
 
 func readyMigrateInfo() MigrateInfo {
 	return MigrateInfo{Loaded: true, Plan: repo.MigratePlan{
-		RepoPath: "/some/repo", Branch: "feature/x", WorktreePath: "/some/repo/feature-x",
+		RepoPath: "/some/repo", Branch: "feature/x", WorktreePath: "/some/repo/feature-x", DefaultBranch: "trunk",
 	}}
 }
 
@@ -103,7 +103,7 @@ func TestMigrateConfirmView_ShowsThePlan(t *testing.T) {
 
 	output := stripAnsi(m.viewMigrateConfirm())
 
-	for _, want := range []string{"Migrate to bare repository", "feature/x", "Move .git to .bare", "repo/feature-x", "Nothing is copied or deleted", "enter confirm"} {
+	for _, want := range []string{"Migrate to bare repository", "feature/x", "trunk", "Move .git to .bare", "repo/feature-x", "Nothing is copied or deleted", "enter confirm"} {
 		if !strings.Contains(output, want) {
 			t.Errorf("view missing %q:\n%s", want, output)
 		}

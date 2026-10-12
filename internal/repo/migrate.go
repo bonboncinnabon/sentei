@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
@@ -25,9 +26,10 @@ type MigrateResult struct {
 
 // MigratePlan describes an in-place conversion that PlanMigrate has cleared.
 type MigratePlan struct {
-	RepoPath     string // absolute repository root; it becomes the container
-	Branch       string // branch checked out in the working tree
-	WorktreePath string // directory the working tree moves into
+	RepoPath      string // absolute repository root; it becomes the container
+	Branch        string // branch checked out in the working tree
+	WorktreePath  string // directory the working tree moves into
+	DefaultBranch string // branch the bare HEAD will name
 
 	// status is `git status --porcelain` before the conversion. The new
 	// worktree must report the same, or the conversion is rolled back.
@@ -111,7 +113,26 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 	if err != nil {
 		return MigratePlan{}, fmt.Errorf("reading the working tree status: %w", err)
 	}
-	return MigratePlan{RepoPath: root, Branch: branch, WorktreePath: worktreePath, status: status}, nil
+	return MigratePlan{
+		RepoPath: root, Branch: branch, WorktreePath: worktreePath,
+		DefaultBranch: migrateDefaultBranch(runner, root, branch), status: status,
+	}, nil
+}
+
+// migrateDefaultBranch picks the branch the bare HEAD should name: the
+// remote's default, then main, then master, whichever exists locally first.
+// With none of them it stays on the branch that is checked out.
+func migrateDefaultBranch(runner git.CommandRunner, root, current string) string {
+	candidates := []string{"main", "master"}
+	if remoteHead, err := runner.Run(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil {
+		candidates = append([]string{strings.TrimPrefix(remoteHead, "origin/")}, candidates...)
+	}
+	for _, candidate := range candidates {
+		if git.BranchExists(runner, root, candidate) {
+			return candidate
+		}
+	}
+	return current
 }
 
 // Migrate converts a normal checkout into sentei's layout without copying or
@@ -223,6 +244,20 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			return fmt.Sprintf("%d entries", len(filesMoved)), nil
 		},
 		undo: filesMoved.undo,
+	})
+	migrate.add(migrateConvertPhaseID, "Convert", step{
+		id: "default-branch", label: "Point HEAD at the default branch",
+		run: func() (string, error) {
+			// Until now HEAD was the checkout's. In the bare repository it
+			// names the default branch, which sentei protects and measures
+			// "merged" against. The worktree keeps its own HEAD.
+			_, err := runner.Run(barePath, "symbolic-ref", "HEAD", "refs/heads/"+plan.DefaultBranch)
+			return plan.DefaultBranch, err
+		},
+		undo: func() error {
+			_, err := runner.Run(barePath, "symbolic-ref", "HEAD", "refs/heads/"+plan.Branch)
+			return err
+		},
 	})
 	migrate.add(migrateConvertPhaseID, "Convert", step{id: "verify", label: "Verify working tree", run: func() (string, error) {
 		status, err := worktreeStatus(runner, plan.WorktreePath)

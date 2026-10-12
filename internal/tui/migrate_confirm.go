@@ -121,6 +121,7 @@ func (m Model) viewMigrateConfirm() string {
 	default:
 		worktree := filepath.Join(filepath.Base(info.Plan.RepoPath), filepath.Base(info.Plan.WorktreePath))
 		fmt.Fprintf(&b, "  %-18s %s\n", styleDim.Render("Current branch"), info.Plan.Branch)
+		fmt.Fprintf(&b, "  %-18s %s\n", styleDim.Render("Default branch"), info.Plan.DefaultBranch)
 		b.WriteString("\n")
 		b.WriteString("  This will:\n")
 		fmt.Fprintf(&b, "    %s Move .git to .bare\n", styleDim.Render("●"))

@@ -513,3 +513,61 @@ func TestMigrateResult_FailureNamesAFailedRollback(t *testing.T) {
 		t.Errorf("Failure() = %v, must not claim the repository is unchanged", failure)
 	}
 }
+
+// The bare HEAD names the default branch: sentei protects it and measures
+// "merged" against it. After a migration it must not simply be whatever
+// branch happened to be checked out.
+func TestMigrate_PointsBareHEADAtTheDefaultBranch(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, root string)
+		want  string
+	}{
+		{
+			name: "main, when migrating from a feature branch",
+			setup: func(t *testing.T, root string) {
+				mustGit(t, root, "checkout", "-q", "-b", "feature/x")
+			},
+			want: "main",
+		},
+		{
+			name: "the remote's default, ahead of main",
+			setup: func(t *testing.T, root string) {
+				mustGit(t, root, "branch", "trunk")
+				mustGit(t, root, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+				mustGit(t, root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+				mustGit(t, root, "checkout", "-q", "-b", "feature/x")
+			},
+			want: "trunk",
+		},
+		{
+			name: "the current branch, when nothing names another",
+			setup: func(t *testing.T, root string) {
+				mustGit(t, root, "branch", "-m", "main", "develop")
+				// The remote's default has no local branch to point at.
+				mustGit(t, root, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+				mustGit(t, root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+			},
+			want: "develop",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, root := newCheckout(t)
+			test.setup(t, root)
+			current := mustGit(t, root, "branch", "--show-current")
+
+			result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+			if err := result.Failure(); err != nil {
+				t.Fatal(err)
+			}
+			if got := git.DetectDefaultBranch(realGit, root); got != test.want {
+				t.Errorf("default branch = %q, want %q", got, test.want)
+			}
+			if got := mustGit(t, result.WorktreePath, "branch", "--show-current"); got != current {
+				t.Errorf("the worktree is on %q, want it left on %q", got, current)
+			}
+		})
+	}
+}

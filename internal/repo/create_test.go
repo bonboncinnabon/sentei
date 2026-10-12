@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
@@ -30,7 +31,7 @@ func TestCreate_LocalOnly(t *testing.T) {
 	repoPath := filepath.Join(dir, repoName)
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                    {Output: ""},
+		fmt.Sprintf("%s/.bare:[init --bare --initial-branch=main]", repoPath):                              {Output: ""},
 		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath): {Output: ""},
 		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                               {Output: ""},
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                          {Output: ""},
@@ -70,7 +71,7 @@ func TestCreate_WithGitHub(t *testing.T) {
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		// Setup phase
-		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                    {Output: ""},
+		fmt.Sprintf("%s/.bare:[init --bare --initial-branch=main]", repoPath):                              {Output: ""},
 		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath): {Output: ""},
 		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                               {Output: ""},
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                          {Output: ""},
@@ -158,7 +159,7 @@ func TestCreate_GitHubPhaseFailure_LocalStillUsable(t *testing.T) {
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		// Setup phase succeeds
-		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                    {Output: ""},
+		fmt.Sprintf("%s/.bare:[init --bare --initial-branch=main]", repoPath):                              {Output: ""},
 		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath): {Output: ""},
 		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                               {Output: ""},
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                          {Output: ""},
@@ -200,7 +201,7 @@ func TestCreate_PushFailure_ReportsOrphanedRepo(t *testing.T) {
 	pushErr := fmt.Errorf("Permission denied (publickey)")
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                            {Output: ""},
+		fmt.Sprintf("%s/.bare:[init --bare --initial-branch=main]", repoPath):                                      {Output: ""},
 		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath):         {Output: ""},
 		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                                       {Output: ""},
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                                  {Output: ""},
@@ -263,5 +264,28 @@ func TestCreateResult_SetupFailed(t *testing.T) {
 	clean := CreateResult{Phases: []progress.Phase{{Name: "Setup", Steps: []progress.StepResult{{Status: progress.StepDone}}}}}
 	if failed, _ := clean.SetupFailed(); failed {
 		t.Error("a clean result must not report a setup failure")
+	}
+}
+
+// Without init.defaultBranch, `git init --bare` points HEAD at master while
+// the only branch sentei creates is main. HEAD is what names the default
+// branch for protection and for "merged".
+func TestCreate_BareHEADNamesMainWithoutInitDefaultBranch(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	for _, name := range []string{"GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"} {
+		t.Setenv(name, "sentei-test")
+	}
+	for _, name := range []string{"GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(name, "test@sentei.invalid")
+	}
+	dir := t.TempDir()
+
+	result := CreateWithGh(&git.GitRunner{}, nil, &mockGhRunner{}, CreateOptions{Name: "proj", Location: dir}, nil)
+
+	if failed, err := result.SetupFailed(); failed {
+		t.Fatalf("create failed: %v", err)
+	}
+	if got := git.DetectDefaultBranch(&git.GitRunner{}, result.RepoPath); got != "main" {
+		t.Errorf("default branch = %q, want main", got)
 	}
 }
