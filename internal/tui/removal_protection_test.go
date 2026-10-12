@@ -166,9 +166,10 @@ func TestLoadWorktreeContext_MarksLaunchDirectoryWorktree(t *testing.T) {
 	}
 }
 
-// The list's status is a snapshot. A row that looked clean is removed without
-// --force, so git refuses a tree that gained files after the list loaded.
-// Rows that were at risk went through the confirmation screen and are forced.
+// The list's status is a snapshot. A row that looked clean skipped the
+// confirmation screen, so its status is read again before it is removed and a
+// tree that gained files after the list loaded is left alone. Rows that were
+// at risk went through the confirmation screen and are removed as they are.
 func TestWorktreeRemover_RechecksRowsThatLookedClean(t *testing.T) {
 	bare := bareRepoWithWorktrees(t, "stale", "confirmed", "clean")
 	path := func(name string) string { return filepath.Join(bare, name) }
@@ -187,8 +188,9 @@ func TestWorktreeRemover_RechecksRowsThatLookedClean(t *testing.T) {
 
 	remove := worktreeRemover(&git.GitRunner{}, bare, targets)
 
-	if err := remove(path("stale")); err == nil {
-		t.Error("a row that looked clean but now holds new files must not be removed")
+	err := remove(path("stale"))
+	if err == nil || !strings.Contains(err.Error(), "changed since the list loaded") {
+		t.Errorf("a row that looked clean but now holds new files must be refused, got %v", err)
 	}
 	if _, err := os.Stat(newWork); err != nil {
 		t.Errorf("the new file must survive the refused removal: %v", err)
@@ -203,5 +205,28 @@ func TestWorktreeRemover_RechecksRowsThatLookedClean(t *testing.T) {
 		if _, err := os.Stat(path(name)); !os.IsNotExist(err) {
 			t.Errorf("worktree %s should be gone (stat err: %v)", name, err)
 		}
+	}
+}
+
+// git refuses to remove a worktree that contains submodules unless --force is
+// given, even when it is clean. A clean row must still be removable.
+func TestWorktreeRemover_RemovesCleanWorktreeWithSubmodule(t *testing.T) {
+	bare := bareRepoWithWorktrees(t, "withsub")
+	wt := filepath.Join(bare, "withsub")
+	lib := filepath.Join(t.TempDir(), "lib")
+	identity := []string{"-c", "user.name=Test", "-c", "user.email=test@test.com", "-c", "protocol.file.allow=always"}
+	runGit := func(dir string, args ...string) { runTestGit(t, dir, append(identity, args...)...) }
+	runGit(filepath.Dir(lib), "init", "--initial-branch=main", lib)
+	runGit(lib, "commit", "--allow-empty", "-m", "lib")
+	runGit(wt, "submodule", "add", lib, "lib")
+	runGit(wt, "commit", "-m", "add submodule")
+
+	remove := worktreeRemover(&git.GitRunner{}, bare, []worktree.RemovalTarget{{Worktree: git.Worktree{Path: wt}}})
+
+	if err := remove(wt); err != nil {
+		t.Fatalf("a clean worktree with a submodule must be removed: %v", err)
+	}
+	if _, err := os.Stat(wt); !os.IsNotExist(err) {
+		t.Errorf("the worktree should be gone (stat err: %v)", err)
 	}
 }

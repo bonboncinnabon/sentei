@@ -143,21 +143,27 @@ func (m Model) startDeletions() (tea.Model, tea.Cmd) {
 // worktreeRemover returns the function that removes one target by path.
 //
 // The status shown in the list is a snapshot taken when it loaded. A target
-// that was at risk then went through the confirmation screen and is removed
-// with --force. A target that looked clean is removed without it, so git
-// checks the tree again at the moment of deletion and refuses one that has
-// gained uncommitted or untracked files since.
+// that was at risk then went through the confirmation screen. A target that
+// looked clean did not, so its status is read again at the moment of deletion
+// and it is left alone if it has gained work since.
+//
+// Removal always passes --force: without it git refuses every worktree that
+// contains submodules, clean or not.
 func worktreeRemover(runner git.CommandRunner, repoPath string, targets []worktree.RemovalTarget) func(path string) error {
-	confirmed := make(map[string]bool, len(targets))
+	unconfirmed := make(map[string]git.Worktree, len(targets))
 	for _, target := range targets {
-		confirmed[target.Worktree.Path] = worktreeAtRisk(target.Worktree)
+		if !worktreeAtRisk(target.Worktree) {
+			unconfirmed[target.Worktree.Path] = target.Worktree
+		}
 	}
 	return func(path string) error {
-		args := []string{"worktree", "remove", path}
-		if confirmed[path] {
-			args = []string{"worktree", "remove", "--force", path}
+		if wt, ok := unconfirmed[path]; ok {
+			fresh := worktree.EnrichWorktrees(runner, []git.Worktree{wt}, 1)
+			if worktree.AtRisk(fresh[0]) {
+				return errors.New("changed since the list loaded: reopen the list to review it")
+			}
 		}
-		_, err := runner.Run(repoPath, args...)
+		_, err := runner.Run(repoPath, "worktree", "remove", "--force", path)
 		return err
 	}
 }
