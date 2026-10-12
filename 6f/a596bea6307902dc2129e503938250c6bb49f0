@@ -1,0 +1,21 @@
+internal/tui/quit_test.go
+  s_b5d41ab2ae0f4c::t_691f982eae3e1a 182-195
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_b8c9a6f8531763 1009-1011,1013-1018
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6fa596bea6307902dc2129e503938250c6bb49f0",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
