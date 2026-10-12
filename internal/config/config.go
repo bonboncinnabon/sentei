@@ -84,15 +84,6 @@ func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []Ec
 		if over.Install.Command != "" {
 			e.Install.Command = over.Install.Command
 		}
-		if over.Install.WorkspaceDetect != "" {
-			e.Install.WorkspaceDetect = over.Install.WorkspaceDetect
-		}
-		if over.Install.WorkspaceInstall != "" {
-			e.Install.WorkspaceInstall = over.Install.WorkspaceInstall
-		}
-		if over.Install.Parallel != nil {
-			e.Install.Parallel = over.Install.Parallel
-		}
 		if len(over.EnvFiles) > 0 {
 			e.EnvFiles = over.EnvFiles
 		}

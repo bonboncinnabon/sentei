@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
@@ -44,29 +43,6 @@ func TestRun_RejectsDuplicateEcosystemIdentityBeforeExecution(t *testing.T) {
 	}
 	if len(runner.Calls) != 0 {
 		t.Fatalf("calls = %v, want none before rejecting identity conflict", runner.Calls)
-	}
-}
-
-func TestPrepareCreation_EqualLabelsHaveDistinctSemanticIDs(t *testing.T) {
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[ls-tree -r --name-only main]": {Output: "package.json\npackages/api/package.json"},
-		"/repo:[show main:package.json]":      {Output: `{"workspaces":["packages/*"]}`},
-	}}
-	prepared, err := prepareCreation(runner, runner, Options{
-		BranchName: "feature/labels", BaseBranch: "main", RepoPath: "/repo",
-		Ecosystems: []config.EcosystemConfig{
-			{Name: "node (packages/api)", Install: config.InstallConfig{Command: "root install"}},
-			{Name: "node", Install: config.InstallConfig{
-				Command: "fallback", WorkspaceDetect: "package.json", WorkspaceInstall: "workspace {dir}",
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	steps := prepared.plan.Phases[1].Steps
-	if len(steps) != 2 || steps[0].Label != steps[1].Label || steps[0].ID == steps[1].ID {
-		t.Fatalf("steps = %#v, want equal labels with distinct IDs", steps)
 	}
 }
 
@@ -243,71 +219,5 @@ func TestRun_WorktreeFailureBlocksAllPreparedExecution(t *testing.T) {
 				t.Fatalf("blocked step did not settle skipped: %#v", step)
 			}
 		}
-	}
-}
-
-type blockingDependencyShell struct {
-	started chan string
-	release chan struct{}
-	active  atomic.Int32
-	maximum atomic.Int32
-}
-
-func (s *blockingDependencyShell) RunShell(_ string, command string) (string, error) {
-	active := s.active.Add(1)
-	for {
-		maximum := s.maximum.Load()
-		if active <= maximum || s.maximum.CompareAndSwap(maximum, active) {
-			break
-		}
-	}
-	s.started <- command
-	<-s.release
-	s.active.Add(-1)
-	return "", nil
-}
-
-func TestRun_ParallelDependenciesRespectLimitAndJoinBeforeFinish(t *testing.T) {
-	parallel := true
-	var tree strings.Builder
-	tree.WriteString("package.json\n")
-	for i := 0; i < 6; i++ {
-		fmt.Fprintf(&tree, "packages/p%d/package.json\n", i)
-	}
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[ls-tree -r --name-only main]":                                        {Output: tree.String()},
-		"/repo:[show main:package.json]":                                             {Output: `{"workspaces":["packages/*"]}`},
-		"/repo:[show-ref --verify refs/heads/feature/concurrency]":                   {Err: errors.New("missing")},
-		"/repo:[worktree add /repo/feature-concurrency -b feature/concurrency main]": {},
-	}}
-	shell := &blockingDependencyShell{started: make(chan string, 6), release: make(chan struct{}, 6)}
-	resultCh := make(chan Result, 1)
-	go func() {
-		resultCh <- Run(runner, shell, Options{
-			BranchName: "feature/concurrency", BaseBranch: "main", RepoPath: "/repo",
-			Ecosystems: []config.EcosystemConfig{{Name: "node", Install: config.InstallConfig{
-				Command: "root", WorkspaceDetect: "package.json", WorkspaceInstall: "install {dir}", Parallel: &parallel,
-			}}},
-		}, func(progress.Event) {})
-	}()
-	for i := 0; i < maxDepsConcurrency; i++ {
-		<-shell.started
-	}
-	if got := shell.maximum.Load(); got != maxDepsConcurrency {
-		t.Fatalf("maximum concurrency = %d, want %d", got, maxDepsConcurrency)
-	}
-	for i := 0; i < maxDepsConcurrency; i++ {
-		shell.release <- struct{}{}
-	}
-	<-shell.started
-	select {
-	case result := <-resultCh:
-		t.Fatalf("Run returned before final dependency joined: %#v", result)
-	default:
-	}
-	shell.release <- struct{}{}
-	result := <-resultCh
-	if result.Err != nil || result.HasFailures() {
-		t.Fatalf("result = %#v", result)
 	}
 }

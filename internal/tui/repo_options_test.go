@@ -69,6 +69,32 @@ func TestRepoVisibleOptions_PublishExpandsList(t *testing.T) {
 	}
 }
 
+// j/k are navigation bindings and space is the toggle. While the description
+// is focused they are text: typing "quick json parser" used to move the
+// cursor onto Visibility and flip the repository to public.
+func TestUpdateRepoOptions_DescriptionKeepsNavigationLettersAsText(t *testing.T) {
+	m := repoOptionsModel(t)
+	m.repo.ghStatus = "authenticated"
+	m.repo.publishGitHub = true
+	m.repo.optionsCursor = repoOptDescription
+	m.repo.descInput.Focus()
+
+	for _, k := range []string{"k", " ", "j"} {
+		updated, _ := m.updateRepoOptions(keyMsg(k))
+		m = updated.(Model)
+	}
+
+	if got := m.repo.descInput.Value(); got != "k j" {
+		t.Errorf("description = %q, want %q", got, "k j")
+	}
+	if m.repo.optionsCursor != repoOptDescription {
+		t.Errorf("cursor moved to option %d while typing", m.repo.optionsCursor)
+	}
+	if m.repo.visibility != "private" {
+		t.Errorf("visibility = %q after typing a description, want private", m.repo.visibility)
+	}
+}
+
 func TestUpdateRepoOptions_GhAuthStatusStored(t *testing.T) {
 	m := repoOptionsModel(t)
 
@@ -98,7 +124,8 @@ func TestUpdateRepoOptions_NavigationFocusesDescription(t *testing.T) {
 		t.Error("moving onto the description must focus its input")
 	}
 
-	updated, _ = model.updateRepoOptions(keyMsg("k"))
+	// The arrow key, not k: letters are text while the description is focused.
+	updated, _ = model.updateRepoOptions(tea.KeyPressMsg{Code: tea.KeyUp})
 	model = updated.(Model)
 	if model.repo.descInput.Focused() {
 		t.Error("moving off the description must blur its input")

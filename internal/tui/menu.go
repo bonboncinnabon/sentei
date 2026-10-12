@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 type worktreeContextMsg struct {
 	worktrees     []git.Worktree
 	defaultBranch string
+	launchedFrom  map[string]bool // paths of worktrees holding the current directory
 	err           error
 	generation    uint64
 }
@@ -27,15 +29,22 @@ func loadWorktreeContext(runner git.CommandRunner, repoPath string, generation u
 			return worktreeContextMsg{err: err, generation: generation}
 		}
 		wts = worktree.EnrichWorktrees(runner, wts, worktree.DefaultEnrichConcurrency)
+		// An unreadable working directory leaves cwd empty, which matches nothing.
+		cwd, _ := os.Getwd()
+		launchedFrom := make(map[string]bool)
 		var filtered []git.Worktree
 		for _, wt := range wts {
 			if !wt.IsBare && !wt.IsPrunable {
 				filtered = append(filtered, wt)
+				if git.PathContains(wt.Path, cwd) {
+					launchedFrom[wt.Path] = true
+				}
 			}
 		}
 		return worktreeContextMsg{
 			worktrees:     filtered,
 			defaultBranch: git.DetectDefaultBranch(runner, repoPath),
+			launchedFrom:  launchedFrom,
 			generation:    generation,
 		}
 	}

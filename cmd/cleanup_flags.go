@@ -19,6 +19,9 @@ func ParseCleanupFlags(args []string) (*cleanup.Options, error) {
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
+	if _, err := repoPathArg(fs); err != nil {
+		return nil, err
+	}
 
 	opts := &cleanup.Options{
 		Force:  *force,

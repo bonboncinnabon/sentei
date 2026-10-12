@@ -25,9 +25,11 @@ func ParseMigrateFlags(args []string) (*MigrateOptions, error) {
 		DeleteBackup: *deleteBackup,
 	}
 
-	if fs.NArg() > 0 {
-		opts.RepoPath = fs.Arg(0)
+	repoPath, err := repoPathArg(fs)
+	if err != nil {
+		return nil, err
 	}
+	opts.RepoPath = repoPath
 
 	return opts, nil
 }

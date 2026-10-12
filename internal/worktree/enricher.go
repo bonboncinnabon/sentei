@@ -84,6 +84,13 @@ func enrichWorktree(runner git.CommandRunner, wt *git.Worktree, repoHasRemotes b
 	wt.IsEnriched = true
 }
 
+// AtRisk reports whether removing wt could lose work that exists nowhere
+// else. A worktree whose status could not be read counts as at risk: a failed
+// enrichment leaves every flag false, and unknown is not clean.
+func AtRisk(wt git.Worktree) bool {
+	return wt.HasUncommittedChanges || wt.HasUntrackedFiles || wt.HasUnpushedCommits || wt.EnrichmentError != ""
+}
+
 // ParseAheadCount parses `git rev-list --count` output; unparsable output
 // counts as ahead so the safety gate errs toward caution.
 func ParseAheadCount(output string) int {

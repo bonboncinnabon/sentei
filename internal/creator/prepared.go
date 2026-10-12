@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/integration"
@@ -17,15 +16,12 @@ const (
 	setupPhaseID        progress.PhaseID = "setup"
 	dependenciesPhaseID progress.PhaseID = "dependencies"
 	integrationsPhaseID progress.PhaseID = "integrations"
-	maxDepsConcurrency                   = 5
 )
 
 type preparedDependency struct {
-	stepID    progress.StepID
-	label     string
-	command   string
-	parallel  bool
-	ecosystem string
+	stepID  progress.StepID
+	label   string
+	command string
 }
 
 type preparedCreation struct {
@@ -53,10 +49,6 @@ func prepareCreation(runner git.CommandRunner, shell git.ShellRunner, opts Optio
 	if err := worktreefile.ValidateRules(opts.WorktreeFiles); err != nil {
 		return preparedCreation{}, fmt.Errorf("preparing worktree creation: %w", err)
 	}
-	targets, err := prepareDependencyTargets(runner, opts)
-	if err != nil {
-		return preparedCreation{}, err
-	}
 
 	prepared := preparedCreation{
 		opts: opts, worktreePath: git.WorktreePath(opts.RepoPath, opts.BranchName),
@@ -81,26 +73,17 @@ func prepareCreation(runner git.CommandRunner, shell git.ShellRunner, opts Optio
 	}
 	prepared.plan.Phases = append(prepared.plan.Phases, setup)
 
-	seenDependencies := map[string]bool{}
+	// One install per ecosystem, run at the worktree root. Workspace-aware
+	// package managers install every member from there and share one store,
+	// so a per-member install would only repeat the work.
 	dependencyPhase := progress.PlannedPhase{ID: dependenciesPhaseID, Label: "Dependencies"}
-	for _, target := range targets {
-		command := strings.TrimSpace(target.ecosystem.Install.Command)
-		label := target.ecosystem.Name
-		if target.workspace != "" {
-			command = strings.TrimSpace(strings.ReplaceAll(target.ecosystem.Install.WorkspaceInstall, "{dir}", target.workspace))
-			label = fmt.Sprintf("%s (%s)", target.ecosystem.Name, target.workspace)
-		}
+	for _, ecosystem := range opts.Ecosystems {
+		command := strings.TrimSpace(ecosystem.Install.Command)
 		if command == "" {
 			continue
 		}
-		identity := target.ecosystem.Name + "\x00" + target.workspace
-		if seenDependencies[identity] {
-			return preparedCreation{}, fmt.Errorf("preparing worktree creation: duplicate dependency operation identity %q", label)
-		}
-		seenDependencies[identity] = true
 		operation := preparedDependency{
-			stepID: semanticStepID("install-dependencies", identity), label: label, command: command,
-			parallel: target.ecosystem.Install.IsParallel(), ecosystem: target.ecosystem.Name,
+			stepID: semanticStepID("install-dependencies", ecosystem.Name), label: ecosystem.Name, command: command,
 		}
 		prepared.dependencies = append(prepared.dependencies, operation)
 		dependencyPhase.Steps = append(dependencyPhase.Steps, progress.PlannedStep{ID: operation.stepID, Label: operation.label})
@@ -213,41 +196,9 @@ func (p preparedCreation) skipBlocked(execution *progress.Execution, reason stri
 }
 
 func (p preparedCreation) runDependencies(execution *progress.Execution, shell git.ShellRunner) error {
-	groups := make([][]preparedDependency, 0)
-	for _, dependency := range p.dependencies {
-		if len(groups) == 0 || groups[len(groups)-1][0].ecosystem != dependency.ecosystem {
-			groups = append(groups, []preparedDependency{dependency})
-		} else {
-			groups[len(groups)-1] = append(groups[len(groups)-1], dependency)
-		}
-	}
 	var runErr error
-	for _, group := range groups {
-		if len(group) == 1 || !group[0].parallel {
-			for _, dependency := range group {
-				runErr = errors.Join(runErr, runPreparedDependency(execution, shell, p.worktreePath, dependency))
-			}
-			continue
-		}
-		sem := make(chan struct{}, maxDepsConcurrency)
-		var wg sync.WaitGroup
-		var mu sync.Mutex
-		for _, dependency := range group {
-			dependency := dependency
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-				err := runPreparedDependency(execution, shell, p.worktreePath, dependency)
-				if err != nil {
-					mu.Lock()
-					runErr = errors.Join(runErr, err)
-					mu.Unlock()
-				}
-			}()
-		}
-		wg.Wait()
+	for _, dependency := range p.dependencies {
+		runErr = errors.Join(runErr, runPreparedDependency(execution, shell, p.worktreePath, dependency))
 	}
 	return runErr
 }

@@ -128,10 +128,17 @@ func listNonWorktreeCandidates(runner git.CommandRunner, repoPath string) ([]str
 	}
 	wtBranches := parseWorktreeBranches(wtOutput)
 
-	branchOutput, err := runner.Run(repoPath, "branch", "--format=%(refname:short)")
+	// lstrip=2, not short: `short` abbreviates to "heads/<name>" when a tag
+	// shares the branch's name, which matches neither set below.
+	branchOutput, err := runner.Run(repoPath, "branch", "--format=%(refname:lstrip=2)")
 	if err != nil {
 		return nil, fmt.Errorf("listing branches: %w", err)
 	}
+
+	// The repo's real default branch may be non-standard ("trunk"); it is not
+	// checked out when no worktree holds it, so the worktree set alone would
+	// let aggressive mode delete it.
+	defaultBranch := git.DetectDefaultBranch(runner, repoPath)
 
 	var candidates []string
 	for _, line := range strings.Split(branchOutput, "\n") {
@@ -139,7 +146,7 @@ func listNonWorktreeCandidates(runner git.CommandRunner, repoPath string) ([]str
 		if b == "" {
 			continue
 		}
-		if wtBranches[b] || git.IsProtectedBranch(b) {
+		if wtBranches[b] || git.IsProtectedBranchWith(b, defaultBranch) {
 			continue
 		}
 		candidates = append(candidates, b)

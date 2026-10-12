@@ -153,7 +153,7 @@ func TestPurgeOrphanedBranchConfigs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := copyFixture(t, tt.fixture)
 			runner := &mock.Runner{Responses: map[string]mock.Response{
-				"/repo:[branch --format=%(refname:short)]": {Output: tt.existBranches},
+				"/repo:[branch --format=%(refname:lstrip=2)]": {Output: tt.existBranches},
 			}}
 			opts := Options{DryRun: false}
 			events := collectEvents(t)

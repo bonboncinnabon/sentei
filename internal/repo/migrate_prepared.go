@@ -45,7 +45,11 @@ type preparedMigrate struct {
 }
 
 func prepareMigrate(runner git.CommandRunner, _ git.ShellRunner, opts MigrateOptions) preparedMigrate {
-	repoPath := opts.RepoPath
+	// Every later step uses repoPath both as git's -C directory and inside
+	// arguments resolved against that directory. A relative path would be
+	// applied twice: the bare clone lands in <path>/<path>/.bare, and the
+	// original .git is then removed.
+	repoPath, absErr := filepath.Abs(opts.RepoPath)
 	barePath := filepath.Join(repoPath, ".bare")
 	originURL, originErr := runner.Run(repoPath, "remote", "get-url", "origin")
 	preferredBackupPath := fmt.Sprintf("%s_backup_%s", repoPath, time.Now().Format("20060102_150405"))
@@ -58,6 +62,13 @@ func prepareMigrate(runner git.CommandRunner, _ git.ShellRunner, opts MigrateOpt
 	}
 	if originErr != nil && !isMissingOrigin(originErr) {
 		prepared.err = fmt.Errorf("reading origin remote before migration: %w", originErr)
+	}
+	if absErr != nil {
+		prepared.err = fmt.Errorf("resolving repository path %q: %w", opts.RepoPath, absErr)
+	} else if info, err := os.Lstat(filepath.Join(repoPath, ".git")); err == nil && !info.IsDir() {
+		// A .git file means the repository lives elsewhere. Converting this
+		// directory would nest a new repo inside someone else's worktree.
+		prepared.err = fmt.Errorf("%s is a linked worktree or submodule (its .git is a file, not a directory); migrate the main checkout instead", repoPath)
 	}
 	add := func(phaseID, phaseLabel, stepID, label string, kind migrateOperationKind, run func(*progress.Execution) (string, error)) {
 		if len(prepared.plan.Phases) == 0 || prepared.plan.Phases[len(prepared.plan.Phases)-1].ID != phaseID {

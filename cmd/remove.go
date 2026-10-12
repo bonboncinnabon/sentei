@@ -60,6 +60,13 @@ func RunRemove(args []string) error {
 	}
 
 	filtered := ResolveFilters(worktrees, opts, nil, defaultBranch, isMerged)
+	if cwd, err := os.Getwd(); err == nil {
+		for _, wt := range worktrees {
+			if !wt.IsBare && !git.IsProtectedBranchWith(wt.Branch, defaultBranch) && git.PathContains(wt.Path, cwd) {
+				fmt.Fprintf(os.Stderr, "Note: %s holds the current directory and is never removed.\n", wt.Path)
+			}
+		}
+	}
 
 	// Count a protected worktree as "skipped" only if the active filter would
 	// otherwise have selected it — otherwise the message implies protection saved
@@ -80,22 +87,13 @@ func RunRemove(args []string) error {
 	if !opts.Force && !opts.DryRun {
 		var atRisk []string
 		for _, wt := range filtered {
-			if wt.HasUncommittedChanges || wt.HasUntrackedFiles || wt.HasUnpushedCommits {
+			if worktree.AtRisk(wt) {
 				atRisk = append(atRisk, shortBranch(wt.Branch))
 			}
 		}
 		if len(atRisk) > 0 {
-			return fmt.Errorf("%d worktree(s) have uncommitted, untracked, or unpushed work (%s); re-run with --force to delete them, or confirm interactively",
+			return fmt.Errorf("%d worktree(s) have uncommitted, untracked, or unpushed work, or a status that could not be read (%s); re-run with --force to delete them, or confirm interactively",
 				len(atRisk), strings.Join(atRisk, ", "))
-		}
-	}
-
-	// Unlock locked worktrees so removal + prune can clean them up
-	for _, wt := range filtered {
-		if wt.IsLocked {
-			if err := worktree.UnlockWorktree(runner, repoPath, wt.Path); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to unlock %s: %v\n", wt.Path, err)
-			}
 		}
 	}
 
@@ -112,6 +110,8 @@ func RunRemove(args []string) error {
 			if wt.HasUncommittedChanges || wt.HasUntrackedFiles {
 				marker = yellow + "  (uncommitted/untracked — will be LOST)" + nc
 				dirtyCount++
+			} else if wt.EnrichmentError != "" {
+				marker = yellow + "  (status could not be read: treated as at risk)" + nc
 			}
 			fmt.Printf("  %s%s\n", shortBranch(wt.Branch), marker)
 		}
@@ -119,6 +119,15 @@ func RunRemove(args []string) error {
 			fmt.Printf("\n%sWarning:%s %d worktree(s) have changes that removal will discard.\n", yellow, nc, dirtyCount)
 		}
 		return nil
+	}
+
+	// Unlock only once removal is certain: a dry run must leave locks in place.
+	for _, wt := range filtered {
+		if wt.IsLocked {
+			if err := worktree.UnlockWorktree(runner, repoPath, wt.Path); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to unlock %s: %v\n", wt.Path, err)
+			}
+		}
 	}
 
 	fmt.Printf("Removing %d worktree(s)...\n", len(filtered))
@@ -167,5 +176,9 @@ func RunRemove(args []string) error {
 		fmt.Printf("%sSkipped (protected):%s %d worktree(s)\n", dim, nc, protectedCount)
 	}
 
+	// A script or agent reads the exit status, not the summary above.
+	if result.FailureCount > 0 {
+		return fmt.Errorf("%d of %d worktree removal(s) failed", result.FailureCount, len(filtered))
+	}
 	return nil
 }

@@ -58,17 +58,18 @@ func TestPrintCloneEvent(t *testing.T) {
 }
 
 func TestPrintCreateEvent(t *testing.T) {
+	const id = "create-worktree:217d2bf51f16e9dc"
 	tests := []struct {
 		name  string
 		event progress.Event
 		want  []string
 	}{
-		{"running", progress.Event{Phase: "create", Step: "branch", Status: progress.StepRunning}, []string{"→", "create", "branch"}},
-		{"done", progress.Event{Step: "branch", Status: progress.StepDone}, []string{"✓", "branch"}},
-		{"done with message", progress.Event{Step: "branch", Status: progress.StepDone, Message: "created"}, []string{"✓", "— created"}},
-		{"failed", progress.Event{Step: "branch", Status: progress.StepFailed, Error: errors.New("boom")}, []string{"✗", "— boom"}},
-		{"failed without error", progress.Event{Step: "branch", Status: progress.StepFailed}, []string{"✗", "branch"}},
-		{"skipped", progress.Event{Step: "branch", Status: progress.StepSkipped}, []string{"branch (skipped)"}},
+		{"running", progress.Event{Phase: "setup", PhaseLabel: "Setup", Step: id, StepLabel: "branch", Status: progress.StepRunning}, []string{"→", "Setup", "branch"}},
+		{"done", progress.Event{Step: id, StepLabel: "branch", Status: progress.StepDone}, []string{"✓", "branch"}},
+		{"done with message", progress.Event{Step: id, StepLabel: "branch", Status: progress.StepDone, Message: "created"}, []string{"✓", "— created"}},
+		{"failed", progress.Event{Step: id, StepLabel: "branch", Status: progress.StepFailed, Error: errors.New("boom")}, []string{"✗", "— boom"}},
+		{"failed without error", progress.Event{Step: id, StepLabel: "branch", Status: progress.StepFailed}, []string{"✗", "branch"}},
+		{"skipped", progress.Event{Step: id, StepLabel: "branch", Status: progress.StepSkipped}, []string{"branch (skipped)"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -77,6 +78,10 @@ func TestPrintCreateEvent(t *testing.T) {
 				if !strings.Contains(out, want) {
 					t.Errorf("output %q missing %q", out, want)
 				}
+			}
+			// Step identities are opaque hashes; only labels are for people.
+			if strings.Contains(out, id) {
+				t.Errorf("output %q leaks the step identity %q", out, id)
 			}
 		})
 	}

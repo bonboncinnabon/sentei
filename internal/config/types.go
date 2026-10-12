@@ -32,16 +32,8 @@ type DetectConfig struct {
 	Files []string `yaml:"files"`
 }
 
-// InstallConfig describes how to install an ecosystem's dependencies.
+// InstallConfig describes how to install an ecosystem's dependencies. The
+// command runs once, at the root of the new worktree.
 type InstallConfig struct {
-	Command          string `yaml:"command"`
-	WorkspaceDetect  string `yaml:"workspace_detect,omitempty"`
-	WorkspaceInstall string `yaml:"workspace_install,omitempty"`
-	Parallel         *bool  `yaml:"parallel,omitempty"`
-}
-
-// IsParallel reports whether installation should run in parallel. An absent
-// Parallel field is treated as false.
-func (i *InstallConfig) IsParallel() bool {
-	return i.Parallel != nil && *i.Parallel
+	Command string `yaml:"command"`
 }

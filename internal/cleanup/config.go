@@ -73,7 +73,9 @@ func PurgeOrphanedBranchConfigs(runner git.CommandRunner, repoPath string, confi
 		return ConfigResult{}, fmt.Errorf("reading config: %w", err)
 	}
 
-	branchOutput, err := runner.Run(repoPath, "branch", "--format=%(refname:short)")
+	// lstrip=2, not short: `short` abbreviates to "heads/<name>" when a tag
+	// shares the branch's name, and the live branch's section would look orphaned.
+	branchOutput, err := runner.Run(repoPath, "branch", "--format=%(refname:lstrip=2)")
 	if err != nil {
 		return ConfigResult{}, fmt.Errorf("listing branches: %w", err)
 	}
@@ -94,7 +96,9 @@ func PurgeOrphanedBranchConfigs(runner git.CommandRunner, repoPath string, confi
 
 	for _, line := range lines {
 		if strings.HasPrefix(line, "[branch \"") {
-			branchName := line
+			// Trailing whitespace includes the \r of a CRLF file; left in, the
+			// suffix never matches and every live section looks orphaned.
+			branchName := strings.TrimRight(line, " \t\r")
 			branchName = strings.TrimPrefix(branchName, "[branch \"")
 			branchName = strings.TrimSuffix(branchName, "\"]")
 			if !existing[branchName] {

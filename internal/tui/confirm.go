@@ -189,10 +189,10 @@ func removalSemanticStepID(kind, identity string) progress.StepID {
 }
 
 // worktreeAtRisk reports whether removing wt could lose work that exists
-// nowhere else: uncommitted or untracked changes, commits not on a remote,
-// or a lock someone placed deliberately.
+// nowhere else: uncommitted or untracked changes, commits not on a remote, a
+// status that could not be read, or a lock someone placed deliberately.
 func worktreeAtRisk(wt git.Worktree) bool {
-	return wt.HasUncommittedChanges || wt.HasUntrackedFiles || wt.HasUnpushedCommits || wt.IsLocked
+	return worktree.AtRisk(wt) || wt.IsLocked
 }
 
 // startDeletions kicks off the deletion goroutine for the current run's
@@ -308,7 +308,8 @@ func (m Model) viewConfirm() string {
 	}
 	nameWidth = min(nameWidth, confirmNameWidthCap)
 
-	var dirtyCount, untrackedCount, lockedCount, unpushedCount int
+	var rows []confirmRow
+	var dirtyCount, untrackedCount, lockedCount, unpushedCount, unknownCount int
 	for _, wt := range selected {
 		var badge, note string
 		risky := true
@@ -325,6 +326,9 @@ func (m Model) viewConfirm() string {
 		case wt.HasUnpushedCommits:
 			badge, note = "[^]", "commits not on any remote"
 			unpushedCount++
+		case wt.EnrichmentError != "":
+			badge, note = "[?]", "status could not be read"
+			unknownCount++
 		default:
 			badge, risky = "[ok]", false
 		}
@@ -340,9 +344,11 @@ func (m Model) viewConfirm() string {
 		if risky {
 			line += "  " + styleWarning.Render(note)
 		}
-		b.WriteString(strings.TrimRight(line, " ") + "\n")
+		rows = append(rows, confirmRow{line: strings.TrimRight(line, " "), risky: risky})
 	}
 
+	head := b.String()
+	b.Reset()
 	b.WriteString("\n")
 
 	// Integration teardown info
@@ -388,11 +394,60 @@ func (m Model) viewConfirm() string {
 		))
 		b.WriteString("\n")
 	}
+	if unknownCount > 0 {
+		b.WriteString(styleWarning.Render(
+			fmt.Sprintf("  ⚠ %d %s whose status could not be read and may hold uncommitted work", unknownCount, pluralize(unknownCount, "worktree", "worktrees")),
+		))
+		b.WriteString("\n")
+	}
 
 	b.WriteString("\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 	b.WriteString(viewFooterDanger(m.width, confirmFooter) + "\n")
+	tail := b.String()
 
+	// The totals and the y/n footer must stay on screen. An unknown terminal
+	// height (no size message yet) leaves the rows unbounded.
+	budget := len(rows)
+	if m.windowHeight > 0 {
+		budget = m.windowHeight - strings.Count(head, "\n") - strings.Count(tail, "\n")
+	}
+	return head + fitConfirmRows(rows, budget) + tail
+}
+
+type confirmRow struct {
+	line  string
+	risky bool
+}
+
+// fitConfirmRows renders rows in at most budget lines. When they do not fit,
+// the at-risk rows are kept first and the rest is summarised on one line, so
+// what follows the list never scrolls off the terminal.
+func fitConfirmRows(rows []confirmRow, budget int) string {
+	hidden, hiddenRisky := 0, 0
+	if len(rows) > budget {
+		sort.SliceStable(rows, func(i, j int) bool { return rows[i].risky && !rows[j].risky })
+		keep := max(budget-1, 0)
+		for _, row := range rows[keep:] {
+			hidden++
+			if row.risky {
+				hiddenRisky++
+			}
+		}
+		rows = rows[:keep]
+	}
+
+	var b strings.Builder
+	for _, row := range rows {
+		b.WriteString(row.line + "\n")
+	}
+	if hidden > 0 {
+		more := fmt.Sprintf("    … and %d more", hidden)
+		if hiddenRisky > 0 {
+			more += fmt.Sprintf(", %d of them at risk", hiddenRisky)
+		}
+		b.WriteString(styleDim.Render(more) + "\n")
+	}
 	return b.String()
 }

@@ -182,6 +182,75 @@ func TestRunRemove_UnlocksLockedWorktree(t *testing.T) {
 	}
 }
 
+func TestRunRemove_DryRunLeavesLocksInPlace(t *testing.T) {
+	bareRepo := setupBareRepoWithMergedBranch(t)
+	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
+	mustGit(t, bareRepo, "worktree", "lock", "--reason", "on a removable drive", wtPath)
+
+	captureStdout(t, func() {
+		if err := RunRemove([]string{"--merged", "--dry-run", bareRepo}); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	lockFile := filepath.Join(bareRepo, "worktrees", "feature-merged-branch", "locked")
+	reason, err := os.ReadFile(lockFile)
+	if err != nil {
+		t.Fatalf("a dry run must not unlock the worktree: %v", err)
+	}
+	if !strings.Contains(string(reason), "on a removable drive") {
+		t.Errorf("lock reason changed: %q", reason)
+	}
+}
+
+func TestRunRemove_AtRiskGateCoversUnreadableStatus(t *testing.T) {
+	bareRepo := setupBareRepo(t)
+	// An unborn branch has no commits: `git log` fails, enrichment stops
+	// before `git status`, and every risk flag stays false.
+	wtPath := filepath.Join(bareRepo, "scratch")
+	mustGit(t, bareRepo, "worktree", "add", "--orphan", "-b", "scratch", wtPath)
+	notes := filepath.Join(wtPath, "notes.txt")
+	mustWriteFile(t, notes, "precious\n")
+	mustGit(t, wtPath, "add", "notes.txt")
+
+	err := RunRemove([]string{"--all", bareRepo})
+	if err == nil {
+		t.Fatal("expected the at-risk gate to refuse a worktree whose status could not be read")
+	}
+	if !strings.Contains(err.Error(), "--force") {
+		t.Errorf("gate error %q should point at --force", err)
+	}
+	if _, statErr := os.Stat(notes); statErr != nil {
+		t.Errorf("the gate must leave staged work untouched: %v", statErr)
+	}
+}
+
+func TestRunRemove_NeverRemovesCurrentDirectoryWorktree(t *testing.T) {
+	bareRepo := setupBareRepoWithMergedBranch(t)
+	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
+	t.Chdir(wtPath)
+
+	var err error
+	var out string
+	stderr := captureStderr(t, func() {
+		out = captureStdout(t, func() {
+			err = RunRemove([]string{"--merged", bareRepo})
+		})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "No worktrees matched") {
+		t.Errorf("the current-directory worktree must not match, got:\n%s", out)
+	}
+	if !strings.Contains(stderr, "current directory") {
+		t.Errorf("expected a note explaining the skip on stderr, got:\n%s", stderr)
+	}
+	if _, statErr := os.Stat(wtPath); statErr != nil {
+		t.Errorf("the worktree holding the current directory must survive: %v", statErr)
+	}
+}
+
 func TestRunRemove_WarnsWhenCommitDateUnavailable(t *testing.T) {
 	bareRepo := setupBareRepoWithMergedBranch(t)
 	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
@@ -220,8 +289,8 @@ func TestRunRemove_ReportsFailedRemovals(t *testing.T) {
 			err = RunRemove([]string{"--merged", bareRepo})
 		})
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("a failed removal must return an error so the exit status is non-zero")
 	}
 	if !strings.Contains(out, "Failed:") {
 		t.Errorf("expected failure summary, got:\n%s", out)

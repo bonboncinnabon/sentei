@@ -68,10 +68,21 @@ func stripBranchPrefix(ref string) string {
 	return strings.TrimPrefix(ref, "refs/heads/")
 }
 
+// removalProtected reports whether wt can never be selected for removal: a
+// protected branch, or a worktree holding the directory sentei was launched
+// from (removing it would leave the user's shell in a directory that no
+// longer exists).
+func (m Model) removalProtected(wt git.Worktree) bool {
+	return git.IsProtectedBranchWith(wt.Branch, m.remove.defaultBranch) || m.remove.launchedFrom[wt.Path]
+}
+
 func statusIndicator(wt git.Worktree) string {
 	switch {
 	case wt.IsLocked:
 		return styleStatusLocked.Render("[L]")
+	case wt.EnrichmentError != "":
+		// Unknown is not clean: the row must not read as [ok].
+		return styleWarning.Render("[?]")
 	case wt.HasUncommittedChanges:
 		return styleStatusDirty.Render("[~]")
 	case wt.HasUntrackedFiles:
@@ -163,7 +174,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Toggle):
 			if len(m.remove.visibleIndices) > 0 {
 				wt := m.remove.worktrees[m.remove.visibleIndices[m.remove.cursor]]
-				if git.IsProtectedBranchWith(wt.Branch, m.remove.defaultBranch) {
+				if m.removalProtected(wt) {
 					break
 				}
 				if m.remove.selected[wt.Path] {
@@ -177,7 +188,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			allSelected := true
 			for _, idx := range m.remove.visibleIndices {
 				wt := m.remove.worktrees[idx]
-				if git.IsProtectedBranchWith(wt.Branch, m.remove.defaultBranch) {
+				if m.removalProtected(wt) {
 					continue
 				}
 				if !m.remove.selected[wt.Path] {
@@ -188,7 +199,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if allSelected {
 				for _, idx := range m.remove.visibleIndices {
 					wt := m.remove.worktrees[idx]
-					if git.IsProtectedBranchWith(wt.Branch, m.remove.defaultBranch) {
+					if m.removalProtected(wt) {
 						continue
 					}
 					delete(m.remove.selected, wt.Path)
@@ -196,7 +207,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				for _, idx := range m.remove.visibleIndices {
 					wt := m.remove.worktrees[idx]
-					if git.IsProtectedBranchWith(wt.Branch, m.remove.defaultBranch) {
+					if m.removalProtected(wt) {
 						continue
 					}
 					m.remove.selected[wt.Path] = true
@@ -371,7 +382,7 @@ func (m Model) viewList() string {
 		}
 
 		var checkbox string
-		if git.IsProtectedBranchWith(wt.Branch, m.remove.defaultBranch) {
+		if m.removalProtected(wt) {
 			checkbox = styleStatusProtected.Render("[P]")
 		} else if m.remove.selected[wt.Path] {
 			checkbox = "[x]"

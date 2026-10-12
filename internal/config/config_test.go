@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -34,13 +36,17 @@ func TestLoadEmbeddedDefaults(t *testing.T) {
 		}
 	}
 
-	// Spot-check pnpm workspace_detect and parallel.
-	pnpm := cfg.Ecosystems[0]
-	if pnpm.Install.WorkspaceDetect != "pnpm-workspace.yaml" {
-		t.Errorf("pnpm WorkspaceDetect: got %q, want %q", pnpm.Install.WorkspaceDetect, "pnpm-workspace.yaml")
+	// Installs run once at the worktree root. A per-member command such as
+	// `pnpm install --filter <dir>` selects no project and installs nothing.
+	for _, e := range cfg.Ecosystems {
+		if strings.Contains(e.Install.Command, "{dir}") || strings.Contains(e.Install.Command, "--filter") {
+			t.Errorf("%s: install command %q must be a root install", e.Name, e.Install.Command)
+		}
 	}
-	if !pnpm.Install.IsParallel() {
-		t.Error("pnpm Install.Parallel: expected true")
+	// pnpm reads from the shared store and never rewrites the lockfile of a
+	// fresh worktree.
+	if got, want := cfg.Ecosystems[0].Install.Command, "pnpm install --frozen-lockfile --prefer-offline"; got != want {
+		t.Errorf("pnpm install command: got %q, want %q", got, want)
 	}
 
 	wantNames := []string{
@@ -88,20 +94,6 @@ func assertConfigEqual(t *testing.T, got, want Config) {
 		}
 		if gotE.Install.Command != wantE.Install.Command {
 			t.Errorf("Ecosystems[%d].Install.Command: got %q, want %q", i, gotE.Install.Command, wantE.Install.Command)
-		}
-		if gotE.Install.WorkspaceDetect != wantE.Install.WorkspaceDetect {
-			t.Errorf("Ecosystems[%d].Install.WorkspaceDetect: got %q, want %q", i, gotE.Install.WorkspaceDetect, wantE.Install.WorkspaceDetect)
-		}
-		if gotE.Install.WorkspaceInstall != wantE.Install.WorkspaceInstall {
-			t.Errorf("Ecosystems[%d].Install.WorkspaceInstall: got %q, want %q", i, gotE.Install.WorkspaceInstall, wantE.Install.WorkspaceInstall)
-		}
-		switch {
-		case gotE.Install.Parallel == nil && wantE.Install.Parallel == nil:
-			// both nil — ok
-		case gotE.Install.Parallel == nil || wantE.Install.Parallel == nil:
-			t.Errorf("Ecosystems[%d].Install.Parallel: got %v, want %v", i, gotE.Install.Parallel, wantE.Install.Parallel)
-		case *gotE.Install.Parallel != *wantE.Install.Parallel:
-			t.Errorf("Ecosystems[%d].Install.Parallel: got %v, want %v", i, *gotE.Install.Parallel, *wantE.Install.Parallel)
 		}
 		if len(gotE.EnvFiles) != len(wantE.EnvFiles) {
 			t.Errorf("Ecosystems[%d].EnvFiles length: got %d, want %d", i, len(gotE.EnvFiles), len(wantE.EnvFiles))
@@ -182,12 +174,11 @@ integrations_enabled:
 						Name:    "node",
 						Enabled: boolPtr(true),
 						Detect:  DetectConfig{Files: []string{"package.json"}},
-						Install: InstallConfig{
-							Command:          "npm install",
-							WorkspaceDetect:  "package.json",
-							WorkspaceInstall: "npm install --workspaces",
-							Parallel:         boolPtr(true),
-						},
+						// The input above still carries the retired
+						// workspace_detect, workspace_install and parallel
+						// keys: existing configs must keep loading, with
+						// those keys ignored.
+						Install:     InstallConfig{Command: "npm install"},
 						EnvFiles:    []string{".env", ".env.local"},
 						PostInstall: []string{"npm run build"},
 					},
@@ -259,24 +250,21 @@ func TestIsEnabled(t *testing.T) {
 	}
 }
 
-func TestIsParallel(t *testing.T) {
-	tests := []struct {
-		name     string
-		parallel *bool
-		want     bool
-	}{
-		{"nil means not parallel", nil, false},
-		{"explicit true", boolPtr(true), true},
-		{"explicit false", boolPtr(false), false},
+func TestEmbeddedDefaults_BunDetectsTextLockfile(t *testing.T) {
+	cfg, err := loadEmbeddedDefaults()
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			i := InstallConfig{Parallel: tc.parallel}
-			if got := i.IsParallel(); got != tc.want {
-				t.Errorf("IsParallel() = %v, want %v", got, tc.want)
+	for _, e := range cfg.Ecosystems {
+		if e.Name == "bun" {
+			// bun >= 1.2 writes bun.lock (text); bun.lockb is the older binary form.
+			if !slices.Contains(e.Detect.Files, "bun.lock") || !slices.Contains(e.Detect.Files, "bun.lockb") {
+				t.Errorf("bun detect files = %v, want both bun.lock and bun.lockb", e.Detect.Files)
 			}
-		})
+			return
+		}
 	}
+	t.Fatal("bun ecosystem missing from the embedded defaults")
 }
 
 func TestLoadFile(t *testing.T) {
