@@ -1,0 +1,28 @@
+internal/creator/git_test.go
+  s_b5d41ab2ae0f4c::t_80531e04ea3fc0 139-140,153-193
+internal/tui/create_summary_test.go
+  s_b5d41ab2ae0f4c::t_54939771648e64 180,182-187,189,191-196
+internal/creator/prepared.go
+  s_b5d41ab2ae0f4c::t_ba9b7533a2d4eb 159-163,165-176
+  s_b5d41ab2ae0f4c::t_45c20baf71f7a4 191
+internal/creator/creator.go
+  s_b5d41ab2ae0f4c::t_00c50139d71973 33-39
+internal/tui/create_summary.go
+  s_b5d41ab2ae0f4c::t_78099e852ef0f7 71,73-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "403f186df5095eb7b1e5982010734646a6c2697c",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
