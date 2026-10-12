@@ -80,13 +80,15 @@ func (m Model) renderRemovalSummary() string {
 		}
 	}
 
-	b.WriteString("\n")
-	if err := m.remove.run.pruneErr; err != nil {
+	switch err := m.remove.run.pruneErr; {
+	case err != nil:
+		b.WriteString("\n")
 		b.WriteString(styleWarning.Render(fmt.Sprintf("  Warning: failed to prune worktree metadata: %s", err)))
 		b.WriteString("\n")
 		b.WriteString(styleDim.Render("  Run `git worktree prune` in the repository to retry."))
 		b.WriteString("\n")
-	} else {
+	case m.remove.run.pruned:
+		b.WriteString("\n")
 		b.WriteString(styleDim.Render("  Pruned orphaned worktree metadata"))
 		b.WriteString("\n")
 	}
