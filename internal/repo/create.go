@@ -27,7 +27,12 @@ func (r *DefaultGhRunner) RunGh(dir string, args ...string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("gh %s: %s", strings.Join(args, " "), strings.TrimSpace(stderr.String()))
+		// gh that could not be started, or was killed, leaves no stderr. The
+		// exec error is then the only explanation there is.
+		if stderrMsg := strings.TrimSpace(stderr.String()); stderrMsg != "" {
+			return "", fmt.Errorf("gh %s: %s", strings.Join(args, " "), stderrMsg)
+		}
+		return "", fmt.Errorf("gh %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(stdout.String()), nil
 }

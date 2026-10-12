@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -287,5 +288,38 @@ func TestCreate_BareHEADNamesMainWithoutInitDefaultBranch(t *testing.T) {
 	}
 	if got := git.DetectDefaultBranch(&git.GitRunner{}, result.RepoPath); got != "main" {
 		t.Errorf("default branch = %q, want main", got)
+	}
+}
+
+// When gh cannot be started there is no stderr to report. The reason it
+// failed must not be dropped with it.
+func TestDefaultGhRunner_ReportsWhyGhDidNotRun(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	_, err := (&DefaultGhRunner{}).RunGh(t.TempDir(), "api", "user")
+
+	if err == nil {
+		t.Fatal("expected an error with no gh on PATH")
+	}
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Errorf("err = %q, want it to carry the reason gh did not run", err)
+	}
+	if !strings.HasPrefix(err.Error(), "gh api user: ") {
+		t.Errorf("err = %q, want it to name the command", err)
+	}
+}
+
+func TestDefaultGhRunner_PrefersStderr(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\necho 'HTTP 401: Bad credentials' >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	_, err := (&DefaultGhRunner{}).RunGh(t.TempDir(), "api", "user")
+
+	if err == nil || err.Error() != "gh api user: HTTP 401: Bad credentials" {
+		t.Errorf("err = %v, want gh's own message", err)
 	}
 }
