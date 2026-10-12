@@ -213,3 +213,28 @@ func TestRun_BaseIsNeverParsedAsAMergeOption(t *testing.T) {
 		t.Errorf("branch moved from %s to %s: git merged something other than the base", before, after)
 	}
 }
+
+// A repository with no checked-out worktree has no source for env files. The
+// empty source path used to resolve against the process working directory,
+// so whatever .env sat where sentei was started got copied in.
+func TestRun_CopyEnvWithoutASourceWorktreeCopiesNothing(t *testing.T) {
+	root := newGitRepo(t)
+	bystander := t.TempDir()
+	writeFile(t, filepath.Join(bystander, ".env"), "SECRET=from-the-current-directory\n")
+	t.Chdir(bystander)
+
+	result := Run(&git.GitRunner{}, &git.DefaultShellRunner{}, Options{
+		BranchName: "feature/env", BaseBranch: "main", RepoPath: root,
+		CopyEnvFiles: true, EnvFiles: []string{".env"}, SourceWorktree: "",
+	}, func(progress.Event) {})
+
+	if result.HasFailures() {
+		t.Fatalf("unexpected failure: %+v", result)
+	}
+	if _, err := os.Stat(filepath.Join(result.WorktreePath, ".env")); err == nil {
+		t.Error("an env file from the current directory was copied into the new worktree")
+	}
+	if message := stepByName(t, result, "Copy env files").Message; !strings.Contains(message, "no source worktree") {
+		t.Errorf("env step message = %q, want it to say there is no source worktree", message)
+	}
+}

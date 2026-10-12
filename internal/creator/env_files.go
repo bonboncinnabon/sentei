@@ -59,6 +59,11 @@ func uniqueEnvFiles(opts Options) []string {
 }
 
 func copyPreparedEnvFiles(source, destination string, files []string) (string, error) {
+	// An empty source would make every name below relative to the process
+	// working directory.
+	if source == "" {
+		return "no source worktree to copy from", nil
+	}
 	var copied []string
 	for _, name := range files {
 		if _, err := os.Stat(filepath.Join(source, name)); errors.Is(err, os.ErrNotExist) {
