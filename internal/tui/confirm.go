@@ -17,12 +17,7 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
-const (
-	unlockPhaseID  progress.PhaseID = "unlock-worktrees"
-	cleanupPhaseID progress.PhaseID = "prune-and-cleanup"
-	pruneStepID    progress.StepID  = "prune-worktree-metadata"
-	cleanupStepID  progress.StepID  = "repository-cleanup"
-)
+const unlockPhaseID progress.PhaseID = "unlock-worktrees"
 
 func (m Model) updateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -55,7 +50,7 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 		m.view = summaryView
 		return m, nil
 	}
-	ch := make(chan progress.Event, (len(prepared.targets)+len(prepared.unlockOps)+2)*5)
+	ch := make(chan progress.Event, (len(prepared.targets)+len(prepared.unlockOps)+len(prepared.plan.Phases))*5)
 	execution, err := progress.Start(prepared.plan, func(event progress.Event) { ch <- event })
 	if err != nil {
 		close(ch)
@@ -66,7 +61,7 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 	m.remove.run.execution = execution
 	m.remove.run.progressCh = ch
 	m.remove.run.targets = prepared.targets
-	declarationEvents := len(prepared.unlockOps) + len(prepared.targets) + 2 + len(prepared.plan.Phases)
+	declarationEvents := len(prepared.unlockOps) + len(prepared.targets) + len(prepared.plan.Phases)
 	for range declarationEvents {
 		m.remove.run.events = append(m.remove.run.events, <-ch)
 	}
@@ -105,10 +100,7 @@ func prepareRemoval(worktrees []git.Worktree) (removalPreparation, error) {
 	if len(unlock.Steps) > 0 {
 		prepared.plan.Phases = append(prepared.plan.Phases, unlock)
 	}
-	prepared.plan.Phases = append(prepared.plan.Phases, removal, progress.PlannedPhase{
-		ID: cleanupPhaseID, Label: "Prune & cleanup",
-		Steps: []progress.PlannedStep{{ID: pruneStepID, Label: "Prune worktree metadata"}, {ID: cleanupStepID, Label: "Repository cleanup"}},
-	})
+	prepared.plan.Phases = append(prepared.plan.Phases, removal)
 	return prepared, nil
 }
 

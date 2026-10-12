@@ -81,49 +81,14 @@ func (m Model) renderRemovalSummary() string {
 	}
 
 	b.WriteString("\n")
-	if m.remove.run.pruneErr != nil && *m.remove.run.pruneErr != nil {
-		b.WriteString(styleWarning.Render(fmt.Sprintf("  Warning: failed to prune worktree metadata: %s", *m.remove.run.pruneErr)))
+	if err := m.remove.run.pruneErr; err != nil {
+		b.WriteString(styleWarning.Render(fmt.Sprintf("  Warning: failed to prune worktree metadata: %s", err)))
+		b.WriteString("\n")
+		b.WriteString(styleDim.Render("  Run `git worktree prune` in the repository to retry."))
 		b.WriteString("\n")
 	} else {
 		b.WriteString(styleDim.Render("  Pruned orphaned worktree metadata"))
 		b.WriteString("\n")
-	}
-
-	if cr := m.remove.run.cleanupResult; cr != nil {
-		if len(cr.Errors) > 0 {
-			b.WriteString("\n")
-			b.WriteString(styleError.Render("  Cleanup failures:"))
-			b.WriteString("\n")
-			for _, operationErr := range cr.Errors {
-				fmt.Fprintf(&b, "    %s %s: %s\n", styleIndicatorFailed.Render(indicatorFailed), operationErr.Step, operationErr.Err)
-			}
-		}
-		cleanupActions := cr.StaleRefsRemoved + cr.ConfigDedupResult.Removed +
-			cr.GoneBranchesDeleted + cr.ConfigOrphanResult.Removed
-		if cleanupActions > 0 {
-			b.WriteString("\n")
-			b.WriteString(styleDim.Render("  Cleanup:"))
-			b.WriteString("\n")
-			if cr.StaleRefsRemoved > 0 {
-				fmt.Fprintf(&b, "    %s Pruned %d remote %s\n", styleIndicatorDone.Render(indicatorDone), cr.StaleRefsRemoved, pluralize(cr.StaleRefsRemoved, "ref", "refs"))
-			}
-			if cr.ConfigDedupResult.Removed > 0 {
-				fmt.Fprintf(&b, "    %s Removed %d config %s\n", styleIndicatorDone.Render(indicatorDone), cr.ConfigDedupResult.Removed, pluralize(cr.ConfigDedupResult.Removed, "duplicate", "duplicates"))
-			}
-			if cr.GoneBranchesDeleted > 0 {
-				fmt.Fprintf(&b, "    %s Deleted %d %s with gone upstream\n", styleIndicatorDone.Render(indicatorDone), cr.GoneBranchesDeleted, pluralize(cr.GoneBranchesDeleted, "branch", "branches"))
-			}
-			if cr.ConfigOrphanResult.Removed > 0 {
-				fmt.Fprintf(&b, "    %s Removed %d orphaned config %s\n", styleIndicatorDone.Render(indicatorDone), cr.ConfigOrphanResult.Removed, pluralize(cr.ConfigOrphanResult.Removed, "section", "sections"))
-			}
-		}
-		if cr.NonWtBranchesRemaining > 0 {
-			b.WriteString("\n")
-			b.WriteString(styleDim.Render(fmt.Sprintf("  Tip: %d local %s not in any worktree.", cr.NonWtBranchesRemaining, pluralize(cr.NonWtBranchesRemaining, "branch", "branches"))))
-			b.WriteString("\n")
-			b.WriteString(styleDim.Render("       Run `sentei cleanup --mode aggressive` to remove them (unmerged branches need --force)."))
-			b.WriteString("\n")
-		}
 	}
 
 	if m.remove.cliCommand != "" {

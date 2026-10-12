@@ -35,7 +35,7 @@ func quitTestModel(view viewState) Model {
 	m.remove.selected = map[string]bool{"/repo/a": true}
 	m.reindex()
 	m.view = view
-	m.remove.run.cleanupResult = &cleanup.Result{}
+	m.remove.run.pruned = true
 	m.create.result = &creator.Result{}
 	m.repo.result = repo.CloneResult{}
 	m.cleanupResult = &cleanup.Result{}
@@ -45,7 +45,7 @@ func quitTestModel(view viewState) Model {
 // inFlightModel is quitTestModel with the operation behind view still running.
 func inFlightModel(view viewState) Model {
 	m := quitTestModel(view)
-	m.remove.run.cleanupResult = nil
+	m.remove.run.pruned = false
 	m.create.result = nil
 	m.repo.result = nil
 	m.cleanupResult = nil
@@ -158,10 +158,10 @@ func TestQuit_PromptDoesNotOutliveItsOperation(t *testing.T) {
 	m = updated.(Model)
 
 	// The run finishes while the prompt is up; a later run starts clean.
-	m.remove.run.cleanupResult = &cleanup.Result{}
+	m.remove.run.pruned = true
 	updated, _ = m.Update(keyRune('x'))
 	m = updated.(Model)
-	m.remove.run.cleanupResult = nil
+	m.remove.run.pruned = false
 
 	if _, cmd := m.Update(keyRune('q')); quits(cmd) {
 		t.Error("a prompt left over from the previous operation quit the next one on the first key")

@@ -6,15 +6,10 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
-
-type cleanupCompleteMsg struct {
-	Result cleanup.Result
-}
 
 type removalEventMsg struct{ event progress.Event }
 type removalEventsCompleteMsg struct{}
@@ -31,17 +26,13 @@ func waitForRemovalEvent(ch <-chan progress.Event) tea.Cmd {
 	}
 }
 
+// runPrune is everything a removal does after the worktrees are gone: one
+// local `git worktree prune`. It never touches the network, branches or
+// config; those belong to `sentei cleanup`, which the user runs on purpose.
 func runPrune(runner git.CommandRunner, repoPath string) tea.Cmd {
 	return func() tea.Msg {
 		err := worktree.PruneWorktrees(runner, repoPath)
 		return pruneCompleteMsg{Err: err}
-	}
-}
-
-func runCleanup(runner git.CommandRunner, repoPath string) tea.Cmd {
-	return func() tea.Msg {
-		result := cleanup.Run(runner, repoPath, cleanup.Options{Mode: cleanup.ModeSafe}, func(cleanup.Event) {})
-		return cleanupCompleteMsg{Result: result}
 	}
 }
 
@@ -63,46 +54,16 @@ func (m Model) updateProgress(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.syncProgressBar(), runPrune(m.runner, m.repoPath))
 
 	case pruneCompleteMsg:
-		pruneErr := msg.Err
-		m.remove.run.pruneErr = &pruneErr
-		if m.remove.run.execution != nil {
-			if msg.Err != nil {
-				_, transitionErr := m.remove.run.execution.Fail(cleanupPhaseID, pruneStepID, msg.Err)
-				m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, transitionErr)
-			} else {
-				_, transitionErr := m.remove.run.execution.Done(cleanupPhaseID, pruneStepID, "Pruned")
-				m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, transitionErr)
-			}
+		// The prune ends the run's work. Its error is kept apart from the
+		// result: metadata that could not be pruned is a warning, and the
+		// worktrees that were removed stay removed.
+		m.remove.run.pruned = true
+		m.remove.run.pruneErr = msg.Err
+		if execution := m.remove.run.execution; execution != nil {
+			m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, execution.Finish("removal run complete"))
+			m.remove.run.result.Phases = execution.Phases()
+			close(m.remove.run.progressCh)
 		}
-		return m, tea.Batch(m.syncProgressBar(), runCleanup(m.runner, m.repoPath))
-
-	case cleanupCompleteMsg:
-		m.remove.run.cleanupResult = &msg.Result
-		if m.remove.run.execution == nil {
-			m.remove.selected = make(map[string]bool)
-			m.worktreeGeneration++
-			syncCmd := m.syncProgressBar()
-			updated, holdCmd := m.holdOrAdvance(summaryView)
-			return updated, tea.Batch(syncCmd, holdCmd,
-				recordRemovals(m.repoPath, m.remove.run.result.SuccessCount),
-				loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration))
-		}
-		if len(msg.Result.Errors) > 0 {
-			cleanupErrors := make([]error, len(msg.Result.Errors))
-			for i, operationErr := range msg.Result.Errors {
-				cleanupErrors[i] = operationErr.Err
-			}
-			cleanupErr := errors.Join(cleanupErrors...)
-			m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, cleanupErr)
-			_, transitionErr := m.remove.run.execution.Fail(cleanupPhaseID, cleanupStepID, cleanupErr)
-			m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, transitionErr)
-		} else {
-			_, transitionErr := m.remove.run.execution.Done(cleanupPhaseID, cleanupStepID, "Cleaned")
-			m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, transitionErr)
-		}
-		m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, m.remove.run.execution.Finish("removal run complete"))
-		m.remove.run.result.Phases = m.remove.run.execution.Phases()
-		close(m.remove.run.progressCh)
 		return m, m.syncProgressBar()
 
 	case removalEventsCompleteMsg:
@@ -123,7 +84,7 @@ func (m Model) updateProgress(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) removalLayout() ProgressLayout {
 	return m.withProgressDetails(ProgressLayout{
 		Title:     titleRemoving,
-		Completed: m.remove.run.cleanupResult != nil,
+		Completed: m.remove.run.pruned,
 		Phases:    m.buildRemovalPhases(),
 		Width:     m.width,
 		Height:    m.progressHeight(),

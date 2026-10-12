@@ -48,8 +48,6 @@ func TestE2E_RemovalFlowChrome(t *testing.T) {
 	m = updated.(Model)
 	updated, _ = m.updateProgress(pruneCompleteMsg{})
 	m = updated.(Model)
-	updated, _ = m.updateProgress(cleanupCompleteMsg{})
-	m = updated.(Model)
 	updated, _ = m.updateProgress(removalEventsCompleteMsg{})
 	m = updated.(Model)
 	m = settleNow(t, m)
