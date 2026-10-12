@@ -1,0 +1,27 @@
+internal/tui/form.go
+  s_b5d41ab2ae0f4c::t_c7fcd80403fdb9 1-38
+internal/tui/form_test.go
+  s_b5d41ab2ae0f4c::t_2365212c458d04 1-74
+internal/tui/repo_name.go
+  s_b5d41ab2ae0f4c::t_c7fcd80403fdb9 21,87-89
+internal/tui/clone_input.go
+  s_b5d41ab2ae0f4c::t_828ef75668eb36 24,72-75,77-78,80-81
+internal/tui/create_branch.go
+  s_b5d41ab2ae0f4c::t_114cacfcd7550c 71,114-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "077041d7953d4ff6a1ea2841de1e390dbe6d5a2c",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
