@@ -175,3 +175,18 @@ func TestViewCreateSummary_CreatedWithFailedSetupStepNamesIt(t *testing.T) {
 		t.Errorf("setup steps that succeeded must stay out of the summary:\n%s", view)
 	}
 }
+
+// An existing branch is checked out as it is, so "(from main)" would be false.
+func TestViewCreateSummary_ExistingBranchDoesNotClaimTheBase(t *testing.T) {
+	m := createOptionsModel()
+	m.create.result = &creator.Result{WorktreePath: "/repo/feature-x", BranchExisted: true}
+
+	view := stripANSI(m.viewCreateSummary())
+
+	if !strings.Contains(view, "feature/x (existing branch, not created from main)") {
+		t.Errorf("summary must say the existing branch was used:\n%s", view)
+	}
+	if strings.Contains(view, "feature/x (from main)") {
+		t.Errorf("summary claims the branch came from the base:\n%s", view)
+	}
+}

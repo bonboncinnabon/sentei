@@ -20,9 +20,9 @@ import (
 func TestRun_WorkspaceRepoGetsOneRootInstall(t *testing.T) {
 	const install = "pnpm install --frozen-lockfile --prefer-offline"
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[show-ref --verify refs/heads/feature/deps]":            {Err: errors.New("not found")},
-		"/repo:[worktree add /repo/feature-deps -b feature/deps main]": {},
-		"/repo/feature-deps:shell[" + install + "]":                    {},
+		"/repo:[show-ref --verify refs/heads/feature/deps]":               {Err: errors.New("not found")},
+		"/repo:[worktree add -b feature/deps -- /repo/feature-deps main]": {},
+		"/repo/feature-deps:shell[" + install + "]":                       {},
 	}}
 	var labels []string
 
@@ -68,8 +68,8 @@ func TestRun_CopiesExplicitEnvFilesWithoutEcosystems(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/env]", repo):      {Err: errors.New("not found")},
-		fmt.Sprintf("%s:[worktree add %s -b feature/env main]", repo, worktree): {},
+		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/env]", repo):         {Err: errors.New("not found")},
+		fmt.Sprintf("%s:[worktree add -b feature/env -- %s main]", repo, worktree): {},
 	}}
 
 	result := Run(runner, runner, Options{
@@ -91,8 +91,8 @@ func TestRun_CopiesExplicitEnvFilesWithoutEcosystems(t *testing.T) {
 
 func TestRun_EcosystemWithoutInstallCommandPlansNoDependencyStep(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[show-ref --verify refs/heads/feature/deps]":            {Err: errors.New("not found")},
-		"/repo:[worktree add /repo/feature-deps -b feature/deps main]": {},
+		"/repo:[show-ref --verify refs/heads/feature/deps]":               {Err: errors.New("not found")},
+		"/repo:[worktree add -b feature/deps -- /repo/feature-deps main]": {},
 	}}
 
 	result := Run(runner, runner, Options{

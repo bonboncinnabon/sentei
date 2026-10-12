@@ -67,7 +67,11 @@ func (m Model) viewCreateSummary() string {
 	}
 
 	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Path"), truncateWithEllipsis(wtPath, max(m.width-16, 20)))
-	fmt.Fprintf(&b, "    %-10s %s (from %s)\n", styleDim.Render("Branch"), branch, base)
+	origin := "from " + base
+	if result != nil && result.BranchExisted {
+		origin = "existing branch, not created from " + base
+	}
+	fmt.Fprintf(&b, "    %-10s %s (%s)\n", styleDim.Render("Branch"), branch, origin)
 
 	// Dependency steps are always listed; a setup step only when it failed,
 	// so "with issues" names its cause.

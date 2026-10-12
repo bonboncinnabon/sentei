@@ -30,8 +30,11 @@ type Result struct {
 	// WorktreePath is set once the worktree exists on disk, even when a later
 	// step failed. Empty means nothing was created.
 	WorktreePath string
-	Phases       []progress.Phase
-	Err          error
+	// BranchExisted reports that the branch was already there and was checked
+	// out as it is, so the base branch did not decide where it starts.
+	BranchExisted bool
+	Phases        []progress.Phase
+	Err           error
 }
 
 func (r *Result) HasFailures() bool {
