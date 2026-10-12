@@ -274,6 +274,10 @@ func (m Model) viewList() string {
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 
+	if m.listAwaitingRows() {
+		fmt.Fprintf(&b, "  %s\n", shimmerLine(starFrame(m.motionTick)+" Loading worktrees…", rampDim, m.motionTick))
+		return b.String()
+	}
 	if len(m.remove.worktrees) == 0 {
 		b.WriteString(styleDim.Render("  No worktrees found."))
 		b.WriteString("\n")
@@ -455,6 +459,12 @@ func (m Model) viewList() string {
 	b.WriteString("\n")
 	b.WriteString(m.viewBottomLine())
 	return b.String()
+}
+
+// listAwaitingRows reports whether the list has nothing to show yet because
+// its worktrees are still loading, which is not the same as having none.
+func (m Model) listAwaitingRows() bool {
+	return len(m.remove.worktrees) == 0 && m.worktreesLoading()
 }
 
 func (m Model) viewStatusOrFilter() string {

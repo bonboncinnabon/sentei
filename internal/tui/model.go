@@ -104,8 +104,11 @@ type removeState struct {
 	defaultBranch string // repo default branch; always protected from removal
 	// launchedFrom holds the paths of the worktrees containing the directory
 	// sentei was started in; they are protected from removal like a default branch.
-	launchedFrom   map[string]bool
-	selected       map[string]bool
+	launchedFrom map[string]bool
+	selected     map[string]bool
+	// preSelect holds the paths a `sentei remove` filter chose. They are
+	// selected when the worktree load lands, then the set is dropped.
+	preSelect      map[string]bool
 	milestone      int // power of ten crossed by the last run, 0 if none
 	visibleIndices []int
 	cursor         int
@@ -206,6 +209,7 @@ type Model struct {
 	menuItems          []menuItem
 	menuCursor         int
 	worktreeGeneration uint64 // Monotonic token passed to loadWorktreeContext; global handler discards mismatched responses.
+	loadedGeneration   uint64 // Generation of the last load that landed; behind worktreeGeneration while one is in flight.
 
 	cleanupOpts   *cleanup.Options
 	cleanupResult *cleanup.Result // standalone cleanup flow ("Cleanup & exit" / sentei cleanup)
@@ -495,18 +499,30 @@ func (m *Model) SetCleanupOpts(opts *cleanup.Options) {
 // list view. The filterLabel is displayed in the status bar to indicate what
 // filter produced the selection (e.g. "merged", "stale > 30d").
 func (m *Model) SetRemoveOpts(preSelection RemovePreSelection) {
-	pathSet := make(map[string]bool, len(preSelection.Paths))
+	m.remove.preSelect = make(map[string]bool, len(preSelection.Paths))
 	for _, p := range preSelection.Paths {
-		pathSet[p] = true
+		m.remove.preSelect[p] = true
 	}
-	for _, wt := range m.remove.worktrees {
-		if pathSet[wt.Path] {
-			m.remove.selected[wt.Path] = true
-		}
-	}
+	m.applyPreSelection()
 	m.remove.filterLabel = preSelection.FilterLabel
 	m.remove.cliCommand = preSelection.CLICommand
 	m.view = listView
+}
+
+// applyPreSelection selects the pre-selected worktrees that are loaded and
+// may be removed. Protection is decided here as everywhere else, whatever the
+// caller's filter let through.
+func (m *Model) applyPreSelection() {
+	for _, wt := range m.remove.worktrees {
+		if m.remove.preSelect[wt.Path] && !m.removalProtected(wt) {
+			m.remove.selected[wt.Path] = true
+		}
+	}
+}
+
+// worktreesLoading reports whether a worktree-context load is in flight.
+func (m Model) worktreesLoading() bool {
+	return m.loadedGeneration != m.worktreeGeneration
 }
 
 // SetMigrateOpts sets the migrate options and starts at the migrate confirmation view.
@@ -519,19 +535,27 @@ func (m *Model) SetMigrateOpts(opts *MigrateOpts) {
 }
 
 func (m Model) Init() tea.Cmd {
-	if m.view == menuView && m.context == repo.ContextBareRepo {
-		if m.motionPreference == MotionOff {
-			return tea.Batch(tea.RequestBackgroundColor, loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration))
-		}
-		return tea.Batch(tea.RequestBackgroundColor, motionTickCmd(), loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration))
+	cmds := []tea.Cmd{tea.RequestBackgroundColor}
+	if m.motionActive() {
+		cmds = append(cmds, motionTickCmd())
 	}
-	return tea.RequestBackgroundColor
+	// Every bare-repo entry point needs the worktrees, not only the menu: a
+	// direct `sentei remove` lists them, and any direct flow can end up on
+	// the menu.
+	if m.context == repo.ContextBareRepo {
+		cmds = append(cmds, loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration))
+	}
+	return tea.Batch(cmds...)
 }
 
 // indeterminateWaitActive reports whether a spinner-bearing wait is visible:
-// the cleanup scan or the menu worktree-context load.
+// the cleanup scan, the menu worktree-context load, or the list before its
+// first rows arrive.
 func (m Model) indeterminateWaitActive() bool {
 	if m.view == cleanupPreviewView && m.cleanupScan == nil {
+		return true
+	}
+	if m.view == listView && m.listAwaitingRows() {
 		return true
 	}
 	if m.view == menuView {
@@ -572,9 +596,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if ctx, ok := msg.(worktreeContextMsg); ok {
 		if ctx.generation == m.worktreeGeneration && ctx.err == nil {
+			m.loadedGeneration = ctx.generation
 			m.remove.worktrees = ctx.worktrees
 			m.remove.defaultBranch = ctx.defaultBranch
 			m.remove.launchedFrom = ctx.launchedFrom
+			m.applyPreSelection()
+			m.remove.preSelect = nil
 			m.reindex()
 			m.updateMenuHints()
 		}
