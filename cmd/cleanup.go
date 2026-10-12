@@ -17,14 +17,13 @@ const (
 
 // RunCleanup executes the cleanup command in non-interactive mode.
 func RunCleanup(args []string) error {
-	opts, err := ParseCleanupFlags(args)
+	opts, repoPath, err := ParseCleanupFlags(args)
 	if err != nil {
 		return err
 	}
 	if err := ValidateCleanupForNonInteractive(opts); err != nil {
 		return err
 	}
-	repoPath := ParseCleanupRepoPath(args)
 	return RunCleanupWithOpts(opts, repoPath)
 }
 

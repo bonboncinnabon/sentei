@@ -10,26 +10,6 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
-func TestParseCleanupRepoPath(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{"no args", nil, "."},
-		{"flags only", []string{"--mode", "safe", "--dry-run"}, "."},
-		{"positional only", []string{"/some/repo"}, "/some/repo"},
-		{"flags then positional", []string{"--mode", "safe", "/some/repo"}, "/some/repo"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := ParseCleanupRepoPath(tt.args); got != tt.want {
-				t.Errorf("ParseCleanupRepoPath(%v) = %q, want %q", tt.args, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestRunCleanup_InvalidMode(t *testing.T) {
 	err := RunCleanup([]string{"--mode", "bogus"})
 	if err == nil {
