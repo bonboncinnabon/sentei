@@ -120,3 +120,96 @@ func TestRun_ExistingWorktreeDirectoryIsNotClaimed(t *testing.T) {
 		t.Error("the install step ran inside a worktree this command did not create")
 	}
 }
+
+// An existing local branch is checked out as it is. The run must say so:
+// the base did not decide where the branch starts.
+func TestRun_ExistingBranchIsCheckedOutAndReported(t *testing.T) {
+	root := newGitRepo(t)
+	gitIn(t, root, "branch", "feature/existing", "main")
+	gitIn(t, filepath.Join(root, "main"), "commit", "-q", "--allow-empty", "-m", "main moves on")
+	branchTip := gitIn(t, root, "rev-parse", "feature/existing")
+
+	result := Run(&git.GitRunner{}, &git.DefaultShellRunner{}, Options{
+		BranchName: "feature/existing", BaseBranch: "main", RepoPath: root,
+	}, func(progress.Event) {})
+
+	if result.HasFailures() {
+		t.Fatalf("unexpected failure: %+v", result)
+	}
+	if !result.BranchExisted {
+		t.Error("BranchExisted = false, want true for a branch that was already there")
+	}
+	message := stepByName(t, result, "Create worktree").Message
+	if !strings.Contains(message, "existing branch feature/existing") || !strings.Contains(message, "base main was not applied") {
+		t.Errorf("create step message = %q, want it to say the existing branch was used and the base was not", message)
+	}
+	if head := gitIn(t, result.WorktreePath, "rev-parse", "HEAD"); head != branchTip {
+		t.Errorf("worktree HEAD = %s, want the existing branch tip %s", head, branchTip)
+	}
+
+	fresh := Run(&git.GitRunner{}, &git.DefaultShellRunner{}, Options{
+		BranchName: "feature/fresh", BaseBranch: "main", RepoPath: root,
+	}, func(progress.Event) {})
+	if fresh.BranchExisted {
+		t.Error("BranchExisted = true for a branch this run created")
+	}
+}
+
+// git worktree add passes the new branch name to an internal `git branch`
+// call, so "-D" as the name force-deleted the branch given as the base.
+func TestRun_BranchNameIsNeverParsedAsAnOption(t *testing.T) {
+	root := newGitRepo(t)
+	gitIn(t, root, "branch", "victim", "main")
+
+	result := Run(&git.GitRunner{}, &git.DefaultShellRunner{}, Options{
+		BranchName: "-D", BaseBranch: "victim", RepoPath: root,
+	}, func(progress.Event) {})
+
+	if result.Err == nil || !strings.Contains(result.Err.Error(), `branch name "-D"`) {
+		t.Errorf("Err = %v, want the option-shaped branch name refused", result.Err)
+	}
+	if !git.BranchExists(&git.GitRunner{}, root, "victim") {
+		t.Error("the base branch was deleted by an option-shaped branch name")
+	}
+}
+
+// A base that looks like an option is refused too. Passed through, "--lock"
+// made git create a locked worktree from HEAD and report success.
+func TestRun_BaseIsNeverParsedAsAWorktreeOption(t *testing.T) {
+	root := newGitRepo(t)
+
+	result := Run(&git.GitRunner{}, &git.DefaultShellRunner{}, Options{
+		BranchName: "feature/inject", BaseBranch: "--lock", RepoPath: root,
+	}, func(progress.Event) {})
+
+	if result.WorktreePath != "" || !result.HasFailures() {
+		t.Errorf("result = %+v, want a failed run with no worktree: --lock is not a branch", result)
+	}
+	if listing := gitIn(t, root, "worktree", "list", "--porcelain"); strings.Contains(listing, "feature-inject") {
+		t.Errorf("git created a worktree from an option-shaped base:\n%s", listing)
+	}
+}
+
+// The merge step takes the same base. Passed through, "--no-ff" left git with
+// no commit to merge, so it merged the branch's upstream instead.
+func TestRun_BaseIsNeverParsedAsAMergeOption(t *testing.T) {
+	root := newGitRepo(t)
+	seed := filepath.Join(filepath.Dir(root), "seed")
+	gitIn(t, seed, "commit", "-q", "--allow-empty", "-m", "upstream moves on")
+	gitIn(t, root, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	gitIn(t, root, "fetch", "-q", "origin")
+	gitIn(t, root, "branch", "--track", "feature/tracked", "origin/main")
+	gitIn(t, root, "update-ref", "refs/heads/feature/tracked", "main")
+	before := gitIn(t, root, "rev-parse", "feature/tracked")
+
+	result := Run(&git.GitRunner{}, &git.DefaultShellRunner{}, Options{
+		BranchName: "feature/tracked", BaseBranch: "--no-ff", RepoPath: root, MergeBase: true,
+	}, func(progress.Event) {})
+
+	if !result.HasFailures() {
+		t.Errorf("result = %+v, want a failure: --no-ff is not a branch", result)
+	}
+	if after := gitIn(t, root, "rev-parse", "feature/tracked"); after != before {
+		t.Errorf("branch moved from %s to %s: git merged something other than the base", before, after)
+	}
+}

@@ -225,3 +225,21 @@ func TestCreateResultErrorSaysWhetherAWorktreeExists(t *testing.T) {
 		t.Errorf("a clean run returned %v", err)
 	}
 }
+
+// --base is ignored for a branch that already exists. The output has to say
+// so, or the caller believes the worktree starts from the base.
+func TestRunCreate_ExistingBranchSaysBaseWasNotApplied(t *testing.T) {
+	bareRepo := setupBareRepo(t)
+	mustGit(t, bareRepo, "branch", "feature/existing", "main")
+
+	var err error
+	out := captureStdout(t, func() {
+		err = RunCreate([]string{"--branch", "feature/existing", "--base", "main", bareRepo})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "checked out existing branch feature/existing; base main was not applied") {
+		t.Errorf("output does not say the existing branch was used:\n%s", out)
+	}
+}

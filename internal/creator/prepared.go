@@ -41,6 +41,13 @@ func prepareCreation(opts Options) (preparedCreation, error) {
 	if strings.TrimSpace(opts.BranchName) == "" || strings.TrimSpace(opts.BaseBranch) == "" || strings.TrimSpace(opts.RepoPath) == "" {
 		return preparedCreation{}, errors.New("preparing worktree creation: branch, base branch, and repository path are required")
 	}
+	// git worktree add hands both names to an internal `git branch` call with
+	// no "--" of its own, so "-D" as a branch name would delete the base.
+	for _, name := range []string{opts.BranchName, opts.BaseBranch} {
+		if strings.HasPrefix(name, "-") {
+			return preparedCreation{}, fmt.Errorf("preparing worktree creation: branch name %q starts with \"-\" and git would read it as an option; use a name that starts with a letter or digit", name)
+		}
+	}
 	if err := validateEcosystemIdentities(opts); err != nil {
 		return preparedCreation{}, fmt.Errorf("preparing worktree creation: %w", err)
 	}
@@ -121,7 +128,7 @@ func (p preparedCreation) run(execution *progress.Execution, runner git.CommandR
 
 	if p.mergeStepID != "" {
 		_, err := execution.Run(setupPhaseID, p.mergeStepID, func() (string, error) {
-			_, err := runner.Run(p.worktreePath, "merge", p.opts.BaseBranch, "--no-edit")
+			_, err := runner.Run(p.worktreePath, "merge", "--no-edit", "--", p.opts.BaseBranch)
 			return "", err
 		})
 		if err != nil {
@@ -149,30 +156,34 @@ func (p preparedCreation) run(execution *progress.Execution, runner git.CommandR
 }
 
 // addWorktree runs git worktree add and records on result what now exists on
-// disk.
+// disk. An existing branch is checked out as it is; the base only starts a new
+// one. Refs follow "--", so a name beginning with "-" is never read as an option.
 func (p preparedCreation) addWorktree(runner git.CommandRunner, result *Result) (string, error) {
-	args := []string{"worktree", "add", p.worktreePath}
-	if git.BranchExists(runner, p.opts.RepoPath, p.opts.BranchName) {
-		args = append(args, p.opts.BranchName)
-	} else {
-		args = append(args, "-b", p.opts.BranchName, p.opts.BaseBranch)
+	branchExisted := git.BranchExists(runner, p.opts.RepoPath, p.opts.BranchName)
+	args := []string{"worktree", "add", "-b", p.opts.BranchName, "--", p.worktreePath, p.opts.BaseBranch}
+	message := p.worktreePath
+	if branchExisted {
+		args = []string{"worktree", "add", "--", p.worktreePath, p.opts.BranchName}
+		message = fmt.Sprintf("%s (checked out existing branch %s; base %s was not applied)", p.worktreePath, p.opts.BranchName, p.opts.BaseBranch)
 	}
 	_, statErr := os.Lstat(p.worktreePath)
 	pathWasFree := errors.Is(statErr, os.ErrNotExist)
 
 	_, err := runner.Run(p.opts.RepoPath, args...)
-	if err == nil {
-		result.WorktreePath = p.worktreePath
-		return p.worktreePath, nil
+	if err != nil {
+		// git removes a worktree it could not check out, but keeps one whose
+		// post-checkout hook failed and still exits non-zero. A .git entry in
+		// a directory that was absent before the command is that worktree.
+		if _, gitErr := os.Stat(filepath.Join(p.worktreePath, ".git")); !pathWasFree || gitErr != nil {
+			return "", fmt.Errorf("creating worktree: %w", err)
+		}
 	}
-	// git removes a worktree it could not check out, but keeps one whose
-	// post-checkout hook failed and still exits non-zero. A .git entry in a
-	// directory that was absent before the command is that worktree.
-	if _, gitErr := os.Stat(filepath.Join(p.worktreePath, ".git")); pathWasFree && gitErr == nil {
-		result.WorktreePath = p.worktreePath
+	result.WorktreePath = p.worktreePath
+	result.BranchExisted = branchExisted
+	if err != nil {
 		return "", fmt.Errorf("worktree created, but git reported an error (a post-checkout hook may have failed): %w", err)
 	}
-	return "", fmt.Errorf("creating worktree: %w", err)
+	return message, nil
 }
 
 func (p preparedCreation) skipBlocked(execution *progress.Execution, reason string) error {
