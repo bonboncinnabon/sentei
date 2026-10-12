@@ -285,7 +285,7 @@ func NewModel(worktrees []git.Worktree, runner git.CommandRunner, repoPath strin
 		width:            80,
 		height:           20,
 		bar:              newOverallBar(),
-		watch:            stopwatch.New(),
+		watch:            newElapsedTicker(),
 		motionPreference: motionPreference(os.Getenv),
 	}
 	m.reindex()
@@ -365,7 +365,7 @@ func NewMenuModel(runner git.CommandRunner, shell git.ShellRunner, repoPath stri
 		menuItems:          items,
 		worktreeGeneration: initGeneration,
 		bar:                newOverallBar(),
-		watch:              stopwatch.New(),
+		watch:              newElapsedTicker(),
 		motionPreference:   motionPreference(os.Getenv),
 		remove: removeState{
 			selected:      make(map[string]bool),

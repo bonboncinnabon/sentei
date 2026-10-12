@@ -7,6 +7,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	progressbar "charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/stopwatch"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -279,6 +280,13 @@ func newOverallBar() progressbar.Model {
 		// the bar retreating.
 		progressbar.WithSpringOptions(6, 1),
 	)
+}
+
+// newElapsedTicker constructs the repaint ticker behind the elapsed readout.
+// The interval is explicit because stopwatch.New leaves it at zero, and a
+// zero interval reschedules every tick immediately.
+func newElapsedTicker() stopwatch.Model {
+	return stopwatch.New(stopwatch.WithInterval(time.Second))
 }
 
 // determinateProgressActive reports whether a ProgressLayout-rendered flow

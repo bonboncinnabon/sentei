@@ -3,11 +3,13 @@ package tui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	progressbar "charm.land/bubbles/v2/progress"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
 func TestProgressLayout_Overall(t *testing.T) {
@@ -75,5 +77,20 @@ func TestRenderProgressLayout_InjectsBarAndElapsed(t *testing.T) {
 	}
 	if !strings.Contains(out, "░") {
 		t.Errorf("rendered layout missing the bar track:\n%s", out)
+	}
+}
+
+// The stopwatch is the once-a-second repaint ticker for the elapsed readout.
+// Each tick schedules the next one after Interval, so a zero interval is a
+// busy loop that re-renders the progress view as fast as the CPU allows.
+func TestElapsedTicker_TicksAtMostOncePerSecond(t *testing.T) {
+	models := map[string]Model{
+		"NewModel":     NewModel(nil, nil, "/repo"),
+		"NewMenuModel": NewMenuModel(nil, nil, "/repo", nil, repo.ContextBareRepo),
+	}
+	for name, m := range models {
+		if m.watch.Interval < time.Second {
+			t.Errorf("%s: stopwatch ticks every %v, want at most one tick per second", name, m.watch.Interval)
+		}
 	}
 }
