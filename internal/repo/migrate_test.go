@@ -577,6 +577,10 @@ func TestMigrate_PointsBareHEADAtTheDefaultBranch(t *testing.T) {
 			if got := mustGit(t, result.WorktreePath, "branch", "--show-current"); got != current {
 				t.Errorf("the worktree is on %q, want it left on %q", got, current)
 			}
+			// The fixture has no remote, and converting must not invent one.
+			if remotes := mustGit(t, root, "remote"); remotes != "" {
+				t.Errorf("remotes = %q, want none", remotes)
+			}
 		})
 	}
 }
@@ -595,4 +599,40 @@ func TestPlanMigrate_NamesTheRootFromASubdirectory(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "migrate "+resolved+" instead") {
 		t.Fatalf("err = %v, want it to point at %s", err, resolved)
 	}
+}
+
+// If git refuses to register the worktree, whatever sits at that path is not
+// the migration's to clean up.
+func TestMigrate_FailedWorktreeAddLeavesTheDirectoryAlone(t *testing.T) {
+	base, root := newCheckout(t)
+	before := snapshot(t, base)
+	migrate, finish := prepareMigrate(realGit, MigrateOptions{RepoPath: root})
+	squatter := filepath.Join(root, "main")
+	for index, declared := range migrate.steps {
+		if declared.id != "worktree" {
+			continue
+		}
+		register := declared.run
+		migrate.steps[index].run = func() (string, error) {
+			// Something else takes the path after the pre-flight cleared it.
+			mustWrite(t, filepath.Join(squatter, ".git"), "gitdir: /elsewhere\n")
+			mustWrite(t, filepath.Join(squatter, "theirs.txt"), "theirs\n")
+			return register()
+		}
+	}
+
+	result := finish(migrate.run(nil))
+
+	if result.Failure() == nil {
+		t.Fatal("git was meant to refuse a directory that is not empty")
+	}
+	for _, name := range []string{".git", "theirs.txt"} {
+		if _, err := os.Stat(filepath.Join(squatter, name)); err != nil {
+			t.Errorf("the rollback removed %s from a directory git never created: %v", name, err)
+		}
+	}
+	if err := os.RemoveAll(squatter); err != nil {
+		t.Fatal(err)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
 }

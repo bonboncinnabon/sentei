@@ -158,6 +158,7 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 	gitDir := filepath.Join(root, ".git")
 	barePath := filepath.Join(root, ".bare")
 	var gitMoved, stateMoved, filesMoved renames
+	registered := false // git created the worktree directory and its .git file
 
 	migrate := flow{name: "repository migration"}
 	migrate.add(migrateValidatePhaseID, "Validate", step{id: "preflight", label: "Check repository", run: func() (string, error) {
@@ -196,6 +197,7 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			if _, err := runner.Run(root, "worktree", "add", "--no-checkout", plan.WorktreePath, plan.Branch); err != nil {
 				return "", err
 			}
+			registered = true
 			adminDir, err := runner.Run(plan.WorktreePath, "rev-parse", "--absolute-git-dir")
 			if err != nil {
 				return "", err
@@ -217,6 +219,10 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			return plan.WorktreePath, nil
 		},
 		undo: func() error {
+			if !registered {
+				// git cleans up after a failed add; nothing here is ours.
+				return nil
+			}
 			// The index goes back first: pruning deletes the admin directory
 			// it sits in. The directory is removed only when empty, so
 			// nothing of the user's can be deleted here.
