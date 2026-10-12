@@ -1006,9 +1006,16 @@ func (m Model) flowIdentity() (sentence, verb string) {
 	return "", ""
 }
 
-// InterruptedFlow names the operation in flight when the model is still on a
-// progress view, used by main to leave a stderr trace after a mid-flow quit.
+// InterruptedFlow names the operation a quit stopped midway, or returns ""
+// when nothing was running. main uses it to leave a stderr trace. A flow
+// that finished and was only holding its last frame was not interrupted.
 func (m Model) InterruptedFlow() string {
+	if !m.operationInFlight() {
+		return ""
+	}
+	if m.view == cleanupResultView {
+		return "repository cleanup"
+	}
 	sentence, _ := m.flowIdentity()
 	return sentence
 }

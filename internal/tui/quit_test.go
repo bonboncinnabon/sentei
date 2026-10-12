@@ -179,3 +179,17 @@ func TestProgressHelp_SaysWhatQuittingDoes(t *testing.T) {
 		t.Errorf("progress help does not mention the quit prompt:\n%s", help)
 	}
 }
+
+// main prints "quit during <operation>" from InterruptedFlow after the
+// program exits. A flow that finished and is only holding its last frame was
+// not interrupted.
+func TestInterruptedFlow_OnlyNamesAnOperationStillRunning(t *testing.T) {
+	for _, view := range operationViews {
+		if got := inFlightModel(view).InterruptedFlow(); got == "" {
+			t.Errorf("view %d: a quit during the running operation leaves no trace", view)
+		}
+		if got := quitTestModel(view).InterruptedFlow(); got != "" {
+			t.Errorf("view %d: InterruptedFlow() = %q for an operation that finished", view, got)
+		}
+	}
+}
