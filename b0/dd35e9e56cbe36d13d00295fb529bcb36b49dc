@@ -1,0 +1,23 @@
+internal/git/paths.go
+  s_b5d41ab2ae0f4c::t_626f440febd57c 23,25-32
+cmd/layouts_test.go
+  s_b5d41ab2ae0f4c::t_ec503bc6321368 115-137
+internal/git/paths_test.go
+  s_b5d41ab2ae0f4c::t_6d282bb3497974 109-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b0dd35e9e56cbe36d13d00295fb529bcb36b49dc",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
