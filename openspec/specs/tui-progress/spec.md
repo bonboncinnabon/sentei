@@ -86,14 +86,14 @@ The TUI SHALL display a summary using `viewTitle("Removal Complete")`, `viewSepa
 - **THEN** the summary SHALL show "Warning: failed to prune worktree metadata" with the error
 
 ### Requirement: Exit from summary
-The TUI SHALL exit or return to menu when the user presses the appropriate key from the summary view.
+The TUI SHALL return to the menu or exit when the user presses the appropriate key from the summary view. Every launch builds the menu, a direct `sentei remove` included, so the summary always has one to return to.
 
-#### Scenario: Quit from summary (standalone mode)
-- **WHEN** the user presses 'q', Enter, or Escape on the summary view and no menu is available
+#### Scenario: Quit from summary
+- **WHEN** the user presses 'q' on the summary view
 - **THEN** the application SHALL exit cleanly
 
 #### Scenario: Return to menu from summary
-- **WHEN** the user presses Enter or Escape on the summary view and a menu is available
+- **WHEN** the user presses Enter or Escape on the summary view
 - **THEN** the TUI SHALL return to the menu view
 
 ### Requirement: Create worktree progress uses shared layout
