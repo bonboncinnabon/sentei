@@ -348,3 +348,29 @@ func TestSetCreateOpts_EcosystemsFlagSurvivesTheBranchForm(t *testing.T) {
 		t.Errorf("installs = %v, want [go] from --ecosystems", got)
 	}
 }
+
+// --merge-base is an explicit request. It is honoured for a branch that
+// already exists on every interactive path: straight to the confirmation, to
+// the options screen, and through the branch form.
+func TestSetCreateOpts_MergeBaseFlagIsHonouredForAnExistingBranch(t *testing.T) {
+	existing := func(opts *CreateOpts) Model {
+		m, _ := unloadedWorktreesModel(t)
+		m = knowRefs(m, "refs/heads/feature/there")
+		m.SetCreateOpts(opts)
+		return m
+	}
+
+	if m := existing(&CreateOpts{Branch: "feature/there"}); m.view != createOptionsView || m.buildCreatorOptions().MergeBase {
+		t.Errorf("without the flag: view=%d MergeBase=%v, want the options screen with the merge off", m.view, m.buildCreatorOptions().MergeBase)
+	}
+	if m := existing(&CreateOpts{Branch: "feature/there", MergeBase: true}); !m.buildCreatorOptions().MergeBase {
+		t.Error("options screen: MergeBase = false, want --merge-base honoured")
+	}
+	if m := existing(&CreateOpts{Branch: "feature/there", Base: "main", MergeBase: true}); !m.buildCreatorOptions().MergeBase {
+		t.Error("confirmation: MergeBase = false, want --merge-base honoured")
+	}
+	form := feed(existing(&CreateOpts{MergeBase: true}), tea.KeyPressMsg{Text: "feature/there"}, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if form.view != createOptionsView || !form.buildCreatorOptions().MergeBase {
+		t.Errorf("branch form: view=%d MergeBase=%v, want the options screen with --merge-base honoured", form.view, form.buildCreatorOptions().MergeBase)
+	}
+}

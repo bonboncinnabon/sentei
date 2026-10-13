@@ -155,6 +155,19 @@ func (p preparedCreation) run(execution *progress.Execution, runner git.CommandR
 	return runErr
 }
 
+// ExistingBranch names what a create for branch checks out instead of starting
+// from the base: the local branch, origin/<branch> when only the remote has
+// it, or "" when the branch exists nowhere.
+func ExistingBranch(runner git.CommandRunner, repoPath, branch string) string {
+	if git.BranchExists(runner, repoPath, branch) {
+		return branch
+	}
+	if _, err := runner.Run(repoPath, "show-ref", "--verify", "refs/remotes/origin/"+branch); err == nil {
+		return "origin/" + branch
+	}
+	return ""
+}
+
 // addWorktree runs git worktree add and records on result what now exists on
 // disk. The base only starts a branch that exists nowhere: a local branch is
 // checked out as it is, and one that only origin has becomes a local branch
@@ -163,16 +176,16 @@ func (p preparedCreation) run(execution *progress.Execution, runner git.CommandR
 // beginning with "-" is never read as an option.
 func (p preparedCreation) addWorktree(runner git.CommandRunner, result *Result) (string, error) {
 	branch, base := p.opts.BranchName, p.opts.BaseBranch
-	remoteRef := "refs/remotes/origin/" + branch
 	args := []string{"worktree", "add", "-b", branch, "--", p.worktreePath, base}
-	existing, message := "", p.worktreePath
-	if git.BranchExists(runner, p.opts.RepoPath, branch) {
+	message := p.worktreePath
+	existing := ExistingBranch(runner, p.opts.RepoPath, branch)
+	switch existing {
+	case "":
+	case branch:
 		args = []string{"worktree", "add", "--", p.worktreePath, branch}
-		existing = branch
 		message = fmt.Sprintf("%s (checked out existing branch %s; base %s was not applied)", p.worktreePath, branch, base)
-	} else if _, err := runner.Run(p.opts.RepoPath, "show-ref", "--verify", remoteRef); err == nil {
-		args = []string{"worktree", "add", "--track", "-b", branch, "--", p.worktreePath, remoteRef}
-		existing = "origin/" + branch
+	default:
+		args = []string{"worktree", "add", "--track", "-b", branch, "--", p.worktreePath, "refs/remotes/" + existing}
 		message = fmt.Sprintf("%s (checked out remote branch %s; base %s was not applied)", p.worktreePath, existing, base)
 	}
 	_, statErr := os.Lstat(p.worktreePath)
