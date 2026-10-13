@@ -32,12 +32,11 @@ func loadMigrateInfo(runner git.CommandRunner, repoPath string) tea.Cmd {
 }
 
 // migrateBlocked reports whether the confirm screen must not start the
-// migration yet: the menu path waits for its pre-flight and stops on a
-// refusal. A direct launch has no pre-flight on screen; the migration runs
-// the same checks as its first step.
+// migration yet: it waits for the pre-flight and stops on a refusal, however
+// the screen was reached.
 func (m Model) migrateBlocked() bool {
 	info := m.repo.migrateInfo
-	return m.migrateOpts == nil && (!info.Loaded || info.Err != nil)
+	return !info.Loaded || info.Err != nil
 }
 
 func (m Model) updateMigrateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -77,23 +76,7 @@ func (m Model) updateMigrateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// migrateConfirmationVM builds a ConfirmationViewModel for the migrate flow.
-func (m Model) migrateConfirmationVM() ConfirmationViewModel {
-	return ConfirmationViewModel{
-		Width: m.width,
-		Title: titleConfirmMigration,
-		Items: []ConfirmationItem{
-			{Label: "Repo path:", Value: m.repoPath},
-		},
-		CLICommand: BuildCLICommand("migrate", nil),
-	}
-}
-
 func (m Model) viewMigrateConfirm() string {
-	if m.migrateOpts != nil {
-		return m.migrateConfirmationVM().View()
-	}
-
 	var b strings.Builder
 
 	b.WriteString(viewTitle(titleMigrate))

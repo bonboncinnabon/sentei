@@ -550,6 +550,11 @@ func (m Model) Init() tea.Cmd {
 	if m.context == repo.ContextBareRepo {
 		cmds = append(cmds, loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration))
 	}
+	// A direct `sentei migrate` starts on the confirm screen, which waits
+	// for the same pre-flight the menu entry asks for.
+	if m.view == migrateConfirmView {
+		cmds = append(cmds, loadMigrateInfo(m.runner, m.repoPath))
+	}
 	return tea.Batch(cmds...)
 }
 

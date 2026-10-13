@@ -66,19 +66,74 @@ func TestSetMigrateOpts_EmptyRepoPathKeepsOriginal(t *testing.T) {
 	}
 }
 
-func TestMigrateConfirmView_DirectLaunchShowsPathAndCommand(t *testing.T) {
-	m := makeMigrateConfirmModel(&MigrateOpts{RepoPath: "/my/repo"})
-
-	output := stripAnsi(m.viewMigrateConfirm())
-
-	for _, want := range []string{"Confirm migration", "/my/repo", "sentei migrate"} {
-		if !strings.Contains(output, want) {
-			t.Errorf("direct-launch view missing %q:\n%s", want, output)
+// newMigratableRepo creates an ordinary repository with one commit on main.
+func newMigratableRepo(t *testing.T) (runner *git.GitRunner, root string) {
+	t.Helper()
+	runner = &git.GitRunner{}
+	root = filepath.Join(t.TempDir(), "proj")
+	mustRun := func(dir string, args ...string) {
+		t.Helper()
+		if _, err := runner.Run(dir, args...); err != nil {
+			t.Fatal(err)
 		}
 	}
-	if strings.Contains(output, "backup") {
-		t.Errorf("migrate no longer makes a backup; the view must not mention one:\n%s", output)
+	mustRun(filepath.Dir(root), "init", "-q", "-b", "main", root)
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("a\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
+	mustRun(root, "add", ".")
+	mustRun(root, "commit", "-qm", "init")
+	return runner, root
+}
+
+// `sentei migrate <repo>` starts on the confirm screen. It has to ask for the
+// same pre-flight the menu entry asks for, show its answer, and hold enter
+// until it has one.
+func TestDirectMigrateLaunch_RunsAndShowsThePreflight(t *testing.T) {
+	runner, root := newMigratableRepo(t)
+	launch := func() Model {
+		m := NewMenuModel(runner, nil, root, &config.Config{}, repo.ContextNonBareRepo)
+		m.width, m.height = 80, 24
+		m.SetMigrateOpts(&MigrateOpts{RepoPath: root})
+		return m
+	}
+
+	t.Run("a repository that can be migrated", func(t *testing.T) {
+		m := launch()
+		if output := stripAnsi(m.viewMigrateConfirm()); !strings.Contains(output, "Checking repository") || strings.Contains(output, "enter confirm") {
+			t.Errorf("before the pre-flight answers the screen must only say it is checking:\n%s", output)
+		}
+
+		m = pumpCmds(m, m.Init()).(Model)
+
+		if info := m.repo.migrateInfo; !info.Loaded || info.Err != nil || info.Plan.Branch != "main" {
+			t.Fatalf("migrateInfo = %+v, want the plan for main", info)
+		}
+		output := stripAnsi(m.viewMigrateConfirm())
+		for _, want := range []string{"Migrate to bare repository", "Current branch", "Move .git to .bare", "proj/main", "enter confirm"} {
+			if !strings.Contains(output, want) {
+				t.Errorf("view missing %q:\n%s", want, output)
+			}
+		}
+	})
+
+	t.Run("a repository that is refused", func(t *testing.T) {
+		if _, err := runner.Run(root, "checkout", "-q", "--detach"); err != nil {
+			t.Fatal(err)
+		}
+		m := launch()
+
+		m = pumpCmds(m, m.Init()).(Model)
+
+		output := stripAnsi(m.viewMigrateConfirm())
+		if !strings.Contains(output, "cannot be migrated yet") || !strings.Contains(output, "HEAD is detached") || strings.Contains(output, "enter confirm") {
+			t.Errorf("expected the refusal, its reason and no confirm:\n%s", output)
+		}
+		updated, cmd := m.updateMigrateConfirm(ConfirmProceedMsg{})
+		if got := updated.(Model).view; got != migrateConfirmView || cmd != nil {
+			t.Errorf("view = %d, cmd nil = %v; a refused migration must not start", got, cmd == nil)
+		}
+	})
 }
 
 func TestMigrateConfirmView_WaitsForThePreflight(t *testing.T) {
@@ -110,31 +165,20 @@ func TestMigrateConfirmView_ShowsThePlan(t *testing.T) {
 	}
 }
 
-func TestMigrateConfirmView_ShowsTheRefusal(t *testing.T) {
-	m := makeMigrateConfirmModel(nil)
-	m.repo.migrateInfo = MigrateInfo{Loaded: true, Err: errors.New("HEAD is detached; check out a branch first")}
-
-	output := stripAnsi(m.viewMigrateConfirm())
-
-	if !strings.Contains(output, "cannot be migrated yet") || !strings.Contains(output, "HEAD is detached") {
-		t.Errorf("expected the refusal and its reason:\n%s", output)
-	}
-	if strings.Contains(output, "enter confirm") {
-		t.Errorf("a refused migration must not offer confirm:\n%s", output)
-	}
-}
-
 func TestUpdateMigrateConfirm_EnterIsInertUntilThePreflightAllows(t *testing.T) {
 	tests := []struct {
 		name string
+		opts *MigrateOpts // set for a direct launch
 		info MigrateInfo
 	}{
-		{"still checking", MigrateInfo{}},
-		{"refused", MigrateInfo{Loaded: true, Err: errors.New("HEAD is detached")}},
+		{"still checking", nil, MigrateInfo{}},
+		{"refused", nil, MigrateInfo{Loaded: true, Err: errors.New("HEAD is detached")}},
+		{"direct launch, still checking", &MigrateOpts{RepoPath: "/repo"}, MigrateInfo{}},
+		{"direct launch, refused", &MigrateOpts{RepoPath: "/repo"}, MigrateInfo{Loaded: true, Err: errors.New("HEAD is detached")}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			m := makeMigrateConfirmModel(nil)
+			m := makeMigrateConfirmModel(test.opts)
 			m.repo.migrateInfo = test.info
 
 			updated, cmd := m.updateMigrateConfirm(ConfirmProceedMsg{})
@@ -147,21 +191,13 @@ func TestUpdateMigrateConfirm_EnterIsInertUntilThePreflightAllows(t *testing.T) 
 }
 
 func TestUpdateMigrateConfirm_EnterStartsTheMigration(t *testing.T) {
-	tests := []struct {
-		name  string
-		model func() Model
-	}{
-		{"menu launch after a clear pre-flight", func() Model {
-			m := makeMigrateConfirmModel(nil)
+	for name, opts := range map[string]*MigrateOpts{
+		"menu launch":   nil,
+		"direct launch": {RepoPath: t.TempDir()},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := makeMigrateConfirmModel(opts)
 			m.repo.migrateInfo = readyMigrateInfo()
-			return m
-		}},
-		// A direct launch shows no pre-flight; the migration checks first.
-		{"direct launch", func() Model { return makeMigrateConfirmModel(&MigrateOpts{RepoPath: t.TempDir()}) }},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			m := test.model()
 			m.runner = &stubRunner{responses: map[string]stubResponse{}}
 
 			updated, cmd := m.updateMigrateConfirm(ConfirmProceedMsg{})
@@ -247,20 +283,7 @@ func TestUpdateMigrateConfirm_QuitKey(t *testing.T) {
 // The confirm screen asks the same pre-flight the migration runs, against a
 // real repository built for this test.
 func TestLoadMigrateInfo(t *testing.T) {
-	runner := &git.GitRunner{}
-	root := filepath.Join(t.TempDir(), "proj")
-	mustRun := func(dir string, args ...string) {
-		t.Helper()
-		if _, err := runner.Run(dir, args...); err != nil {
-			t.Fatal(err)
-		}
-	}
-	mustRun(filepath.Dir(root), "init", "-q", "-b", "main", root)
-	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("a\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	mustRun(root, "add", ".")
-	mustRun(root, "commit", "-qm", "init")
+	runner, root := newMigratableRepo(t)
 
 	info, ok := loadMigrateInfo(runner, root)().(migrateInfoMsg)
 	if !ok || info.err != nil {
@@ -270,7 +293,9 @@ func TestLoadMigrateInfo(t *testing.T) {
 		t.Errorf("plan = %+v", info.plan)
 	}
 
-	mustRun(root, "checkout", "-q", "--detach")
+	if _, err := runner.Run(root, "checkout", "-q", "--detach"); err != nil {
+		t.Fatal(err)
+	}
 	info, _ = loadMigrateInfo(runner, root)().(migrateInfoMsg)
 	if info.err == nil || !strings.Contains(info.err.Error(), "HEAD is detached") {
 		t.Errorf("err = %v, want the detached HEAD refusal", info.err)
