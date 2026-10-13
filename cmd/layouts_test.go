@@ -112,3 +112,26 @@ func TestRunCleanup_JudgesMergedAgainstTheDefaultBranchFromEveryEntryPoint(t *te
 		}
 	})
 }
+
+// ecosystems shows the configuration create applies, so it reads .sentei.yaml
+// from the same root. It is given no path here: started in the .bare
+// directory it used to read .bare/.sentei.yaml.
+func TestRunEcosystems_ReadsTheRootConfigFromEveryEntryPoint(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
+		mustWriteFile(t, filepath.Join(layout.Root, ".sentei.yaml"),
+			"ecosystems:\n  - name: from-the-root\n    detect:\n      files: [root.lock]\n")
+		t.Chdir(entry)
+
+		var err error
+		out := captureStdout(t, func() {
+			err = RunEcosystems(nil)
+		})
+		if err != nil {
+			t.Fatalf("ecosystems: %v", err)
+		}
+		if !strings.Contains(out, "from-the-root") {
+			t.Errorf("the root's .sentei.yaml was not read:\n%s", out)
+		}
+	})
+}

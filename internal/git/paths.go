@@ -20,9 +20,16 @@ func CommonDir(runner CommandRunner, repoPath string) (string, error) {
 	}
 	commonDir := strings.TrimSpace(out)
 	if !filepath.IsAbs(commonDir) {
-		return filepath.Join(repoPath, commonDir), nil
+		commonDir = filepath.Join(repoPath, commonDir)
 	}
-	return filepath.Clean(commonDir), nil
+	// A relative repoPath must not leave the result relative: inside a bare
+	// directory git answers ".", and "." does not carry the directory's name,
+	// which RepoRoot decides by.
+	commonDir, err = filepath.Abs(commonDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve git common dir for %q: %w", repoPath, err)
+	}
+	return commonDir, nil
 }
 
 // RepoRoot resolves the directory that stands for the whole repository holding

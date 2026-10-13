@@ -106,6 +106,13 @@ func TestRepoRoot_SameFromEveryEntryPoint(t *testing.T) {
 		if got := RepoRoot(&GitRunner{}, entry); got != layout.Root {
 			t.Errorf("RepoRoot(%q) = %q, want %q", entry, got, layout.Root)
 		}
+		// A command given no path asks about ".". Inside a bare directory
+		// git answers "." too, which hid the directory's name, so .bare was
+		// taken for its own root.
+		t.Chdir(entry)
+		if got := RepoRoot(&GitRunner{}, "."); got != layout.Root {
+			t.Errorf("RepoRoot(\".\") in %s = %q, want %q", entry, got, layout.Root)
+		}
 	})
 }
 
