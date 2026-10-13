@@ -86,7 +86,7 @@ sentei create  --non-interactive --branch feature/x --base main [--copy-env] [--
 sentei remove  --non-interactive --merged [--stale 30d] [--all] [--dry-run] [--force] [repo]
 sentei cleanup --non-interactive --mode safe [--dry-run] [--force] [repo]
 sentei clone   --non-interactive --url <url> [--name <dir>]
-sentei migrate --non-interactive [--delete-backup] <repo>
+sentei migrate --non-interactive <repo>
 ```
 
 What a caller can rely on:
@@ -106,6 +106,14 @@ What a caller can rely on:
   directory are never removed, with or without `--force`.
 - **`--dry-run` changes nothing.** It prints what `remove` or `cleanup` would
   do and leaves locks in place.
+- **`migrate` converts in place and never copies or deletes.** `.git` becomes
+  `.bare` and the working tree moves, with its index, into a worktree named
+  after the current branch, so staged, unstaged, untracked and ignored files,
+  stashes, remotes, config and hooks all stay. It refuses before touching
+  anything when the conversion cannot be done safely (detached or unborn
+  `HEAD`, a merge or rebase in progress, submodules, linked worktrees, sparse
+  checkout, a directory already named like the worktree), and a step that
+  fails midway is rolled back to the original layout.
 - **`--copy-env` is independent of `--ecosystems`.** The files come from the
   ecosystems detected in the source worktree; `--ecosystems` only selects
   which installs run.

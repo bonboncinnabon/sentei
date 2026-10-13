@@ -1,12 +1,16 @@
 package tui
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
@@ -22,10 +26,16 @@ func makeMigrateConfirmModel(opts *MigrateOpts) Model {
 	return m
 }
 
+func readyMigrateInfo() MigrateInfo {
+	return MigrateInfo{Loaded: true, Plan: repo.MigratePlan{
+		RepoPath: "/some/repo", Branch: "feature/x", WorktreePath: "/some/repo/feature-x", DefaultBranch: "trunk",
+	}}
+}
+
 func TestSetMigrateOpts_EntersConfirmView(t *testing.T) {
 	m := NewMenuModel(nil, nil, "/some/repo", &config.Config{}, repo.ContextNonBareRepo)
 
-	opts := &MigrateOpts{DeleteBackup: true, RepoPath: "/some/repo"}
+	opts := &MigrateOpts{RepoPath: "/some/repo"}
 	m.SetMigrateOpts(opts)
 
 	if m.view != migrateConfirmView {
@@ -56,62 +66,112 @@ func TestSetMigrateOpts_EmptyRepoPathKeepsOriginal(t *testing.T) {
 	}
 }
 
-func TestMigrateConfirmationVM_RepoPathAndDeleteBackup(t *testing.T) {
-	m := makeMigrateConfirmModel(&MigrateOpts{DeleteBackup: true, RepoPath: "/my/repo"})
-	vm := m.migrateConfirmationVM()
-
-	if vm.Title != "Confirm migration" {
-		t.Errorf("expected title 'Confirm migration', got %q", vm.Title)
-	}
-
-	output := stripAnsi(vm.View())
-	if !strings.Contains(output, "/my/repo") {
-		t.Errorf("expected repo path in view, got:\n%s", output)
-	}
-	if !strings.Contains(output, "yes") {
-		t.Errorf("expected delete backup 'yes' in view, got:\n%s", output)
-	}
-	if !strings.Contains(output, "--delete-backup") {
-		t.Errorf("expected '--delete-backup' in CLI command, got:\n%s", output)
-	}
-}
-
-func TestMigrateConfirmationVM_NoDeleteBackup(t *testing.T) {
-	m := makeMigrateConfirmModel(&MigrateOpts{DeleteBackup: false, RepoPath: "/my/repo"})
-	vm := m.migrateConfirmationVM()
-
-	output := stripAnsi(vm.View())
-	if !strings.Contains(output, "no") {
-		t.Errorf("expected delete backup 'no' in view, got:\n%s", output)
-	}
-	if strings.Contains(output, "--delete-backup") {
-		t.Errorf("expected no '--delete-backup' in CLI command, got:\n%s", output)
-	}
-	if !strings.Contains(output, "sentei migrate") {
-		t.Errorf("expected 'sentei migrate' in CLI command, got:\n%s", output)
-	}
-}
-
-func TestMigrateConfirmView_DirectLaunchUsesConfirmationVM(t *testing.T) {
-	m := makeMigrateConfirmModel(&MigrateOpts{DeleteBackup: true, RepoPath: "/my/repo"})
+func TestMigrateConfirmView_DirectLaunchShowsPathAndCommand(t *testing.T) {
+	m := makeMigrateConfirmModel(&MigrateOpts{RepoPath: "/my/repo"})
 
 	output := stripAnsi(m.viewMigrateConfirm())
 
-	if !strings.Contains(output, "Confirm migration") {
-		t.Error("expected 'Confirm migration' title in direct-launch view")
+	for _, want := range []string{"Confirm migration", "/my/repo", "sentei migrate"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("direct-launch view missing %q:\n%s", want, output)
+		}
 	}
-	if !strings.Contains(output, "/my/repo") {
-		t.Error("expected repo path in direct-launch view")
+	if strings.Contains(output, "backup") {
+		t.Errorf("migrate no longer makes a backup; the view must not mention one:\n%s", output)
 	}
 }
 
-func TestMigrateConfirmView_MenuLaunchUsesOriginalView(t *testing.T) {
+func TestMigrateConfirmView_WaitsForThePreflight(t *testing.T) {
 	m := makeMigrateConfirmModel(nil)
 
 	output := stripAnsi(m.viewMigrateConfirm())
 
-	if !strings.Contains(output, "Migrate to bare repository") {
-		t.Errorf("expected 'Migrate to bare repository' in menu-launch view, got:\n%s", output)
+	if !strings.Contains(output, "Checking repository") {
+		t.Errorf("expected a checking notice before the pre-flight answers:\n%s", output)
+	}
+	// Nothing about the repository may be claimed before it has been read.
+	for _, premature := range []string{"clean", "This will", "enter confirm"} {
+		if strings.Contains(output, premature) {
+			t.Errorf("view shows %q before the pre-flight answered:\n%s", premature, output)
+		}
+	}
+}
+
+func TestMigrateConfirmView_ShowsThePlan(t *testing.T) {
+	m := makeMigrateConfirmModel(nil)
+	m.repo.migrateInfo = readyMigrateInfo()
+
+	output := stripAnsi(m.viewMigrateConfirm())
+
+	for _, want := range []string{"Migrate to bare repository", "feature/x", "trunk", "Move .git to .bare", "repo/feature-x", "Nothing is copied or deleted", "enter confirm"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("view missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestMigrateConfirmView_ShowsTheRefusal(t *testing.T) {
+	m := makeMigrateConfirmModel(nil)
+	m.repo.migrateInfo = MigrateInfo{Loaded: true, Err: errors.New("HEAD is detached; check out a branch first")}
+
+	output := stripAnsi(m.viewMigrateConfirm())
+
+	if !strings.Contains(output, "cannot be migrated yet") || !strings.Contains(output, "HEAD is detached") {
+		t.Errorf("expected the refusal and its reason:\n%s", output)
+	}
+	if strings.Contains(output, "enter confirm") {
+		t.Errorf("a refused migration must not offer confirm:\n%s", output)
+	}
+}
+
+func TestUpdateMigrateConfirm_EnterIsInertUntilThePreflightAllows(t *testing.T) {
+	tests := []struct {
+		name string
+		info MigrateInfo
+	}{
+		{"still checking", MigrateInfo{}},
+		{"refused", MigrateInfo{Loaded: true, Err: errors.New("HEAD is detached")}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			m := makeMigrateConfirmModel(nil)
+			m.repo.migrateInfo = test.info
+
+			updated, cmd := m.updateMigrateConfirm(ConfirmProceedMsg{})
+
+			if got := updated.(Model).view; got != migrateConfirmView || cmd != nil {
+				t.Errorf("view = %d, cmd nil = %v; the migration must not start", got, cmd == nil)
+			}
+		})
+	}
+}
+
+func TestUpdateMigrateConfirm_EnterStartsTheMigration(t *testing.T) {
+	tests := []struct {
+		name  string
+		model func() Model
+	}{
+		{"menu launch after a clear pre-flight", func() Model {
+			m := makeMigrateConfirmModel(nil)
+			m.repo.migrateInfo = readyMigrateInfo()
+			return m
+		}},
+		// A direct launch shows no pre-flight; the migration checks first.
+		{"direct launch", func() Model { return makeMigrateConfirmModel(&MigrateOpts{RepoPath: t.TempDir()}) }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			m := test.model()
+			m.runner = &stubRunner{responses: map[string]stubResponse{}}
+
+			updated, cmd := m.updateMigrateConfirm(ConfirmProceedMsg{})
+
+			started := updated.(Model)
+			if started.view != migrateProgressView || cmd == nil {
+				t.Fatalf("view = %d, cmd nil = %v; want the migration running", started.view, cmd == nil)
+			}
+			drainRepoPipeline(t, started)
+		})
 	}
 }
 
@@ -130,8 +190,9 @@ func TestUpdateMigrateConfirm_BackQuitsWhenDirectLaunch(t *testing.T) {
 	}
 }
 
-func TestUpdateMigrateConfirm_BackReturnsToMenu(t *testing.T) {
+func TestUpdateMigrateConfirm_BackReturnsToMenuAndForgetsThePreflight(t *testing.T) {
 	m := makeMigrateConfirmModel(nil)
+	m.repo.migrateInfo = readyMigrateInfo()
 
 	updated, cmd := m.updateMigrateConfirm(ConfirmBackMsg{})
 	result := updated.(Model)
@@ -142,19 +203,20 @@ func TestUpdateMigrateConfirm_BackReturnsToMenu(t *testing.T) {
 	if cmd != nil {
 		t.Error("expected nil cmd when going back to menu")
 	}
+	if result.repo.migrateInfo.Loaded {
+		t.Error("a stale pre-flight answer would let the next visit confirm before its own check")
+	}
 }
 
 func TestUpdateMigrateConfirm_MigrateInfoUpdatesState(t *testing.T) {
 	m := makeMigrateConfirmModel(nil)
+	refusal := errors.New("refused")
 
-	updated, _ := m.updateMigrateConfirm(migrateInfoMsg{branch: "main", isDirty: true})
-	result := updated.(Model)
+	updated, _ := m.updateMigrateConfirm(migrateInfoMsg{plan: repo.MigratePlan{Branch: "main"}, err: refusal})
+	info := updated.(Model).repo.migrateInfo
 
-	if result.repo.migrateInfo.Branch != "main" {
-		t.Errorf("expected branch='main', got %q", result.repo.migrateInfo.Branch)
-	}
-	if !result.repo.migrateInfo.IsDirty {
-		t.Error("expected isDirty=true")
+	if !info.Loaded || info.Plan.Branch != "main" || !errors.Is(info.Err, refusal) {
+		t.Errorf("migrateInfo = %+v, want the loaded plan and refusal", info)
 	}
 }
 
@@ -182,65 +244,73 @@ func TestUpdateMigrateConfirm_QuitKey(t *testing.T) {
 	}
 }
 
+// The confirm screen asks the same pre-flight the migration runs, against a
+// real repository built for this test.
 func TestLoadMigrateInfo(t *testing.T) {
-	cases := []struct {
-		name       string
-		responses  map[string]stubResponse
-		wantBranch string
-		wantDirty  bool
-		wantErr    bool
-	}{
-		{
-			"clean repo",
-			map[string]stubResponse{
-				"/some/repo branch --show-current": {output: "main"},
-				"/some/repo status --porcelain":    {output: ""},
-			},
-			"main", false, false,
-		},
-		{
-			"dirty repo",
-			map[string]stubResponse{
-				"/some/repo branch --show-current": {output: "main"},
-				"/some/repo status --porcelain":    {output: " M file.go"},
-			},
-			"main", true, false,
-		},
-		{
-			"branch lookup fails",
-			map[string]stubResponse{},
-			"", false, true,
-		},
-		{
-			"status lookup fails",
-			map[string]stubResponse{
-				"/some/repo branch --show-current": {output: "main"},
-			},
-			"", false, true,
-		},
+	runner := &git.GitRunner{}
+	root := filepath.Join(t.TempDir(), "proj")
+	mustRun := func(dir string, args ...string) {
+		t.Helper()
+		if _, err := runner.Run(dir, args...); err != nil {
+			t.Fatal(err)
+		}
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			runner := &stubRunner{responses: tc.responses}
+	mustRun(filepath.Dir(root), "init", "-q", "-b", "main", root)
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustRun(root, "add", ".")
+	mustRun(root, "commit", "-qm", "init")
 
-			msg := loadMigrateInfo(runner, "/some/repo")()
+	info, ok := loadMigrateInfo(runner, root)().(migrateInfoMsg)
+	if !ok || info.err != nil {
+		t.Fatalf("msg = %#v, want a clear pre-flight", info)
+	}
+	if info.plan.Branch != "main" || info.plan.WorktreePath != filepath.Join(root, "main") {
+		t.Errorf("plan = %+v", info.plan)
+	}
 
-			info, ok := msg.(migrateInfoMsg)
-			if !ok {
-				t.Fatalf("expected migrateInfoMsg, got %T", msg)
-			}
-			if tc.wantErr {
-				if info.err == nil {
-					t.Fatal("expected an error")
-				}
-				return
-			}
-			if info.err != nil {
-				t.Fatalf("unexpected error: %v", info.err)
-			}
-			if info.branch != tc.wantBranch || info.isDirty != tc.wantDirty {
-				t.Errorf("info = branch %q dirty %v, want %q/%v", info.branch, info.isDirty, tc.wantBranch, tc.wantDirty)
-			}
-		})
+	mustRun(root, "checkout", "-q", "--detach")
+	info, _ = loadMigrateInfo(runner, root)().(migrateInfoMsg)
+	if info.err == nil || !strings.Contains(info.err.Error(), "HEAD is detached") {
+		t.Errorf("err = %v, want the detached HEAD refusal", info.err)
+	}
+}
+
+// columnOf returns the display column at which text starts on its line.
+func columnOf(t *testing.T, view, text string) int {
+	t.Helper()
+	for _, line := range strings.Split(view, "\n") {
+		if index := strings.Index(line, text); index >= 0 {
+			return len([]rune(line[:index]))
+		}
+	}
+	t.Fatalf("%q not found in:\n%s", text, view)
+	return 0
+}
+
+func TestMigrateConfirmView_WrappedRefusalKeepsItsIndent(t *testing.T) {
+	m := makeMigrateConfirmModel(nil)
+	m.repo.migrateInfo = MigrateInfo{Loaded: true, Err: errors.New(strings.Repeat("blocked ", 30))}
+
+	assertWrappedIndent(t, stripAnsi(m.viewMigrateConfirm()), "blocked")
+}
+
+// assertWrappedIndent checks that a message long enough to wrap keeps the
+// four-space indent on every line it spans.
+func assertWrappedIndent(t *testing.T, view, word string) {
+	t.Helper()
+	wrapped := 0
+	for _, line := range strings.Split(view, "\n") {
+		if !strings.Contains(line, word) {
+			continue
+		}
+		wrapped++
+		if !strings.HasPrefix(line, "    ") {
+			t.Errorf("wrapped line lost its indent: %q", line)
+		}
+	}
+	if wrapped < 2 {
+		t.Fatalf("fixture: the message was meant to wrap, got %d line(s):\n%s", wrapped, view)
 	}
 }

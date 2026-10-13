@@ -1,521 +1,774 @@
 package repo
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
-	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
-// alwaysOkShell is a ShellRunner that succeeds for all calls.
-type alwaysOkShell struct{}
+var realGit = &git.GitRunner{}
 
-func (s *alwaysOkShell) RunShell(_ string, _ string) (string, error) {
-	return "", nil
-}
-
-func TestCopyRepositoryBackup_UsesUniqueSiblingWhenPreferredPathExists(t *testing.T) {
-	dir := t.TempDir()
-	source := filepath.Join(dir, "repo")
-	preferred := filepath.Join(dir, "repo_backup_20260715_120000")
-	if err := os.Mkdir(source, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(source, "tracked.txt"), []byte("repository"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(preferred, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(preferred, "owner.txt"), []byte("existing"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	backupPath, err := copyRepositoryBackup(source, preferred, copyTree)
+func mustGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := realGit.Run(dir, args...)
 	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	return out
+}
+
+func mustWrite(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if backupPath == preferred {
-		t.Fatalf("backupPath = existing destination %q", backupPath)
-	}
-	if got, err := os.ReadFile(filepath.Join(preferred, "owner.txt")); err != nil || string(got) != "existing" {
-		t.Fatalf("existing destination changed: content=%q err=%v", got, err)
-	}
-	if got, err := os.ReadFile(filepath.Join(backupPath, "tracked.txt")); err != nil || string(got) != "repository" {
-		t.Fatalf("backup content=%q err=%v", got, err)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestCopyRepositoryBackup_FailureCleansOnlyReservedDestination(t *testing.T) {
-	dir := t.TempDir()
-	source := filepath.Join(dir, "repo")
-	preferred := filepath.Join(dir, "repo_backup_20260715_120000")
-	if err := os.Mkdir(source, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(preferred, 0755); err != nil {
-		t.Fatal(err)
-	}
-	ownerFile := filepath.Join(preferred, "owner.txt")
-	if err := os.WriteFile(ownerFile, []byte("existing"), 0644); err != nil {
-		t.Fatal(err)
-	}
+// newCheckout creates an ordinary repository at <base>/proj with one commit
+// on main and returns the base directory and the repository root.
+func newCheckout(t *testing.T) (base, root string) {
+	t.Helper()
+	base = t.TempDir()
+	root = filepath.Join(base, "proj")
+	mustGit(t, base, "init", "-q", "-b", "main", root)
+	mustWrite(t, filepath.Join(root, "a.txt"), "a\n")
+	mustWrite(t, filepath.Join(root, ".gitignore"), "*.log\n")
+	mustWrite(t, filepath.Join(root, "src", "deep", "f.txt"), "f\n")
+	mustGit(t, root, "add", ".")
+	mustGit(t, root, "commit", "-qm", "init")
+	return base, root
+}
 
-	backupPath, err := copyRepositoryBackup(source, preferred, func(_, dst string) error {
-		if writeErr := os.WriteFile(filepath.Join(dst, "partial"), []byte("partial"), 0644); writeErr != nil {
-			return writeErr
+// dirtyCheckout is newCheckout on a feature branch carrying every kind of
+// state a migration could lose: a stash, staged and unstaged edits and
+// deletions, untracked and ignored files, a symlink, a FIFO, an extra remote,
+// repository config with an include and a hook.
+func dirtyCheckout(t *testing.T) (base, root string) {
+	t.Helper()
+	base, root = newCheckout(t)
+	mustGit(t, root, "checkout", "-q", "-b", "feature/x")
+	mustWrite(t, filepath.Join(root, "b.txt"), "b\n")
+	mustGit(t, root, "add", ".")
+	mustGit(t, root, "commit", "-qm", "feature work")
+
+	mustWrite(t, filepath.Join(root, "a.txt"), "stashed edit\n")
+	mustGit(t, root, "stash")
+
+	mustWrite(t, filepath.Join(root, "staged.txt"), "staged\n")
+	mustGit(t, root, "add", "staged.txt")
+	mustGit(t, root, "rm", "-q", "--cached", "src/deep/f.txt") // staged deletion, file kept
+	mustWrite(t, filepath.Join(root, "a.txt"), "a\nunstaged edit\n")
+	if err := os.Remove(filepath.Join(root, "b.txt")); err != nil { // unstaged deletion
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(root, "untracked.txt"), "untracked\n")
+	mustWrite(t, filepath.Join(root, "build.log"), "ignored\n")
+	mustWrite(t, filepath.Join(root, "node_modules", "pkg", "index.js"), "ignored tree\n")
+	mustWrite(t, filepath.Join(root, ".git", "info", "exclude"), "node_modules/\n")
+	if err := os.Symlink("a.txt", filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	// A FIFO blocks any tool that opens it for reading. Not every platform
+	// has mkfifo; the rest of the fixture stands without it.
+	_ = exec.Command("mkfifo", filepath.Join(root, "pipe")).Run()
+
+	mustGit(t, root, "remote", "add", "origin", "https://example.invalid/proj.git")
+	mustGit(t, root, "remote", "add", "upstream", "https://example.invalid/upstream.git")
+	mustGit(t, root, "config", "sentei.test", "kept")
+	// An included file outside the working tree stays where it is.
+	mustWrite(t, filepath.Join(base, "shared.gitconfig"), "[sentei]\n\tincluded = kept too\n")
+	mustGit(t, root, "config", "include.path", filepath.Join(base, "shared.gitconfig"))
+	hook := filepath.Join(root, ".git", "hooks", "pre-push")
+	mustWrite(t, hook, "#!/bin/sh\nexit 0\n")
+	if err := os.Chmod(hook, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return base, root
+}
+
+// snapshot describes every entry under dir: type, permissions and content.
+// Two equal snapshots mean nothing was added, removed, moved or rewritten.
+func snapshot(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	entries := map[string]string{}
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		return fmt.Errorf("disk full")
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(dir, path)
+		switch mode := info.Mode(); {
+		case mode.IsDir():
+			entries[rel] = "dir"
+		case mode&fs.ModeSymlink != 0:
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			entries[rel] = "link " + target
+		case mode.IsRegular():
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			entries[rel] = fmt.Sprintf("file %v %q", mode.Perm(), content)
+		default:
+			entries[rel] = "special " + mode.Type().String()
+		}
+		return nil
 	})
-	if err == nil || !strings.Contains(err.Error(), "disk full") {
-		t.Fatalf("err = %v, want copy failure", err)
+	if err != nil {
+		t.Fatalf("snapshot %s: %v", dir, err)
 	}
-	if backupPath != "" {
-		t.Fatalf("backupPath = %q, want empty on failure", backupPath)
-	}
-	if got, readErr := os.ReadFile(ownerFile); readErr != nil || string(got) != "existing" {
-		t.Fatalf("existing destination changed: content=%q err=%v", got, readErr)
-	}
-	if _, statErr := os.Stat(preferred + "_1"); !os.IsNotExist(statErr) {
-		t.Fatalf("reserved failed destination remains: %v", statErr)
-	}
+	return entries
 }
 
-func TestCopyRepositoryBackup_TreatsShellMetacharactersAsLiteralPath(t *testing.T) {
-	dir := t.TempDir()
-	source := filepath.Join(dir, "repo$(touch injected)`touch injected2`")
-	if err := os.Mkdir(source, 0755); err != nil {
-		t.Fatal(err)
+func assertSameSnapshot(t *testing.T, before, after map[string]string) {
+	t.Helper()
+	if maps.Equal(before, after) {
+		return
 	}
-	if err := os.WriteFile(filepath.Join(source, "tracked.txt"), []byte("repository"), 0644); err != nil {
-		t.Fatal(err)
+	paths := slices.Sorted(maps.Keys(before))
+	for path := range after {
+		if _, ok := before[path]; !ok {
+			paths = append(paths, path)
+		}
 	}
-
-	backupPath, err := copyRepositoryBackup(source, source+"_backup_20260715_120000", copyRepositoryContents)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "injected")); !os.IsNotExist(err) {
-		t.Fatalf("$() path content executed: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "injected2")); !os.IsNotExist(err) {
-		t.Fatalf("backtick path content executed: %v", err)
-	}
-	if got, err := os.ReadFile(filepath.Join(backupPath, "tracked.txt")); err != nil || string(got) != "repository" {
-		t.Fatalf("backup content=%q err=%v", got, err)
-	}
-}
-
-func TestCopyRepositoryBackup_KeepsBackupRootPrivate(t *testing.T) {
-	dir := t.TempDir()
-	source := filepath.Join(dir, "repo")
-	if err := os.Mkdir(source, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	backupPath, err := copyRepositoryBackup(source, source+"_backup_20260715_120000", copyRepositoryContents)
-	if err != nil {
-		t.Fatal(err)
-	}
-	info, err := os.Stat(backupPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := info.Mode().Perm(); got != 0700 {
-		t.Fatalf("backup root mode = %04o, want 0700", got)
-	}
-}
-
-func TestMigrate_Successful(t *testing.T) {
-	dir := t.TempDir()
-	repoPath := filepath.Join(dir, "my-project")
-	os.MkdirAll(filepath.Join(repoPath, ".git"), 0755)
-	barePath := filepath.Join(repoPath, ".bare")
-
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[remote get-url origin]", repoPath): {Err: fmt.Errorf("error: No such remote 'origin'")},
-		// Validate
-		fmt.Sprintf("%s:[status --porcelain]", repoPath):    {Output: ""},
-		fmt.Sprintf("%s:[branch --show-current]", repoPath): {Output: "main"},
-		// Migrate
-		fmt.Sprintf("%s:[clone --bare .git %s]", repoPath, barePath):                                 {Output: ""},
-		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
-		fmt.Sprintf("%s:[worktree add %s/main main]", repoPath, repoPath):                            {Output: ""},
-	}}
-
-	ec := &mock.EventCollector[progress.Event]{}
-	opts := MigrateOptions{RepoPath: repoPath}
-	result := Migrate(runner, &alwaysOkShell{}, opts, ec.Emit)
-
-	if result.BareRoot != repoPath {
-		t.Errorf("BareRoot = %q, want %q", result.BareRoot, repoPath)
-	}
-	if result.WorktreePath != filepath.Join(repoPath, "main") {
-		t.Errorf("WorktreePath = %q, want %q", result.WorktreePath, filepath.Join(repoPath, "main"))
-	}
-	if result.BackupPath == "" {
-		t.Error("expected BackupPath to be set")
-	}
-	if !strings.Contains(result.BackupPath, "_backup_") {
-		t.Errorf("BackupPath should contain _backup_: %q", result.BackupPath)
-	}
-
-	// No phase failures
-	for _, phase := range result.Phases {
-		for _, step := range phase.Steps {
-			if step.Status == progress.StepFailed {
-				t.Errorf("step %q failed: %v", step.Name, step.Error)
-			}
+	for _, path := range paths {
+		if before[path] != after[path] {
+			t.Errorf("%s changed:\n  before: %.200s\n  after:  %.200s", path, before[path], after[path])
 		}
 	}
 }
 
-func TestMigrate_DirtyRepo_WarningContinues(t *testing.T) {
-	dir := t.TempDir()
-	repoPath := filepath.Join(dir, "dirty-project")
-	os.MkdirAll(filepath.Join(repoPath, ".git"), 0755)
-	barePath := filepath.Join(repoPath, ".bare")
-
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[remote get-url origin]", repoPath):                                          {Err: fmt.Errorf("error: No such remote 'origin'")},
-		fmt.Sprintf("%s:[status --porcelain]", repoPath):                                             {Output: "M file.txt"},
-		fmt.Sprintf("%s:[branch --show-current]", repoPath):                                          {Output: "develop"},
-		fmt.Sprintf("%s:[clone --bare .git %s]", repoPath, barePath):                                 {Output: ""},
-		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
-		fmt.Sprintf("%s:[worktree add %s/develop develop]", repoPath, repoPath):                      {Output: ""},
-	}}
-
-	ec := &mock.EventCollector[progress.Event]{}
-	opts := MigrateOptions{RepoPath: repoPath}
-	result := Migrate(runner, &alwaysOkShell{}, opts, ec.Emit)
-
-	// Should still succeed — dirty is a warning, not a failure
-	for _, phase := range result.Phases {
-		for _, step := range phase.Steps {
-			if step.Status == progress.StepFailed {
-				t.Errorf("step %q failed: %v", step.Name, step.Error)
-			}
-		}
-	}
-
-	// Check that a warning event was emitted for dirty state
-	foundWarning := false
-	for _, e := range ec.Events {
-		if strings.Contains(e.Message, "uncommitted") {
-			foundWarning = true
-			break
-		}
-	}
-	if !foundWarning {
-		t.Error("expected warning event about uncommitted changes")
+// gitState is what git itself reports for a working tree. It must read the
+// same through the migrated worktree as it did through the original checkout.
+func gitState(t *testing.T, worktree string) map[string]string {
+	t.Helper()
+	return map[string]string{
+		"status":       mustGit(t, worktree, "status", "--porcelain"),
+		"staged diff":  mustGit(t, worktree, "diff", "--cached"),
+		"working diff": mustGit(t, worktree, "diff"),
+		"ignored":      mustGit(t, worktree, "status", "--porcelain", "--ignored"),
+		"stash":        mustGit(t, worktree, "stash", "list"),
+		"stash diff":   mustGit(t, worktree, "stash", "show", "-p"),
+		"HEAD reflog":  mustGit(t, worktree, "reflog"),
+		"branches":     mustGit(t, worktree, "branch", "--format=%(refname) %(objectname)"),
+		"remotes":      mustGit(t, worktree, "remote", "-v"),
+		"config":       mustGit(t, worktree, "config", "sentei.test"),
+		"included":     mustGit(t, worktree, "config", "sentei.included"),
+		"head":         mustGit(t, worktree, "symbolic-ref", "HEAD"),
 	}
 }
 
-func TestMigrate_CloneFailure_ShowsRollbackInfo(t *testing.T) {
-	dir := t.TempDir()
-	repoPath := filepath.Join(dir, "fail-project")
-	os.MkdirAll(filepath.Join(repoPath, ".git"), 0755)
-	barePath := filepath.Join(repoPath, ".bare")
+func TestMigrate_MovesTheCheckoutIntoAWorktreeWithoutLosingAnything(t *testing.T) {
+	_, root := dirtyCheckout(t)
+	gitBefore := gitState(t, root)
+	filesBefore := snapshot(t, root)
+	for path := range filesBefore {
+		if path == ".git" || strings.HasPrefix(path, ".git"+string(filepath.Separator)) {
+			delete(filesBefore, path)
+		}
+	}
+	hookBefore := snapshot(t, filepath.Join(root, ".git", "hooks"))
 
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[remote get-url origin]", repoPath): {Err: fmt.Errorf("error: No such remote 'origin'")},
-		fmt.Sprintf("%s:[status --porcelain]", repoPath):    {Output: ""},
-		fmt.Sprintf("%s:[branch --show-current]", repoPath): {Output: "main"},
-		fmt.Sprintf("%s:[clone --bare .git %s]", repoPath, barePath): {
-			Output: "", Err: fmt.Errorf("fatal: failed to clone"),
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	worktree := filepath.Join(root, "feature-x")
+	if result.BareRoot != root || result.WorktreePath != worktree || result.Branch != "feature/x" {
+		t.Errorf("result = root %q worktree %q branch %q", result.BareRoot, result.WorktreePath, result.Branch)
+	}
+
+	// The container holds the repository data, the pointer and the worktree.
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	if want := []string{".bare", ".git", "feature-x"}; !slices.Equal(names, want) {
+		t.Errorf("root holds %v, want %v", names, want)
+	}
+	if pointer, _ := os.ReadFile(filepath.Join(root, ".git")); string(pointer) != "gitdir: .bare\n" {
+		t.Errorf(".git pointer = %q", pointer)
+	}
+	if DetectContext(realGit, root) != ContextBareRepo || DetectContext(realGit, worktree) != ContextBareRepo {
+		t.Error("the migrated repository is not detected as a bare layout")
+	}
+
+	// Every file is where it was, one directory down, byte for byte.
+	filesAfter := snapshot(t, worktree)
+	delete(filesAfter, ".git")
+	assertSameSnapshot(t, filesBefore, filesAfter)
+
+	// Git reports the same staged, unstaged, untracked and ignored state,
+	// the same stash, reflog, branches, remotes and config.
+	gitAfter := gitState(t, worktree)
+	for key, before := range gitBefore {
+		if gitAfter[key] != before {
+			t.Errorf("%s changed:\n--- before\n%s\n--- after\n%s", key, before, gitAfter[key])
+		}
+	}
+	assertSameSnapshot(t, hookBefore, snapshot(t, filepath.Join(root, ".bare", "hooks")))
+
+	// The worktree is a working one: the stash applies and a commit lands.
+	mustGit(t, worktree, "stash", "drop")
+	mustGit(t, worktree, "commit", "-qm", "after migrate")
+	if worktrees, err := git.ListWorktrees(realGit, root); err != nil || len(worktrees) != 2 {
+		t.Errorf("worktrees = %+v, err %v; want the bare entry and one worktree", worktrees, err)
+	}
+}
+
+func TestMigrate_RefusalsLeaveTheRepositoryUntouched(t *testing.T) {
+	conflict := func(t *testing.T, root string) {
+		mustGit(t, root, "checkout", "-q", "-b", "other")
+		mustWrite(t, filepath.Join(root, "a.txt"), "theirs\n")
+		mustGit(t, root, "commit", "-qam", "theirs")
+		mustGit(t, root, "checkout", "-q", "main")
+		mustWrite(t, filepath.Join(root, "a.txt"), "ours\n")
+		mustGit(t, root, "commit", "-qam", "ours")
+	}
+	tests := []struct {
+		name string
+		// setup makes the repository unfit and returns the path to migrate.
+		setup func(t *testing.T, base, root string) string
+		want  string
+	}{
+		{
+			name: "a directory inside the repository",
+			setup: func(t *testing.T, base, root string) string {
+				return filepath.Join(root, "src")
+			},
+			want: "is inside a git repository, not at its root; migrate ",
 		},
-	}}
-
-	ec := &mock.EventCollector[progress.Event]{}
-	opts := MigrateOptions{RepoPath: repoPath}
-	result := Migrate(runner, &alwaysOkShell{}, opts, ec.Emit)
-
-	migratePhase := findPhase(result.Phases, "Migrate")
-	if migratePhase == nil {
-		t.Fatal("expected Migrate phase")
+		{
+			name: "not a repository",
+			setup: func(t *testing.T, base, root string) string {
+				plain := filepath.Join(base, "plain")
+				mustWrite(t, filepath.Join(plain, "notes.txt"), "notes\n")
+				return plain
+			},
+			want: "is not a git repository",
+		},
+		{
+			name: ".git is a file",
+			setup: func(t *testing.T, base, root string) string {
+				linked := filepath.Join(base, "linked")
+				mustGit(t, root, "worktree", "add", "-q", "-b", "linked", linked)
+				return linked
+			},
+			want: "linked worktree or submodule",
+		},
+		{
+			name: "existing linked worktrees",
+			setup: func(t *testing.T, base, root string) string {
+				mustGit(t, root, "worktree", "add", "-q", "-b", "linked", filepath.Join(base, "linked"))
+				return root
+			},
+			want: "already has linked worktrees",
+		},
+		{
+			name: "unborn HEAD",
+			setup: func(t *testing.T, base, root string) string {
+				mustGit(t, root, "checkout", "-q", "--orphan", "fresh")
+				return root
+			},
+			want: "has no commits yet",
+		},
+		{
+			name: "detached HEAD",
+			setup: func(t *testing.T, base, root string) string {
+				mustGit(t, root, "checkout", "-q", "--detach")
+				return root
+			},
+			want: "HEAD is detached",
+		},
+		{
+			name: "merge in progress",
+			setup: func(t *testing.T, base, root string) string {
+				conflict(t, root)
+				if _, err := realGit.Run(root, "merge", "other"); err == nil {
+					t.Fatal("fixture: the merge was meant to conflict")
+				}
+				return root
+			},
+			want: "a merge is in progress",
+		},
+		{
+			name: "rebase in progress",
+			setup: func(t *testing.T, base, root string) string {
+				conflict(t, root)
+				if _, err := realGit.Run(root, "rebase", "other"); err == nil {
+					t.Fatal("fixture: the rebase was meant to conflict")
+				}
+				return root
+			},
+			want: "a rebase is in progress",
+		},
+		{
+			name: "worktree directory name is taken",
+			setup: func(t *testing.T, base, root string) string {
+				mustGit(t, root, "checkout", "-q", "-b", "src")
+				return root
+			},
+			want: "already exists and is where the \"src\" worktree goes",
+		},
+		{
+			name: ".bare is taken",
+			setup: func(t *testing.T, base, root string) string {
+				mustWrite(t, filepath.Join(root, ".bare"), "mine\n")
+				return root
+			},
+			want: "already has a .bare entry",
+		},
+		{
+			name: "submodules",
+			setup: func(t *testing.T, base, root string) string {
+				library := filepath.Join(base, "library")
+				mustGit(t, base, "init", "-q", "-b", "main", library)
+				mustWrite(t, filepath.Join(library, "lib.txt"), "lib\n")
+				mustGit(t, library, "add", ".")
+				mustGit(t, library, "commit", "-qm", "lib")
+				mustGit(t, root, "-c", "protocol.file.allow=always", "submodule", "add", "-q", library, "vendor/library")
+				mustGit(t, root, "commit", "-qm", "add submodule")
+				return root
+			},
+			want: "submodules",
+		},
+		{
+			name: "sparse checkout",
+			setup: func(t *testing.T, base, root string) string {
+				mustGit(t, root, "sparse-checkout", "set", "src")
+				return root
+			},
+			want: "sparse checkout or per-worktree config is enabled",
+		},
+		{
+			name: "core.worktree",
+			setup: func(t *testing.T, base, root string) string {
+				mustGit(t, root, "config", "core.worktree", root)
+				return root
+			},
+			want: "core.worktree is set",
+		},
+		{
+			name: "config included from the working tree",
+			setup: func(t *testing.T, base, root string) string {
+				mustWrite(t, filepath.Join(root, ".gitconfig"), "[alias]\n\tst = status\n")
+				mustGit(t, root, "config", "include.path", "../.gitconfig")
+				return root
+			},
+			want: ".gitconfig, which moves with the working tree",
+		},
+		{
+			name: "already converted",
+			setup: func(t *testing.T, base, root string) string {
+				if err := Migrate(realGit, MigrateOptions{RepoPath: root}, nil).Failure(); err != nil {
+					t.Fatalf("fixture: the first migration failed: %v", err)
+				}
+				return root
+			},
+			want: "already uses the bare layout",
+		},
 	}
-	if !migratePhase.HasFailures() {
-		t.Error("expected Migrate phase to have failures")
-	}
-	// Backup should still exist for rollback
-	if result.BackupPath == "" {
-		t.Error("backup path should be set even on migration failure")
-	}
-}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			base, root := newCheckout(t)
+			target := test.setup(t, base, root)
+			before := snapshot(t, base)
+			var ran []string
 
-func TestDeleteBackup(t *testing.T) {
-	dir := t.TempDir()
-	backupDir := filepath.Join(dir, "backup")
-	os.MkdirAll(backupDir, 0755)
-	os.WriteFile(filepath.Join(backupDir, "file.txt"), []byte("data"), 0644)
+			result := Migrate(realGit, MigrateOptions{RepoPath: target}, func(event progress.Event) {
+				if event.Status == progress.StepRunning {
+					ran = append(ran, event.Step)
+				}
+			})
 
-	err := DeleteBackup(backupDir)
-	if err != nil {
-		t.Fatalf("DeleteBackup() error: %v", err)
-	}
-	if _, err := os.Stat(backupDir); !os.IsNotExist(err) {
-		t.Error("backup directory should be deleted")
-	}
-}
-
-func TestMigrate_DetachedHead_RejectedBeforeDestruction(t *testing.T) {
-	dir := t.TempDir()
-	repoPath := filepath.Join(dir, "detached")
-	os.MkdirAll(filepath.Join(repoPath, ".git"), 0755)
-
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[remote get-url origin]", repoPath): {Err: fmt.Errorf("error: No such remote 'origin'")},
-		fmt.Sprintf("%s:[status --porcelain]", repoPath):    {Output: ""},
-		fmt.Sprintf("%s:[branch --show-current]", repoPath): {Output: ""}, // detached HEAD
-	}}
-
-	ec := &mock.EventCollector[progress.Event]{}
-	result := Migrate(runner, &alwaysOkShell{}, MigrateOptions{RepoPath: repoPath}, ec.Emit)
-
-	validate := findPhase(result.Phases, "Validate")
-	if validate == nil || !validate.HasFailures() {
-		t.Fatal("detached HEAD must fail validation")
-	}
-	for _, phaseName := range []string{"Backup", "Migrate", "Copy"} {
-		phase := findPhase(result.Phases, phaseName)
-		if phase == nil {
-			t.Fatalf("prepared phase %q missing", phaseName)
-		}
-		for _, step := range phase.Steps {
-			if step.Status != progress.StepSkipped {
-				t.Errorf("%s/%s status = %v, want skipped", phaseName, step.Name, step.Status)
+			failure := result.Failure()
+			if failure == nil || !strings.Contains(failure.Error(), test.want) {
+				t.Fatalf("Failure() = %v, want it to mention %q", failure, test.want)
 			}
-		}
-	}
-	for _, c := range runner.Calls {
-		if strings.Contains(c, "clone --bare") {
-			t.Error("clone --bare must not run for a detached HEAD")
-		}
-	}
-}
-
-func TestMigrate_PreservesOriginURL(t *testing.T) {
-	dir := t.TempDir()
-	repoPath := filepath.Join(dir, "with-origin")
-	os.MkdirAll(filepath.Join(repoPath, ".git"), 0755)
-	barePath := filepath.Join(repoPath, ".bare")
-	const originURL = "git@github.com:user/proj.git"
-
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[status --porcelain]", repoPath):                                             {Output: ""},
-		fmt.Sprintf("%s:[branch --show-current]", repoPath):                                          {Output: "main"},
-		fmt.Sprintf("%s:[remote get-url origin]", repoPath):                                          {Output: originURL},
-		fmt.Sprintf("%s:[clone --bare .git %s]", repoPath, barePath):                                 {Output: ""},
-		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
-		fmt.Sprintf("%s:[remote set-url origin %s]", barePath, originURL):                            {Output: ""},
-		fmt.Sprintf("%s:[worktree add %s/main main]", repoPath, repoPath):                            {Output: ""},
-	}}
-
-	ec := &mock.EventCollector[progress.Event]{}
-	result := Migrate(runner, &alwaysOkShell{}, MigrateOptions{RepoPath: repoPath}, ec.Emit)
-
-	for _, phase := range result.Phases {
-		for _, step := range phase.Steps {
-			if step.Status == progress.StepFailed {
-				t.Errorf("step %q failed: %v", step.Name, step.Error)
+			if !strings.Contains(failure.Error(), "the repository is unchanged") {
+				t.Errorf("Failure() = %v, want it to say nothing changed", failure)
 			}
-		}
-	}
-	restored := false
-	for _, c := range runner.Calls {
-		if strings.Contains(c, fmt.Sprintf("remote set-url origin %s", originURL)) {
-			restored = true
-		}
-	}
-	if !restored {
-		t.Error("the real origin URL must be restored on the migrated bare repo")
-	}
-}
-
-func TestMigrate_SlashBranch_ChecksOutExistingBranch(t *testing.T) {
-	dir := t.TempDir()
-	repoPath := filepath.Join(dir, "slash")
-	os.MkdirAll(filepath.Join(repoPath, ".git"), 0755)
-	barePath := filepath.Join(repoPath, ".bare")
-
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[remote get-url origin]", repoPath):                                          {Err: fmt.Errorf("error: No such remote 'origin'")},
-		fmt.Sprintf("%s:[status --porcelain]", repoPath):                                             {Output: ""},
-		fmt.Sprintf("%s:[branch --show-current]", repoPath):                                          {Output: "feature/foo"},
-		fmt.Sprintf("%s:[clone --bare .git %s]", repoPath, barePath):                                 {Output: ""},
-		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
-		fmt.Sprintf("%s:[worktree add %s/feature-foo feature/foo]", repoPath, repoPath):              {Output: ""},
-	}}
-
-	ec := &mock.EventCollector[progress.Event]{}
-	result := Migrate(runner, &alwaysOkShell{}, MigrateOptions{RepoPath: repoPath}, ec.Emit)
-
-	for _, phase := range result.Phases {
-		for _, step := range phase.Steps {
-			if step.Status == progress.StepFailed {
-				t.Errorf("step %q failed: %v", step.Name, step.Error)
+			if want := []string{"preflight"}; !slices.Equal(ran, want) {
+				t.Errorf("steps that ran = %v, want only the pre-flight", ran)
 			}
-		}
-	}
-	// The two-arg form (path + existing branch) checks out feature/foo rather
-	// than inventing a divergent "foo" branch from the basename, and the
-	// worktree directory flattens the slash.
-	twoArg := false
-	for _, c := range runner.Calls {
-		if strings.Contains(c, "[worktree add "+repoPath+"/feature-foo feature/foo]") {
-			twoArg = true
-		}
-	}
-	if !twoArg {
-		t.Error("slash branch must use the two-arg worktree add form with a flattened path")
-	}
-	if want := filepath.Join(repoPath, "feature-foo"); result.WorktreePath != want {
-		t.Errorf("WorktreePath = %q, want %q", result.WorktreePath, want)
+			if result.WorktreePath != "" {
+				t.Errorf("WorktreePath = %q for a migration that never happened", result.WorktreePath)
+			}
+			assertSameSnapshot(t, before, snapshot(t, base))
+		})
 	}
 }
 
-func findPhase(phases []progress.Phase, name string) *progress.Phase {
-	for i := range phases {
-		if phases[i].Name == name {
-			return &phases[i]
+// Every step does its work and then reports a failure. Whatever the step, the
+// rollback must hand back the original repository, byte for byte.
+func TestMigrate_FailureAtAnyStepRestoresTheOriginalLayout(t *testing.T) {
+	probe, _ := prepareMigrate(realGit, MigrateOptions{RepoPath: t.TempDir()})
+	for index, target := range probe.steps {
+		if target.id == "preflight" {
+			continue
 		}
-	}
-	return nil
-}
+		t.Run(target.id, func(t *testing.T) {
+			base, root := dirtyCheckout(t)
+			before := snapshot(t, base)
+			gitBefore := gitState(t, root)
+			migrate, finish := prepareMigrate(realGit, MigrateOptions{RepoPath: root})
+			work := migrate.steps[index].run
+			migrate.steps[index].run = func() (string, error) {
+				if _, err := work(); err != nil {
+					t.Fatalf("fixture: %s failed on its own: %v", target.id, err)
+				}
+				return "", errors.New("injected")
+			}
 
-func TestMigrate_BackupFailure_LeavesNoDestructiveRestore(t *testing.T) {
-	dir := t.TempDir()
-	repoPath := filepath.Join(dir, "proj")
-	os.MkdirAll(filepath.Join(repoPath, ".git"), 0755)
+			result := finish(migrate.run(nil))
 
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[remote get-url origin]", repoPath): {Err: fmt.Errorf("error: No such remote 'origin'")},
-		fmt.Sprintf("%s:[status --porcelain]", repoPath):    {Output: ""},
-		fmt.Sprintf("%s:[branch --show-current]", repoPath): {Output: "main"},
-	}}
-
-	ec := &mock.EventCollector[progress.Event]{}
-	prepared := prepareMigrate(runner, &alwaysOkShell{}, MigrateOptions{RepoPath: repoPath})
-	prepared.operations[prepared.backupCopyIndex].run = func(*progress.Execution) (string, error) {
-		return "", fmt.Errorf("cp -a: No space left on device")
-	}
-	result := prepared.run(ec.Emit)
-
-	backup := findPhase(result.Phases, "Backup")
-	if backup == nil || !backup.HasFailures() {
-		t.Fatal("expected the Backup phase to fail")
-	}
-	// Critical: with no valid backup, BackupPath must be empty. Both the CLI and
-	// TUI gate the (destructive) restore command on BackupPath != "", so an empty
-	// path is what prevents telling the user to rm -rf their still-intact repo.
-	if result.BackupPath != "" {
-		t.Errorf("BackupPath must be empty on backup failure, got %q", result.BackupPath)
-	}
-	// The Migrate phase is declared up front but every operation remains skipped.
-	migrate := findPhase(result.Phases, "Migrate")
-	if migrate == nil {
-		t.Fatal("prepared Migrate phase missing")
-	}
-	for _, step := range migrate.Steps {
-		if step.Status != progress.StepSkipped {
-			t.Errorf("Migrate/%s status = %v, want skipped", step.Name, step.Status)
-		}
+			failure := result.Failure()
+			if failure == nil || !strings.Contains(failure.Error(), "injected") || !strings.Contains(failure.Error(), "the repository is unchanged") {
+				t.Fatalf("Failure() = %v, want the injected failure reported as rolled back", failure)
+			}
+			if rollback := stepResult(result.Phases, migrateRollbackPhaseID, migrateRollbackStepID); rollback.Status != progress.StepDone {
+				t.Errorf("rollback = %#v, want done", rollback)
+			}
+			assertSameSnapshot(t, before, snapshot(t, base))
+			for key, state := range gitState(t, root) {
+				if state != gitBefore[key] {
+					t.Errorf("%s changed:\n--- before\n%s\n--- after\n%s", key, gitBefore[key], state)
+				}
+			}
+		})
 	}
 }
 
-func TestMigrateResult_RestoreCommand_QuotesPaths(t *testing.T) {
-	r := MigrateResult{BareRoot: "/my repo", BackupPath: "/my repo_backup_1"}
-	got := r.RestoreCommand()
-	want := `rm -rf "/my repo" && mv "/my repo_backup_1" "/my repo"`
-	if got != want {
-		t.Errorf("RestoreCommand() = %q, want %q", got, want)
+// A directory without write permission cannot be renamed into a new parent.
+// The move stops part-way with entries on both sides, and the rollback has to
+// bring back exactly the ones that had moved.
+func TestMigrate_UnmovableEntryRollsBackThePartialMove(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
 	}
-}
-
-func TestCopyTree_DoesNotWriteThroughSymlinks(t *testing.T) {
-	dir := t.TempDir()
-	outside := filepath.Join(dir, "precious.txt")
-	if err := os.WriteFile(outside, []byte("PRECIOUS"), 0644); err != nil {
+	base, root := dirtyCheckout(t)
+	locked := filepath.Join(root, "zz-locked")
+	mustWrite(t, filepath.Join(locked, "cache.bin"), "cache\n")
+	if err := os.Chmod(locked, 0o555); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+	before := snapshot(t, base)
 
-	// Case 1: a regular-file source must replace a dst symlink, not write through
-	// it to the (outside-the-worktree) target.
-	src := filepath.Join(dir, "src")
-	dst := filepath.Join(dir, "dst")
-	os.MkdirAll(src, 0755)
-	os.MkdirAll(dst, 0755)
-	os.WriteFile(filepath.Join(src, "f"), []byte("new content"), 0644)
-	os.Symlink(outside, filepath.Join(dst, "f")) // checked-out committed symlink
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
 
-	if err := copyTree(filepath.Join(src, "f"), filepath.Join(dst, "f")); err != nil {
-		t.Fatalf("copyTree (file over symlink): %v", err)
+	failure := result.Failure()
+	if failure == nil || !strings.Contains(failure.Error(), "moving zz-locked into the worktree") {
+		t.Fatalf("Failure() = %v, want the unmovable entry named", failure)
 	}
-	if got, _ := os.ReadFile(outside); string(got) != "PRECIOUS" {
-		t.Errorf("write-through corrupted the symlink target: %q", got)
+	if !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Errorf("Failure() = %v, want it reported as rolled back", failure)
+	}
+	if moved := stepResult(result.Phases, migrateConvertPhaseID, "move-files"); moved.Status != progress.StepFailed {
+		t.Errorf("move-files = %#v, want failed", moved)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
+}
+
+func TestMigrate_BrokenEventStreamStillRollsBack(t *testing.T) {
+	base, root := dirtyCheckout(t)
+	before := snapshot(t, base)
+	delivery := errors.New("delivery")
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, func(event progress.Event) {
+		if event.Step == "move-files" && event.Status == progress.StepDone {
+			panic(delivery)
+		}
+	})
+
+	if !errors.Is(result.Err, delivery) || result.Failure() == nil {
+		t.Fatalf("Err = %v, want the delivery failure", result.Err)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
+}
+
+// Besides the index, a checkout keeps a few files of its own in .git: the
+// message a squash or cherry-pick prepared for the next commit, ORIG_HEAD, the
+// shared half of a split index. A linked worktree reads them from its own
+// admin directory, so they have to move there with the index.
+func TestMigrate_CarriesTheCheckoutsOwnGitStateIntoTheWorktree(t *testing.T) {
+	_, root := newCheckout(t)
+	mustGit(t, root, "checkout", "-q", "-b", "other")
+	mustWrite(t, filepath.Join(root, "other.txt"), "other\n")
+	mustGit(t, root, "add", ".")
+	mustGit(t, root, "commit", "-qm", "work to squash")
+	mustGit(t, root, "checkout", "-q", "main")
+	mustGit(t, root, "update-index", "--split-index")
+	mustGit(t, root, "merge", "-q", "--squash", "other")
+	origHead := mustGit(t, root, "rev-parse", "ORIG_HEAD")
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	worktree := result.WorktreePath
+	if got := mustGit(t, worktree, "rev-parse", "ORIG_HEAD"); got != origHead {
+		t.Errorf("ORIG_HEAD = %q, want %q", got, origHead)
+	}
+	// The squash left its message for the next commit to pick up.
+	mustGit(t, worktree, "commit", "-q", "--no-edit")
+	if message := mustGit(t, worktree, "log", "-1", "--format=%B"); !strings.Contains(message, "work to squash") {
+		t.Errorf("the squash commit lost its prepared message:\n%s", message)
+	}
+}
+
+// The last step compares git status in the new worktree with the status taken
+// before the conversion. A difference means the working tree did not arrive
+// as it left, so the conversion must not stand.
+func TestMigrate_StatusThatChangedDuringTheConversionRollsBack(t *testing.T) {
+	_, root := newCheckout(t)
+	migrate, finish := prepareMigrate(realGit, MigrateOptions{RepoPath: root})
+	for index, declared := range migrate.steps {
+		if declared.id != "move-files" {
+			continue
+		}
+		move := declared.run
+		migrate.steps[index].run = func() (string, error) {
+			message, err := move()
+			// Something edits a tracked file while the conversion is under way.
+			mustWrite(t, filepath.Join(root, "main", "a.txt"), "edited under the migration\n")
+			return message, err
+		}
 	}
 
-	// Case 2: a symlink source is recreated as a symlink, not dereferenced.
-	os.Symlink(outside, filepath.Join(src, "link"))
-	if err := copyTree(filepath.Join(src, "link"), filepath.Join(dst, "link")); err != nil {
-		t.Fatalf("copyTree (symlink): %v", err)
+	result := finish(migrate.run(nil))
+
+	failure := result.Failure()
+	if failure == nil || !strings.Contains(failure.Error(), "differs from before the conversion") {
+		t.Fatalf("Failure() = %v, want the status difference reported", failure)
 	}
-	info, err := os.Lstat(filepath.Join(dst, "link"))
+	if !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Errorf("Failure() = %v, want it reported as rolled back", failure)
+	}
+	if verify := stepResult(result.Phases, migrateConvertPhaseID, "verify"); verify.Status != progress.StepFailed {
+		t.Errorf("verify = %#v, want failed", verify)
+	}
+	// The original layout is back, and the edit is where its author left it.
+	if info, err := os.Stat(filepath.Join(root, ".git")); err != nil || !info.IsDir() {
+		t.Errorf(".git is not a directory again (err %v)", err)
+	}
+	if exists(filepath.Join(root, ".bare")) || exists(filepath.Join(root, "main")) {
+		t.Error("the rollback left .bare or the worktree directory behind")
+	}
+	if status := mustGit(t, root, "status", "--porcelain"); status != "M a.txt" {
+		t.Errorf("status = %q, want only the edit to a.txt", status)
+	}
+}
+
+func TestMigrate_ResolvesRelativeRepoPath(t *testing.T) {
+	base, root := newCheckout(t)
+	t.Chdir(base)
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: "proj/"}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatal(err)
+	}
+	// t.Chdir resolves symlinks, so compare against the resolved root.
+	want, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode()&os.ModeSymlink == 0 {
-		t.Error("source symlink should be recreated as a symlink, not dereferenced")
+	if got, _ := filepath.EvalSymlinks(result.BareRoot); got != want || !filepath.IsAbs(result.BareRoot) {
+		t.Errorf("BareRoot = %q, want the absolute %q", result.BareRoot, want)
+	}
+	if _, err := os.Stat(filepath.Join(root, "main", "a.txt")); err != nil {
+		t.Errorf("the worktree did not land under the repository root: %v", err)
 	}
 }
 
-func TestRestoreWorkingFiles_MissingBackupFails(t *testing.T) {
-	_, err := restoreWorkingFiles(
-		filepath.Join(t.TempDir(), "missing-backup"),
-		t.TempDir(),
-		copyTree,
-		func(string) {},
-	)
-	if err == nil || !strings.Contains(err.Error(), "read migration backup") {
-		t.Fatalf("err = %v, want backup read failure", err)
+func TestMigrateResult_FailureNamesAFailedRollback(t *testing.T) {
+	result := MigrateResult{BareRoot: "/repo", Phases: []progress.Phase{
+		{ID: migrateConvertPhaseID, Steps: []progress.StepResult{{ID: "move-files", Status: progress.StepFailed, Error: errors.New("disk full")}}},
+		{ID: migrateRollbackPhaseID, Steps: []progress.StepResult{{ID: migrateRollbackStepID, Status: progress.StepFailed, Error: errors.New("still full")}}},
+	}}
+
+	failure := result.Failure()
+
+	if failure == nil {
+		t.Fatal("Failure() = nil")
+	}
+	for _, want := range []string{"disk full", "restoring the original layout also failed", "still full", "Nothing was deleted", "/repo"} {
+		if !strings.Contains(failure.Error(), want) {
+			t.Errorf("Failure() = %v, want it to mention %q", failure, want)
+		}
+	}
+	if strings.Contains(failure.Error(), "unchanged") {
+		t.Errorf("Failure() = %v, must not claim the repository is unchanged", failure)
 	}
 }
 
-func TestRestoreWorkingFiles_AttemptsAllEntriesAndReturnsCopyFailures(t *testing.T) {
-	backup := t.TempDir()
-	target := t.TempDir()
-	for _, name := range []string{"a", "b", "c"} {
-		if err := os.WriteFile(filepath.Join(backup, name), []byte(name), 0644); err != nil {
+// os.Rename replaces an existing file. If something writes a path again after
+// it was moved away, the rollback must not put the old file on top of it.
+func TestRenames_UndoDoesNotOverwriteAPathThatReappeared(t *testing.T) {
+	dir := t.TempDir()
+	kept, reappeared := filepath.Join(dir, "kept.txt"), filepath.Join(dir, "reappeared.txt")
+	mustWrite(t, kept, "kept\n")
+	mustWrite(t, reappeared, "original\n")
+	var moved renames
+	for _, path := range []string{kept, reappeared} {
+		if err := moved.move(path, path+".moved"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	want := fmt.Errorf("disk full")
-	var copied, warnings []string
-	message, err := restoreWorkingFiles(backup, target, func(src, _ string) error {
-		name := filepath.Base(src)
-		copied = append(copied, name)
-		if name == "b" {
-			return want
-		}
-		return nil
-	}, func(message string) {
-		warnings = append(warnings, message)
-	})
+	mustWrite(t, reappeared, "written since\n")
 
-	if err == nil || !strings.Contains(err.Error(), "copy b") || !strings.Contains(err.Error(), "disk full") {
-		t.Fatalf("err = %v, want aggregated copy failure", err)
+	err := moved.undo()
+
+	if err == nil || !strings.Contains(err.Error(), reappeared) {
+		t.Fatalf("undo() = %v, want it to name the path it would have overwritten", err)
 	}
-	if got := strings.Join(copied, ","); got != "a,b,c" {
-		t.Fatalf("copy attempts = %q, want all entries", got)
+	for path, want := range map[string]string{
+		reappeared:            "written since\n",
+		reappeared + ".moved": "original\n",
+		kept:                  "kept\n", // the other renames are still undone
+	} {
+		if content, _ := os.ReadFile(path); string(content) != want {
+			t.Errorf("%s = %q, want %q", path, content, want)
+		}
 	}
-	if message != "2 items restored" {
-		t.Fatalf("message = %q", message)
+}
+
+// The bare HEAD names the default branch: sentei protects it and measures
+// "merged" against it. After a migration it must not simply be whatever
+// branch happened to be checked out.
+func TestMigrate_PointsBareHEADAtTheDefaultBranch(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, root string)
+		want  string
+	}{
+		{
+			name: "main, when migrating from a feature branch",
+			setup: func(t *testing.T, root string) {
+				mustGit(t, root, "checkout", "-q", "-b", "feature/x")
+			},
+			want: "main",
+		},
+		{
+			name: "the remote's default, ahead of main",
+			setup: func(t *testing.T, root string) {
+				mustGit(t, root, "branch", "trunk")
+				mustGit(t, root, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+				mustGit(t, root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+				mustGit(t, root, "checkout", "-q", "-b", "feature/x")
+			},
+			want: "trunk",
+		},
+		{
+			name: "the current branch, when nothing names another",
+			setup: func(t *testing.T, root string) {
+				mustGit(t, root, "branch", "-m", "main", "develop")
+				// The remote's default has no local branch to point at.
+				mustGit(t, root, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+				mustGit(t, root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+			},
+			want: "develop",
+		},
 	}
-	if len(warnings) != 1 || !strings.Contains(warnings[0], "could not copy b") {
-		t.Fatalf("warnings = %v", warnings)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, root := newCheckout(t)
+			test.setup(t, root)
+			current := mustGit(t, root, "branch", "--show-current")
+
+			result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+			if err := result.Failure(); err != nil {
+				t.Fatal(err)
+			}
+			if got := git.DetectDefaultBranch(realGit, root); got != test.want {
+				t.Errorf("default branch = %q, want %q", got, test.want)
+			}
+			if got := mustGit(t, result.WorktreePath, "branch", "--show-current"); got != current {
+				t.Errorf("the worktree is on %q, want it left on %q", got, current)
+			}
+			// The fixture has no remote, and converting must not invent one.
+			if remotes := mustGit(t, root, "remote"); remotes != "" {
+				t.Errorf("remotes = %q, want none", remotes)
+			}
+		})
 	}
+}
+
+// From a subdirectory the refusal has to say where the root is: in the TUI
+// there is no path argument to correct.
+func TestPlanMigrate_NamesTheRootFromASubdirectory(t *testing.T) {
+	_, root := newCheckout(t)
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = PlanMigrate(realGit, filepath.Join(root, "src", "deep"))
+
+	if err == nil || !strings.Contains(err.Error(), "migrate "+resolved+" instead") {
+		t.Fatalf("err = %v, want it to point at %s", err, resolved)
+	}
+}
+
+// If git refuses to register the worktree, whatever sits at that path is not
+// the migration's to clean up.
+func TestMigrate_FailedWorktreeAddLeavesTheDirectoryAlone(t *testing.T) {
+	base, root := newCheckout(t)
+	before := snapshot(t, base)
+	migrate, finish := prepareMigrate(realGit, MigrateOptions{RepoPath: root})
+	squatter := filepath.Join(root, "main")
+	for index, declared := range migrate.steps {
+		if declared.id != "worktree" {
+			continue
+		}
+		register := declared.run
+		migrate.steps[index].run = func() (string, error) {
+			// Something else takes the path after the pre-flight cleared it.
+			mustWrite(t, filepath.Join(squatter, ".git"), "gitdir: /elsewhere\n")
+			mustWrite(t, filepath.Join(squatter, "theirs.txt"), "theirs\n")
+			return register()
+		}
+	}
+
+	result := finish(migrate.run(nil))
+
+	if result.Failure() == nil {
+		t.Fatal("git was meant to refuse a directory that is not empty")
+	}
+	for _, name := range []string{".git", "theirs.txt"} {
+		if _, err := os.Stat(filepath.Join(squatter, name)); err != nil {
+			t.Errorf("the rollback removed %s from a directory git never created: %v", name, err)
+		}
+	}
+	if err := os.RemoveAll(squatter); err != nil {
+		t.Fatal(err)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
 }
