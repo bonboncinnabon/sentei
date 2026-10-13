@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
@@ -244,8 +245,15 @@ func (m Model) renderList() string {
 		return b.String()
 	}
 	if err := m.remove.loadErr; err != nil && len(m.remove.worktrees) == 0 {
-		reason := errorPeekLast(err.Error(), max(m.width-32, 20))
-		fmt.Fprintf(&b, "  %s %s\n\n", styleIndicatorFailed.Render(indicatorFailed), styleError.Render("Could not load worktrees: "+reason))
+		fmt.Fprintf(&b, "  %s %s\n", styleIndicatorFailed.Render(indicatorFailed), styleError.Render("Could not load worktrees"))
+		// The reason wraps instead of truncating: git's own message ends the
+		// error chain, and this view has no details portal to hold the rest.
+		reason := ansi.Wrap(strings.Join(nonEmptyLines(err.Error()), "\n"), max(m.width-4, 20), "")
+		for _, line := range strings.Split(reason, "\n") {
+			// A wrapped line keeps the space it broke at, one cell past the limit.
+			b.WriteString("    " + styleError.Render(strings.TrimRight(line, " ")) + "\n")
+		}
+		b.WriteString("\n")
 		b.WriteString(styleDim.Render("  Press esc for the menu, then choose Remove worktrees to try again."))
 		b.WriteString("\n")
 		return b.String()

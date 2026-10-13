@@ -53,6 +53,35 @@ func TestWorktreeLoad_FailureIsShownAndRetryable(t *testing.T) {
 	}
 }
 
+// Git's own message comes last in the error chain, after the command that
+// produced it, and this view has no details portal. The reason wraps so the
+// part that says what went wrong is never the part that is cut.
+func TestWorktreeLoad_FailureShowsTheWholeReason(t *testing.T) {
+	reasons := []string{
+		"listing worktrees: git worktree list --porcelain: fatal: unable to read /repo/.bare/worktrees/feature-x/gitdir: Permission denied\nhint: check the permissions of the bare repository",
+		`not a git repository "/Users/someone/code/personal/some-project/with-a-long-name": git rev-parse --git-dir: fatal: not a git repository (or any of the parent directories): .git`,
+	}
+	unspaced := func(s string) string { return strings.Join(strings.Fields(s), "") }
+
+	for _, reason := range reasons {
+		for _, width := range []int{80, 44, 24} {
+			m := loadingMenuModel()
+			m.width = width
+			m.view = listView
+			updated, _ := m.Update(worktreeContextMsg{err: errors.New(reason), generation: m.worktreeGeneration})
+			view := stripAnsi(updated.(Model).viewList())
+
+			// Wrapping may break a line anywhere, so compare without whitespace.
+			if !strings.Contains(unspaced(view), unspaced(reason)) {
+				t.Errorf("list at %d columns cut the reason %q:\n%s", width, reason, view)
+			}
+			if over := overflowingLines(view, width); len(over) > 0 {
+				t.Errorf("list at %d columns has rows wider than the terminal:\n%s", width, strings.Join(over, "\n"))
+			}
+		}
+	}
+}
+
 func TestWorktreeLoad_SuccessAfterFailureClearsTheError(t *testing.T) {
 	m := loadingMenuModel()
 	updated, _ := m.Update(worktreeContextMsg{err: errors.New("boom"), generation: m.worktreeGeneration})
