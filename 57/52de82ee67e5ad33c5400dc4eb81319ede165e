@@ -1,0 +1,23 @@
+openspec/specs/confirmation-view/spec.md
+  s_b5d41ab2ae0f4c::t_e4fc12fc842216 35,39,41-43,45-47
+openspec/specs/tui-help/spec.md
+  s_b5d41ab2ae0f4c::t_c3d536753b5f77 40-43
+openspec/specs/tui-progress/spec.md
+  s_b5d41ab2ae0f4c::t_2f701ce2902f1c 89,91-92,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5752de82ee67e5ad33c5400dc4eb81319ede165e",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
