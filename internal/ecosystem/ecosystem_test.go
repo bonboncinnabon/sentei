@@ -3,6 +3,7 @@ package ecosystem
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
@@ -165,4 +166,33 @@ func namesOf(ecosystems []Ecosystem) []string {
 		names[i] = e.Name
 	}
 	return names
+}
+
+func TestDetect_GlobCharactersInDirectoryPath(t *testing.T) {
+	reg := NewRegistry([]config.EcosystemConfig{
+		{Name: "go", Detect: config.DetectConfig{Files: []string{"go.mod"}}},
+		{Name: "dotnet", Detect: config.DetectConfig{Files: []string{"*.csproj"}}},
+		{Name: "pnpm", Detect: config.DetectConfig{Files: []string{"./pnpm-lock.yaml"}}},
+		{Name: "absent", Detect: config.DetectConfig{Files: []string{"*.sln"}}},
+	})
+
+	// Worktree directories take their name from the branch, and "[", "*" and
+	// "?" are all legal there.
+	for _, name := range []string{"fix[1]", "release-*", "what?", "plain"} {
+		t.Run(name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), name)
+			if err := os.Mkdir(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			createFiles(t, dir, []string{"go.mod", "app.csproj", "pnpm-lock.yaml"})
+
+			detected, err := reg.Detect(dir)
+			if err != nil {
+				t.Fatalf("Detect() error: %v", err)
+			}
+			if want := []string{"go", "dotnet", "pnpm"}; !slices.Equal(namesOf(detected), want) {
+				t.Errorf("Detect(%q) = %v, want %v", name, namesOf(detected), want)
+			}
+		})
+	}
 }

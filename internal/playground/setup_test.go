@@ -55,6 +55,47 @@ func TestSetup_CreatesExpectedWorktrees(t *testing.T) {
 	}
 }
 
+func TestSetup_IgnoresInheritedGitDir(t *testing.T) {
+	// A repository that has nothing to do with the playground, exported the
+	// way a hook or a git alias exports the repository it runs in.
+	foreign := t.TempDir()
+	foreignGit := func(args ...string) string {
+		cmd := exec.Command("git", append([]string{"-C", foreign}, args...)...)
+		cmd.Env = testtmp.HermeticGitEnv()
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	foreignGit("init", "--initial-branch=trunk")
+	foreignGit("commit", "--allow-empty", "-m", "foreign work")
+	before := foreignGit("for-each-ref") + "\n" + foreignGit("worktree", "list")
+
+	t.Setenv("GIT_DIR", filepath.Join(foreign, ".git"))
+	repoPath, cleanup, err := Setup()
+	if err != nil {
+		t.Fatalf("Setup() error: %v", err)
+	}
+	defer cleanup()
+	if err := os.Unsetenv("GIT_DIR"); err != nil {
+		t.Fatal(err)
+	}
+
+	if after := foreignGit("for-each-ref") + "\n" + foreignGit("worktree", "list"); after != before {
+		t.Errorf("the playground wrote into the repository named by GIT_DIR:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	wtList := exec.Command("git", "-C", repoPath, "worktree", "list", "--porcelain")
+	wtList.Env = testtmp.HermeticGitEnv()
+	out, err := wtList.Output()
+	if err != nil {
+		t.Fatalf("git worktree list error: %v", err)
+	}
+	if blocks := splitWorktreeBlocks(string(out)); len(blocks) != 8 {
+		t.Errorf("expected 8 worktree blocks in the playground, got %d\n%s", len(blocks), out)
+	}
+}
+
 func TestSetup_ConcurrentSessionsAreIsolated(t *testing.T) {
 	repoA, cleanupA, err := Setup()
 	if err != nil {
