@@ -274,31 +274,6 @@ func WithMinProgressDuration(d time.Duration) ModelOption {
 	}
 }
 
-func NewModel(worktrees []git.Worktree, runner git.CommandRunner, repoPath string) Model {
-	ti := textinput.New()
-	ti.Prompt = "filter: "
-
-	m := Model{
-		view:     listView,
-		runner:   runner,
-		repoPath: repoPath,
-		remove: removeState{
-			worktrees:     worktrees,
-			selected:      make(map[string]bool),
-			sortField:     SortByAge,
-			sortAscending: true,
-			filterInput:   ti,
-		},
-		width:            80,
-		height:           20,
-		bar:              newOverallBar(),
-		watch:            newElapsedTicker(),
-		motionPreference: motionPreference(os.Getenv),
-	}
-	m.reindex()
-	return m
-}
-
 func NewMenuModel(runner git.CommandRunner, shell git.ShellRunner, repoPath string, cfg *config.Config, context repo.RepoContext, opts ...ModelOption) Model {
 	branchInput := textinput.New()
 	branchInput.Placeholder = "feature/my-branch"

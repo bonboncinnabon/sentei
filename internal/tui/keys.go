@@ -200,8 +200,6 @@ var (
 	}}}
 
 	summaryMenuFooter = []key.Binding{withDesc(keys.Confirm, "menu"), keys.Quit}
-	summaryQuitFooter = []key.Binding{withDesc(keys.Confirm, "quit"), withDesc(keys.Back, "quit")}
-	createSummaryQuit = []key.Binding{withDesc(keys.Confirm, "quit"), keys.Quit}
 	repoSummaryFooter = []key.Binding{withDesc(keys.Confirm, "open in sentei"), keys.Quit}
 	quitOnlyFooter    = []key.Binding{keys.Quit}
 	cleanupDoneFooter = []key.Binding{withDesc(keys.Confirm, "quit")}

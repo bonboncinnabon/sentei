@@ -19,18 +19,8 @@ func (m Model) updateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, keys.Confirm):
-			if m.menuItems != nil {
-				m.view = menuView
-				return m, nil
-			}
-			return m, tea.Quit
-		case key.Matches(msg, keys.Back):
-			if m.menuItems != nil {
-				m.view = menuView
-				return m, nil
-			}
-			return m, tea.Quit
+		case key.Matches(msg, keys.Confirm), key.Matches(msg, keys.Back):
+			m.view = menuView
 		}
 	}
 	return m, nil
@@ -105,11 +95,7 @@ func (m Model) renderRemovalSummary() string {
 	b.WriteString("\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	if m.menuItems != nil {
-		b.WriteString(viewFooter(m.width, summaryMenuFooter))
-	} else {
-		b.WriteString(viewFooter(m.width, summaryQuitFooter))
-	}
+	b.WriteString(viewFooter(m.width, summaryMenuFooter))
 	b.WriteString("\n")
 
 	return b.String()

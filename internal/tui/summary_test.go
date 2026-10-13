@@ -138,32 +138,6 @@ func TestUpdateSummary_MenuLaunch_QuitKeyMatchesFooter(t *testing.T) {
 	}
 }
 
-func TestUpdateSummary_DirectLaunch_KeysQuit(t *testing.T) {
-	cases := []struct {
-		name string
-		msg  tea.KeyPressMsg
-	}{
-		{"enter", tea.KeyPressMsg{Code: tea.KeyEnter}},
-		{"quit key", keyMsg("q")},
-		{"esc", tea.KeyPressMsg{Code: tea.KeyEsc}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			m := NewModel(nil, nil, "/repo")
-			m.view = summaryView
-
-			_, cmd := m.updateSummary(tc.msg)
-
-			if cmd == nil {
-				t.Fatal("expected a quit command")
-			}
-			if _, ok := cmd().(tea.QuitMsg); !ok {
-				t.Errorf("expected tea.QuitMsg, got %T", cmd())
-			}
-		})
-	}
-}
-
 func TestUpdateSummary_OtherKeysIgnored(t *testing.T) {
 	m := NewModel(nil, nil, "/repo")
 	m.view = summaryView

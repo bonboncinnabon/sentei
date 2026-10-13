@@ -19,11 +19,8 @@ func (m Model) updateCreateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, keys.Confirm):
-			if m.menuItems != nil {
-				m.view = menuView
-				return m, nil
-			}
-			return m, tea.Quit
+			m.view = menuView
+			return m, nil
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 		}
@@ -110,7 +107,7 @@ func (m Model) viewCreateSummary() string {
 	b.WriteString("\n\n")
 	b.WriteString(m.cdLine(wtPath))
 	b.WriteString("\n")
-	b.WriteString(m.createSummaryFooter())
+	b.WriteString(viewFooter(m.width, summaryMenuFooter) + "\n")
 	return b.String()
 }
 
@@ -148,7 +145,7 @@ func (m Model) viewCreateFailed(branch string, result *creator.Result) string {
 
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	b.WriteString(m.createSummaryFooter())
+	b.WriteString(viewFooter(m.width, summaryMenuFooter) + "\n")
 	return b.String()
 }
 
@@ -164,11 +161,4 @@ func (m Model) errorBlock(err error) string {
 
 func (m Model) wrapSummaryLine(text string) []string {
 	return strings.Split(lipgloss.NewStyle().Width(max(m.width-8, 20)).Render(text), "\n")
-}
-
-func (m Model) createSummaryFooter() string {
-	if m.menuItems != nil {
-		return viewFooter(m.width, summaryMenuFooter) + "\n"
-	}
-	return viewFooter(m.width, createSummaryQuit) + "\n"
 }
