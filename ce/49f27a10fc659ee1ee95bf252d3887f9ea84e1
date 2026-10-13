@@ -1,0 +1,21 @@
+internal/worktree/enricher.go
+  s_b5d41ab2ae0f4c::t_22a40ae157f7f4 66-69
+internal/worktree/enricher_test.go
+  s_b5d41ab2ae0f4c::t_84b50dcec112a2 135-137,186-188,206-208,237-240,285-287,325-327,346-349,394-430
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ce49f27a10fc659ee1ee95bf252d3887f9ea84e1",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
