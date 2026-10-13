@@ -1,13 +1,76 @@
 package main
 
 import (
+	"errors"
+	"flag"
+	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/cli"
 	"github.com/bonboncinnabon/sentei/internal/testtmp"
 )
+
+func mustGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = testtmp.HermeticGitEnv()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v failed in %s: %v\n%s", args, dir, err, out)
+	}
+}
+
+// newBareRepo builds, under t.TempDir(), a bare repository with one commit on
+// main. It has no remote, so a clean worktree in it is not at risk.
+func newBareRepo(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	bare := filepath.Join(root, "repo.git")
+	seed := filepath.Join(root, "seed")
+	mustGit(t, root, "init", "--bare", "--initial-branch=main", bare)
+	mustGit(t, root, "clone", bare, seed)
+	if err := os.WriteFile(filepath.Join(seed, "README.md"), []byte("# test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, seed, "add", ".")
+	mustGit(t, seed, "commit", "-m", "initial commit")
+	mustGit(t, seed, "push", "origin", "HEAD:main")
+	return bare
+}
+
+// addWorktree checks out a new branch in a worktree inside the bare repo and
+// returns the worktree's path.
+func addWorktree(t *testing.T, bare, branch string) string {
+	t.Helper()
+	path := filepath.Join(bare, branch)
+	mustGit(t, bare, "worktree", "add", "-b", branch, path, "main")
+	return path
+}
+
+// captureStdout runs fn and returns what it wrote to os.Stdout.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = orig }()
+
+	done := make(chan string)
+	go func() {
+		data, _ := io.ReadAll(r)
+		done <- string(data)
+	}()
+	fn()
+	w.Close()
+	return <-done
+}
 
 // buildSentei compiles the binary into a temp dir and returns its path.
 func buildSentei(t *testing.T) string {
@@ -90,9 +153,265 @@ func TestParseDecision_ResolvesRelativePath(t *testing.T) {
 }
 
 func TestParseDecision_ReturnsFlagErrors(t *testing.T) {
-	if _, err := parseDecision("remove", []string{"--all", "/repo", "--dry-run"}); err == nil {
-		t.Error("expected the argument after the repo path to be rejected")
+	tests := []struct {
+		name    string
+		command string
+		args    []string
+	}{
+		{"remove: argument after the repo path", "remove", []string{"--all", "/repo", "--dry-run"}},
+		{"cleanup: argument after the repo path", "cleanup", []string{"--mode", "safe", "/repo", "--dry-run"}},
+		{"create: argument after the repo path", "create", []string{"--branch", "x", "/repo", "--copy-env"}},
+		{"migrate: argument after the repo path", "migrate", []string{"/repo", "--delete-backup"}},
+		{"cleanup: invalid mode", "cleanup", []string{"--mode", "reckless"}},
+		{"remove: invalid stale duration", "remove", []string{"--stale", "soon"}},
+		{"clone: unknown flag", "clone", []string{"--depth", "1"}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsed, err := parseDecision(tt.command, tt.args)
+			if err == nil {
+				t.Fatalf("expected an error, got %+v", parsed)
+			}
+			if parsed.repoPath != "" {
+				t.Errorf("a failed parse must not name a repository, got %q", parsed.repoPath)
+			}
+		})
+	}
+}
+
+// -h must surface as flag.ErrHelp so main exits 0 instead of reporting it.
+func TestParseDecision_HelpIsErrHelp(t *testing.T) {
+	for _, command := range []string{"cleanup", "create", "clone", "remove", "migrate"} {
+		if _, err := parseDecision(command, []string{"--help"}); !errors.Is(err, flag.ErrHelp) {
+			t.Errorf("%s --help: got %v, want flag.ErrHelp", command, err)
+		}
+	}
+}
+
+// Each command fills its own options and nobody else's: the TUI launch
+// switches on the command name and dereferences the matching pointer.
+func TestParseDecision_FillsTheCommandsOptions(t *testing.T) {
+	t.Run("cleanup", func(t *testing.T) {
+		parsed, err := parseDecision("cleanup", []string{"--mode", "aggressive", "--dry-run"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parsed.cleanup == nil || parsed.cleanup.Mode != cleanup.ModeAggressive || !parsed.cleanup.DryRun {
+			t.Errorf("cleanup options = %+v", parsed.cleanup)
+		}
+		if parsed.create != nil || parsed.clone != nil || parsed.remove != nil || parsed.migrate != nil {
+			t.Errorf("only the cleanup options may be set: %+v", parsed)
+		}
+	})
+	t.Run("create", func(t *testing.T) {
+		parsed, err := parseDecision("create", []string{"--branch", "feature/x", "--base", "main", "--copy-env"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parsed.create == nil || parsed.create.Branch != "feature/x" || parsed.create.Base != "main" || !parsed.create.CopyEnv {
+			t.Errorf("create options = %+v", parsed.create)
+		}
+	})
+	t.Run("clone", func(t *testing.T) {
+		parsed, err := parseDecision("clone", []string{"--url", "git@example.com:a/b.git", "--name", "b"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parsed.clone == nil || parsed.clone.URL != "git@example.com:a/b.git" || parsed.clone.Name != "b" {
+			t.Errorf("clone options = %+v", parsed.clone)
+		}
+	})
+	t.Run("remove", func(t *testing.T) {
+		parsed, err := parseDecision("remove", []string{"--merged", "--stale", "2w"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parsed.remove == nil || !parsed.remove.Merged || parsed.remove.Stale == 0 || parsed.remove.All {
+			t.Errorf("remove options = %+v", parsed.remove)
+		}
+	})
+	t.Run("migrate", func(t *testing.T) {
+		parsed, err := parseDecision("migrate", []string{"--delete-backup", t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parsed.migrate == nil || !parsed.migrate.DeleteBackup {
+			t.Errorf("migrate options = %+v", parsed.migrate)
+		}
+	})
+}
+
+func TestRun_UnknownCommand(t *testing.T) {
+	err := run(buildRegistry(), []string{"integrations"})
+	if !cli.IsUnknownCommand(err) {
+		t.Errorf("got %v, want an unknown-command error so main prints the command list", err)
+	}
+}
+
+func TestRun_EveryCommandIsRegistered(t *testing.T) {
+	registry := buildRegistry()
+	for _, name := range []string{"ecosystems", "clone", "create", "cleanup", "migrate", "remove"} {
+		result, err := registry.Dispatch([]string{name})
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if result.Command == nil || result.Command.RunCLI == nil {
+			t.Errorf("%s has no non-interactive handler", name)
+		}
+	}
+}
+
+func TestRun_OutputCommandRunsWithoutNonInteractive(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	dir := t.TempDir()
+
+	var err error
+	out := captureStdout(t, func() {
+		err = run(buildRegistry(), []string{"ecosystems", dir})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "Ecosystems (") {
+		t.Errorf("expected the ecosystem table, got:\n%s", out)
+	}
+}
+
+// --non-interactive and --yes both route a decision command to its CLI
+// handler, whose validation errors come back to main unchanged.
+func TestRun_NonInteractiveFlagsReachTheCLIHandler(t *testing.T) {
+	dir := t.TempDir()
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"remove --non-interactive", []string{"remove", "--non-interactive", dir}, "at least one filter required"},
+		{"remove --yes", []string{"remove", "--yes", dir}, "at least one filter required"},
+		{"remove -y", []string{"remove", "-y", dir}, "at least one filter required"},
+		{"cleanup --yes", []string{"cleanup", "--yes", dir}, "missing required flag: --mode"},
+		{"clone --non-interactive", []string{"clone", "--non-interactive"}, "missing required flag: --url"},
+		{"flag after the path", []string{"remove", "--all", dir, "--dry-run", "--yes"}, "flags must come before the path"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := run(buildRegistry(), tt.args)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("got %v, want an error containing %q", err, tt.want)
+			}
+		})
+	}
+}
+
+// The global flag scan takes --force out of the arguments; it has to be handed
+// back to remove, or the at-risk override could never be given.
+func TestRun_ForceReachesRemove(t *testing.T) {
+	bare := newBareRepo(t)
+	wtPath := addWorktree(t, bare, "feature")
+	if err := os.WriteFile(filepath.Join(wtPath, "draft.txt"), []byte("unsaved\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := run(buildRegistry(), []string{"remove", "--all", "--non-interactive", bare})
+	if err == nil || !strings.Contains(err.Error(), "--force") {
+		t.Fatalf("got %v, want the at-risk gate to refuse and name --force", err)
+	}
+	if _, statErr := os.Stat(wtPath); statErr != nil {
+		t.Fatalf("the gate must leave the worktree in place: %v", statErr)
+	}
+
+	captureStdout(t, func() {
+		err = run(buildRegistry(), []string{"remove", "--all", "--yes", "--force", bare})
+	})
+	if err != nil {
+		t.Fatalf("--force must reach remove: %v", err)
+	}
+	if _, statErr := os.Stat(wtPath); !os.IsNotExist(statErr) {
+		t.Errorf("expected %s to be removed (stat err: %v)", wtPath, statErr)
+	}
+}
+
+// Without --non-interactive a decision command opens the TUI, but its flags
+// are parsed first: a bad command line must fail before any terminal is needed.
+func TestRun_InteractiveCommandRejectsBadFlagsBeforeTheTUI(t *testing.T) {
+	bare := newBareRepo(t)
+	wtPath := addWorktree(t, bare, "feature")
+
+	err := run(buildRegistry(), []string{"remove", "--all", bare, "--dry-run"})
+	if err == nil || !strings.Contains(err.Error(), "flags must come before the path") {
+		t.Errorf("got %v, want the trailing flag rejected", err)
+	}
+	if _, statErr := os.Stat(wtPath); statErr != nil {
+		t.Errorf("a rejected command line must not touch the worktree: %v", statErr)
+	}
+
+	if err := run(buildRegistry(), []string{"cleanup", "--help"}); !errors.Is(err, flag.ErrHelp) {
+		t.Errorf("cleanup --help: got %v, want flag.ErrHelp", err)
+	}
+}
+
+func TestRunRoot_Version(t *testing.T) {
+	var err error
+	out := captureStdout(t, func() {
+		err = run(buildRegistry(), []string{"--version"})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := "sentei dev (none, unknown)\n"; out != want {
+		t.Errorf("got %q, want %q", out, want)
+	}
+}
+
+func TestRunRoot_DryRun(t *testing.T) {
+	t.Run("lists worktrees", func(t *testing.T) {
+		bare := newBareRepo(t)
+		addWorktree(t, bare, "feature")
+
+		var err error
+		out := captureStdout(t, func() {
+			err = run(buildRegistry(), []string{"--dry-run", bare})
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, want := range []string{"STATUS", "feature", "initial commit"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("summary missing %q:\n%s", want, out)
+			}
+		}
+	})
+
+	t.Run("no worktrees", func(t *testing.T) {
+		bare := newBareRepo(t)
+
+		var err error
+		out := captureStdout(t, func() {
+			err = run(buildRegistry(), []string{"--dry-run", bare})
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out, "No worktrees found") {
+			t.Errorf("got:\n%s", out)
+		}
+	})
+
+	t.Run("requires a bare repository", func(t *testing.T) {
+		err := run(buildRegistry(), []string{"--dry-run", t.TempDir()})
+		if err == nil || !strings.Contains(err.Error(), "--dry-run requires a bare repository") {
+			t.Errorf("got %v", err)
+		}
+	})
+
+	// `sentei <path> --dry-run` would otherwise drop the flag and open the TUI.
+	t.Run("rejects a flag after the path", func(t *testing.T) {
+		err := run(buildRegistry(), []string{t.TempDir(), "--dry-run"})
+		if err == nil || !strings.Contains(err.Error(), "flags must come before the path") {
+			t.Errorf("got %v", err)
+		}
+	})
 }
 
 func TestVersionFlag(t *testing.T) {
