@@ -63,7 +63,10 @@ func enrichWorktree(runner git.CommandRunner, wt *git.Worktree, repoHasRemotes b
 	}
 	wt.LastCommitSubject = strings.TrimSpace(subject)
 
-	statusOutput, err := runner.Run(wt.Path, "status", "--porcelain")
+	// --untracked-files pins git's default: with status.showUntrackedFiles=no in
+	// the user's config, untracked files would be left out and the worktree
+	// would read as clean.
+	statusOutput, err := runner.Run(wt.Path, "status", "--porcelain", "--untracked-files=normal")
 	if err != nil {
 		wt.EnrichmentError = err.Error()
 		return

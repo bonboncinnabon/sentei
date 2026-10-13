@@ -132,9 +132,9 @@ func TestParseCommitDate(t *testing.T) {
 func TestEnrichWorktree_Success(t *testing.T) {
 	runner := &mock.Runner{
 		Responses: map[string]mock.Response{
-			"/work/feature:[log -1 --format=%ci]": {Output: "2024-06-01 12:00:00 +0000"},
-			"/work/feature:[log -1 --format=%s]":  {Output: "Add feature X"},
-			"/work/feature:[status --porcelain]":  {Output: " M file.go\n?? new.txt"},
+			"/work/feature:[log -1 --format=%ci]":                         {Output: "2024-06-01 12:00:00 +0000"},
+			"/work/feature:[log -1 --format=%s]":                          {Output: "Add feature X"},
+			"/work/feature:[status --porcelain --untracked-files=normal]": {Output: " M file.go\n?? new.txt"},
 		},
 	}
 
@@ -183,9 +183,9 @@ func TestEnrichWorktree_LogCommandFails(t *testing.T) {
 func TestEnrichWorktree_StatusCommandFails(t *testing.T) {
 	runner := &mock.Runner{
 		Responses: map[string]mock.Response{
-			"/work/broken:[log -1 --format=%ci]": {Output: "2024-01-01 00:00:00 +0000"},
-			"/work/broken:[log -1 --format=%s]":  {Output: "Some commit"},
-			"/work/broken:[status --porcelain]":  {Err: fmt.Errorf("git status: permission denied")},
+			"/work/broken:[log -1 --format=%ci]":                         {Output: "2024-01-01 00:00:00 +0000"},
+			"/work/broken:[log -1 --format=%s]":                          {Output: "Some commit"},
+			"/work/broken:[status --porcelain --untracked-files=normal]": {Err: fmt.Errorf("git status: permission denied")},
 		},
 	}
 
@@ -203,9 +203,9 @@ func TestEnrichWorktree_StatusCommandFails(t *testing.T) {
 func TestEnrichWorktrees_MixedSlice(t *testing.T) {
 	runner := &mock.Runner{
 		Responses: map[string]mock.Response{
-			"/work/normal:[log -1 --format=%ci]": {Output: "2024-03-15 09:00:00 +0000"},
-			"/work/normal:[log -1 --format=%s]":  {Output: "Normal commit"},
-			"/work/normal:[status --porcelain]":  {Output: ""},
+			"/work/normal:[log -1 --format=%ci]":                         {Output: "2024-03-15 09:00:00 +0000"},
+			"/work/normal:[log -1 --format=%s]":                          {Output: "Normal commit"},
+			"/work/normal:[status --porcelain --untracked-files=normal]": {Output: ""},
 		},
 	}
 
@@ -234,10 +234,10 @@ func TestEnrichWorktrees_MixedSlice(t *testing.T) {
 func TestEnrichWorktrees_PartialFailure(t *testing.T) {
 	runner := &mock.Runner{
 		Responses: map[string]mock.Response{
-			"/work/ok:[log -1 --format=%ci]":     {Output: "2024-03-15 09:00:00 +0000"},
-			"/work/ok:[log -1 --format=%s]":      {Output: "Good commit"},
-			"/work/ok:[status --porcelain]":      {Output: ""},
-			"/work/broken:[log -1 --format=%ci]": {Err: fmt.Errorf("directory missing")},
+			"/work/ok:[log -1 --format=%ci]":                         {Output: "2024-03-15 09:00:00 +0000"},
+			"/work/ok:[log -1 --format=%s]":                          {Output: "Good commit"},
+			"/work/ok:[status --porcelain --untracked-files=normal]": {Output: ""},
+			"/work/broken:[log -1 --format=%ci]":                     {Err: fmt.Errorf("directory missing")},
 		},
 	}
 
@@ -282,9 +282,9 @@ func TestParseAheadCount(t *testing.T) {
 
 func TestEnrichWorktree_UnpushedDetection(t *testing.T) {
 	base := map[string]mock.Response{
-		"/work/feature:[log -1 --format=%ci]": {Output: "2024-06-01 12:00:00 +0000"},
-		"/work/feature:[log -1 --format=%s]":  {Output: "Add feature X"},
-		"/work/feature:[status --porcelain]":  {Output: ""},
+		"/work/feature:[log -1 --format=%ci]":                         {Output: "2024-06-01 12:00:00 +0000"},
+		"/work/feature:[log -1 --format=%s]":                          {Output: "Add feature X"},
+		"/work/feature:[status --porcelain --untracked-files=normal]": {Output: ""},
 	}
 	cases := []struct {
 		name         string
@@ -322,9 +322,9 @@ func TestEnrichWorktree_UnpushedDetection(t *testing.T) {
 func TestEnrichWorktree_NoRemotesNeverUnpushed(t *testing.T) {
 	runner := &mock.Runner{
 		Responses: map[string]mock.Response{
-			"/work/feature:[log -1 --format=%ci]": {Output: "2024-06-01 12:00:00 +0000"},
-			"/work/feature:[log -1 --format=%s]":  {Output: "Add feature X"},
-			"/work/feature:[status --porcelain]":  {Output: ""},
+			"/work/feature:[log -1 --format=%ci]":                         {Output: "2024-06-01 12:00:00 +0000"},
+			"/work/feature:[log -1 --format=%s]":                          {Output: "Add feature X"},
+			"/work/feature:[status --porcelain --untracked-files=normal]": {Output: ""},
 		},
 	}
 
@@ -343,10 +343,10 @@ func TestEnrichWorktree_NoRemotesNeverUnpushed(t *testing.T) {
 func TestEnrichWorktree_GoneUpstreamMergedNotUnpushed(t *testing.T) {
 	runner := &mock.Runner{
 		Responses: map[string]mock.Response{
-			"/work/feature:[log -1 --format=%ci]":                   {Output: "2024-06-01 12:00:00 +0000"},
-			"/work/feature:[log -1 --format=%s]":                    {Output: "Add feature X"},
-			"/work/feature:[status --porcelain]":                    {Output: ""},
-			"/work/feature:[rev-list --count HEAD --not --remotes]": {Output: "0"},
+			"/work/feature:[log -1 --format=%ci]":                         {Output: "2024-06-01 12:00:00 +0000"},
+			"/work/feature:[log -1 --format=%s]":                          {Output: "Add feature X"},
+			"/work/feature:[status --porcelain --untracked-files=normal]": {Output: ""},
+			"/work/feature:[rev-list --count HEAD --not --remotes]":       {Output: "0"},
 		},
 	}
 
@@ -389,5 +389,42 @@ func TestEnrichWorktrees_LastCommitDateIsCommitterDate(t *testing.T) {
 	want := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 	if !enriched[0].LastCommitDate.Equal(want) {
 		t.Errorf("LastCommitDate = %v, want the committer date %v", enriched[0].LastCommitDate, want)
+	}
+}
+
+// status.showUntrackedFiles=no makes a plain `git status --porcelain` omit
+// untracked files. The at-risk gate reads that output, so a worktree holding
+// an unsaved file would count as clean and be removed without --force.
+func TestEnrichWorktrees_SeesUntrackedFilesDespiteUserConfig(t *testing.T) {
+	dir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = testtmp.HermeticGitEnv()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run("init", "--initial-branch=main")
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("add", ".")
+	run("commit", "-m", "initial commit")
+	run("config", "status.showUntrackedFiles", "no")
+	if err := os.WriteFile(filepath.Join(dir, "draft.txt"), []byte("unsaved\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	enriched := EnrichWorktrees(&git.GitRunner{}, []git.Worktree{{Path: dir}}, 1)
+
+	if enriched[0].EnrichmentError != "" {
+		t.Fatalf("enrichment failed: %s", enriched[0].EnrichmentError)
+	}
+	if !enriched[0].HasUntrackedFiles {
+		t.Error("the untracked file must be reported whatever the user's status.showUntrackedFiles says")
+	}
+	if !AtRisk(enriched[0]) {
+		t.Error("a worktree with an untracked file is at risk")
 	}
 }
