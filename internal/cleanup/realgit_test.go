@@ -380,3 +380,22 @@ func TestRun_WorktreePathKeepsTheDefaultBranch(t *testing.T) {
 		t.Errorf("BranchesSkipped = %v, want it to contain %v", result.BranchesSkipped, want)
 	}
 }
+
+// With a tag and a branch of the same name, %(refname:short) abbreviates the
+// branch to "heads/<name>", which no candidate is called.
+func TestDryRun_MetadataOfBranchNamedLikeATag(t *testing.T) {
+	f := newRepoFixture(t)
+	f.git(f.root, "branch", "--quiet", "rel", "main")
+	f.git(f.root, "tag", "rel")
+
+	scan, err := DryRun(&git.GitRunner{}, f.root)
+	if err != nil {
+		t.Fatalf("DryRun: %v", err)
+	}
+	if len(scan.AggressiveBranches) != 1 || scan.AggressiveBranches[0].Name != "rel" {
+		t.Fatalf("AggressiveBranches = %+v, want only rel", scan.AggressiveBranches)
+	}
+	if got := scan.AggressiveBranches[0]; got.LastCommitSubject != "initial commit" || got.LastCommitDate.IsZero() {
+		t.Errorf("candidate rel has no commit metadata: %+v", got)
+	}
+}
