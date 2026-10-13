@@ -1,0 +1,29 @@
+cmd/create.go
+  s_b5d41ab2ae0f4c::t_c1c3b79c8484ca 76-77
+cmd/ecosystems.go
+  s_b5d41ab2ae0f4c::t_b0608d2227763c 35,38-39,41,47-48
+internal/ecosystem/ecosystem.go
+  s_b5d41ab2ae0f4c::t_76533844c1f9e8 12-18,21
+internal/ecosystem/ecosystem_e2e_test.go
+  s_b5d41ab2ae0f4c::t_98181f54ec1373 30,69,71,83,106,139
+internal/ecosystem/ecosystem_test.go
+  s_b5d41ab2ae0f4c::t_a197227c811cd5 15-17,33,80,87,105,112,122,128,134-135,144,149,161
+internal/tui/create_branch.go
+  s_b5d41ab2ae0f4c::t_727d549d80b55e 147-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "797be71561d62d88afb71a94f25be2e246e08d38",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
