@@ -266,3 +266,16 @@ func TestViewCleanupResult_EveryFailedDeletionIsListed(t *testing.T) {
 		t.Errorf("only the first line of each failure belongs on its row:\n%s", view)
 	}
 }
+
+func TestViewCleanupResult_OneRemainingBranchReadsAsSingular(t *testing.T) {
+	skipped := []cleanup.SkippedBranch{{Name: "develop", Reason: cleanup.SkipProtected}}
+	for name, result := range map[string]cleanup.Result{
+		"nothing cleaned": {BranchesSkipped: skipped},
+		"some cleaned":    {StaleRefsRemoved: 1, BranchesSkipped: skipped},
+	} {
+		view := stripANSI(resultModel(nil, result).viewCleanupResult())
+		if !strings.Contains(view, "1 branch remains") {
+			t.Errorf("%s: expected \"1 branch remains\":\n%s", name, view)
+		}
+	}
+}

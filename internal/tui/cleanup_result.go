@@ -69,14 +69,14 @@ func (m Model) viewCleanupResult() string {
 		fmt.Fprintf(&b, "  %s\n\n", styleDim.Render("Dry run: nothing was changed"))
 	case len(r.Errors) == 0 && totalActions == 0 && skipped > 0:
 		// Nothing happened but branches were skipped: never claim clean.
-		fmt.Fprintf(&b, "  %s Nothing cleaned: %d %s remain\n\n",
-			styleIndicatorWarning.Render(indicatorWarning), skipped, pluralize(skipped, "branch", "branches"))
+		fmt.Fprintf(&b, "  %s Nothing cleaned: %d %s\n\n",
+			styleIndicatorWarning.Render(indicatorWarning), skipped, pluralize(skipped, "branch remains", "branches remain"))
 	case len(r.Errors) == 0 && totalActions == 0:
 		fmt.Fprintf(&b, "  %s Repository is clean\n\n",
 			styleIndicatorDone.Render(indicatorDone))
 	case totalActions > 0 && skipped > 0:
-		fmt.Fprintf(&b, "  %s Cleanup complete: %d %s remain\n\n",
-			styleIndicatorWarning.Render(indicatorWarning), skipped, pluralize(skipped, "branch", "branches"))
+		fmt.Fprintf(&b, "  %s Cleanup complete: %d %s\n\n",
+			styleIndicatorWarning.Render(indicatorWarning), skipped, pluralize(skipped, "branch remains", "branches remain"))
 	}
 
 	writeSafeChecks(&b, [...]int{r.StaleRefsRemoved, r.GoneBranchesDeleted, r.ConfigOrphanResult.Removed, r.WorktreesPruned}, did, r.Errors)
