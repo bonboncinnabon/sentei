@@ -285,6 +285,12 @@ func submodulesUnder(runner git.CommandRunner, root, modules string, nested bool
 		dir := filepath.Join(modules, entry.Name())
 		below, belowNested := dir, nested
 		if head, err := os.Lstat(filepath.Join(dir, "HEAD")); err == nil && head.Mode().IsRegular() {
+			// The repository moves, checked out or not, and its own linked
+			// worktrees name it by the path it has now. git does not move a
+			// repository that has them either.
+			if hasContent(filepath.Join(dir, "worktrees")) {
+				return nil, fmt.Errorf("the submodule repository %s has linked worktrees of its own, which would lose their link to it; remove them (git worktree remove, or git worktree prune for ones that are gone, run in that repository), then retry", dir)
+			}
 			sub, active, err := readSubmodule(runner, root, dir)
 			if err != nil {
 				return nil, err

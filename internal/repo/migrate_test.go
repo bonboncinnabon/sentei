@@ -479,6 +479,24 @@ func TestMigrate_RefusalsLeaveTheRepositoryUntouched(t *testing.T) {
 			want: "is a linked worktree and is where the \"main\" worktree goes",
 		},
 		{
+			name: "submodule with linked worktrees of its own",
+			setup: func(t *testing.T, base, root string) string {
+				addSubmodules(t, base, root)
+				mustGit(t, filepath.Join(root, "vendor", "plain"), "worktree", "add", "-q", "-b", "side", filepath.Join(base, "plain-side"))
+				return root
+			},
+			want: "has linked worktrees of its own",
+		},
+		{
+			name: "deinitialised submodule with linked worktrees of its own",
+			setup: func(t *testing.T, base, root string) string {
+				addSubmodules(t, base, root)
+				mustGit(t, filepath.Join(root, ".git", "modules", "tools", "tool"), "worktree", "add", "-q", "-b", "side", filepath.Join(base, "tool-side"))
+				return root
+			},
+			want: "has linked worktrees of its own",
+		},
+		{
 			name: "unborn HEAD",
 			setup: func(t *testing.T, base, root string) string {
 				mustGit(t, root, "checkout", "-q", "--orphan", "fresh")

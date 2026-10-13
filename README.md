@@ -256,12 +256,13 @@ What a caller can rely on:
   anything when the conversion cannot be done safely (detached or unborn
   `HEAD`, a merge or rebase in progress, `core.worktree`, a config include
   that points into the working tree, a directory already named like the
-  worktree, a linked worktree whose directory is missing), and a step that
-  fails midway is rolled back to the original layout. Two things follow from
-  the tree sitting one directory further down, and need fixing by hand: a
-  relative symlink that points outside the repository now points somewhere
-  else, and files that record absolute paths into the tree, such as a Python
-  virtual environment, have to be recreated.
+  worktree, a linked worktree whose directory is missing, a submodule that
+  has linked worktrees of its own), and a step that fails midway is rolled
+  back to the original layout. Two things follow from the tree sitting one
+  directory further down, and need fixing by hand: a relative symlink that
+  points outside the repository now points somewhere else, and files that
+  record absolute paths into the tree, such as a Python virtual environment,
+  have to be recreated.
 - **`--copy-env` is independent of `--ecosystems`.** The files come from the
   ecosystems detected in the source worktree; `--ecosystems` only selects
   which installs run.
