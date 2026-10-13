@@ -20,7 +20,7 @@ The CLI SHALL accept a `--dry-run` boolean flag that enables non-interactive pre
 
 #### Scenario: Dry-run with decision command
 - **WHEN** user runs `sentei cleanup --mode aggressive --dry-run --non-interactive`
-- **THEN** the system SHALL print what branches would be cleaned up without actually deleting them
+- **THEN** the system SHALL name the branches that would be deleted and the ones that would be skipped, each with the reason, without deleting any
 
 #### Scenario: Dry-run with remove and filter
 - **WHEN** user runs `sentei remove --merged --dry-run --non-interactive`

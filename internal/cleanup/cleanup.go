@@ -28,6 +28,8 @@ type Result struct {
 	ConfigDedupResult   ConfigResult // duplicate config lines
 	StaleRefsRemoved    int
 	GoneBranchesDeleted int
+	// GoneBranches names the GoneBranchesDeleted branches.
+	GoneBranches []string
 	// NonWtBranchesDeleted names the branches aggressive mode deleted.
 	NonWtBranchesDeleted   []string
 	NonWtBranchesRemaining int
@@ -105,6 +107,7 @@ func Run(runner git.CommandRunner, repoPath string, opts Options, emit func(Even
 
 	gone, err := DeleteGoneBranches(runner, repoPath, stale, opts, emit)
 	record("gone-branches", err)
+	result.GoneBranches = gone.Deleted
 	result.GoneBranchesDeleted = len(gone.Deleted)
 	result.BranchesSkipped = append(result.BranchesSkipped, gone.Skipped...)
 
