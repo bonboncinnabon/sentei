@@ -30,6 +30,7 @@ func (m Model) withCreateFlowReset() Model {
 	m.create.validationErr = ""
 	m.create.ecoEnabled = make(map[string]bool)
 	m.create.mergeBase = true
+	m.create.mergeDefaultFor = ""
 	m.create.copyEnvFiles = true
 	m.create.optionsCursor = 0
 	m.create.events = nil
@@ -118,10 +119,26 @@ func (m Model) updateCreateBranchInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// prepareCreateOptions offers the ecosystems detected in the source worktree.
-// A row starts checked; a choice already made for it (a toggle before going
-// back to this form, or --ecosystems) stands.
+// defaultMergeBase turns the merge off for a branch that already exists,
+// locally or only on origin: the user is opening that branch, and merging the
+// base would add a commit to it. --merge-base keeps it on. The default is set
+// once per branch name, so a toggle survives a return to the branch form.
+func (m *Model) defaultMergeBase() {
+	branch := m.create.branchInput.Value()
+	if branch == "" || branch == m.create.mergeDefaultFor {
+		return
+	}
+	m.create.mergeDefaultFor = branch
+	requested := m.createOpts != nil && m.createOpts.MergeBase
+	m.create.mergeBase = requested || creator.ExistingBranch(m.runner, m.repoPath, branch) == ""
+}
+
+// prepareCreateOptions sets the options for the branch in the form. It offers
+// the ecosystems detected in the source worktree: a row starts checked, and a
+// choice already made for it (a toggle before going back to this form, or
+// --ecosystems) stands.
 func (m *Model) prepareCreateOptions() {
+	m.defaultMergeBase()
 	m.create.ecosystems = nil
 	sourceWT := m.findSourceWorktree()
 	if m.cfg == nil || sourceWT == "" {
