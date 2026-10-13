@@ -30,53 +30,12 @@ var (
 
 func buildRegistry() *cli.Registry {
 	r := cli.NewRegistry()
-
-	r.Register(&cli.Command{
-		Name:   "ecosystems",
-		Type:   cli.Output,
-		RunCLI: cmd.RunEcosystems,
-	})
-
-	r.Register(&cli.Command{
-		Name: "clone",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunClone(args)
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "create",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunCreate(args)
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "cleanup",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunCleanup(args)
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "migrate",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunMigrate(args)
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "remove",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunRemove(args)
-		},
-	})
-
+	r.Register(&cli.Command{Name: "ecosystems", Type: cli.Output, RunCLI: cmd.RunEcosystems})
+	r.Register(&cli.Command{Name: "clone", Type: cli.Decision, RunCLI: cmd.RunClone})
+	r.Register(&cli.Command{Name: "create", Type: cli.Decision, RunCLI: cmd.RunCreate})
+	r.Register(&cli.Command{Name: "cleanup", Type: cli.Decision, RunCLI: cmd.RunCleanup})
+	r.Register(&cli.Command{Name: "migrate", Type: cli.Decision, RunCLI: cmd.RunMigrate})
+	r.Register(&cli.Command{Name: "remove", Type: cli.Decision, RunCLI: cmd.RunRemove})
 	return r
 }
 
@@ -177,26 +136,10 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 	if err != nil {
 		return err
 	}
-	repoPath := parsed.repoPath
 
 	runner := &git.GitRunner{}
-	shell := &git.DefaultShellRunner{}
-
-	context := repo.DetectContext(runner, repoPath)
-	if context == repo.ContextBareRepo {
-		repoPath = repo.ResolveBareRoot(runner, repoPath)
-	}
-
-	var cfg *config.Config
-	if context == repo.ContextBareRepo {
-		var err error
-		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Warning: failed to load config:", err)
-		}
-	}
-
-	model := tui.NewMenuModel(runner, shell, repoPath, cfg, context)
+	context, repoPath := detectRepo(runner, parsed.repoPath)
+	model := newMenuModel(runner, repoPath, context)
 
 	switch result.Command.Name {
 	case "cleanup":
@@ -261,8 +204,37 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 		})
 	}
 
-	p := tea.NewProgram(model)
-	final, err := p.Run()
+	return runTUI(model)
+}
+
+// detectRepo reports what kind of repository holds path and, for a bare
+// layout, the layout's root: path may be any worktree inside it.
+func detectRepo(runner git.CommandRunner, path string) (repo.RepoContext, string) {
+	context := repo.DetectContext(runner, path)
+	if context == repo.ContextBareRepo {
+		path = repo.ResolveBareRoot(runner, path)
+	}
+	return context, path
+}
+
+// newMenuModel builds the menu TUI for a detected repository. A config that
+// fails to load is reported and the TUI opens without it.
+func newMenuModel(runner git.CommandRunner, repoPath string, context repo.RepoContext, opts ...tui.ModelOption) tui.Model {
+	var cfg *config.Config
+	if context == repo.ContextBareRepo {
+		var err error
+		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Warning: failed to load config:", err)
+		}
+	}
+	return tui.NewMenuModel(runner, &git.DefaultShellRunner{}, repoPath, cfg, context, opts...)
+}
+
+// runTUI runs the model to completion and warns when the user quit in the
+// middle of a flow that changes the repository.
+func runTUI(model tui.Model) error {
+	final, err := tea.NewProgram(model).Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
@@ -313,12 +285,7 @@ func runRoot(args []string) error {
 	}
 
 	runner := &git.GitRunner{}
-	shell := &git.DefaultShellRunner{}
-
-	context := repo.DetectContext(runner, repoPath)
-	if context == repo.ContextBareRepo {
-		repoPath = repo.ResolveBareRoot(runner, repoPath)
-	}
+	context, repoPath := detectRepo(runner, repoPath)
 
 	if *dryRunFlag {
 		if context != repo.ContextBareRepo {
@@ -347,30 +314,9 @@ func runRoot(args []string) error {
 		return dryrun.Print(filtered, os.Stdout)
 	}
 
-	var cfg *config.Config
-	if context == repo.ContextBareRepo {
-		var err error
-		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Warning: failed to load config:", err)
-		}
-	}
-
 	var menuOpts []tui.ModelOption
 	if *playgroundFlag {
 		menuOpts = append(menuOpts, tui.WithMinProgressDuration(1500*time.Millisecond))
 	}
-	model := tui.NewMenuModel(runner, shell, repoPath, cfg, context, menuOpts...)
-	p := tea.NewProgram(model)
-
-	final, err := p.Run()
-	if err != nil {
-		return fmt.Errorf("failed to run TUI: %w", err)
-	}
-	if tm, ok := final.(tui.Model); ok {
-		if op := tm.InterruptedFlow(); op != "" {
-			fmt.Fprintln(os.Stderr, "Warning: quit during "+op+"; check repository state before retrying")
-		}
-	}
-	return nil
+	return runTUI(newMenuModel(runner, repoPath, context, menuOpts...))
 }

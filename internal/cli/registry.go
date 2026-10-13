@@ -45,10 +45,8 @@ func (r *Registry) Register(cmd *Command) {
 
 // DispatchResult tells the caller what action to take after dispatch.
 type DispatchResult struct {
-	// IsRoot is true when no command was provided (launch TUI menu).
-	IsRoot bool
-
-	// Command is the matched command, if any.
+	// Command is the matched command. It is nil when no command was named:
+	// the root flags apply and the TUI menu opens.
 	Command *Command
 
 	// Args are the remaining arguments after the command name.
@@ -79,14 +77,14 @@ func IsUnknownCommand(err error) bool {
 // It extracts --non-interactive, --yes and --force from the args before returning.
 func (r *Registry) Dispatch(args []string) (*DispatchResult, error) {
 	if len(args) == 0 {
-		return &DispatchResult{IsRoot: true}, nil
+		return &DispatchResult{}, nil
 	}
 
 	name := args[0]
 
 	// Check if the first arg looks like a flag (not a command).
 	if strings.HasPrefix(name, "-") {
-		return &DispatchResult{IsRoot: true, Args: args}, nil
+		return &DispatchResult{Args: args}, nil
 	}
 
 	cmd, ok := r.commands[name]
@@ -95,7 +93,7 @@ func (r *Registry) Dispatch(args []string) (*DispatchResult, error) {
 		// open another repository, and what the TUI relaunches itself with
 		// after create, clone and migrate.
 		if info, err := os.Stat(name); err == nil && info.IsDir() {
-			return &DispatchResult{IsRoot: true, Args: args}, nil
+			return &DispatchResult{Args: args}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrUnknownCommand, name)
 	}
@@ -110,11 +108,6 @@ func (r *Registry) Dispatch(args []string) (*DispatchResult, error) {
 		Force:          force,
 		Yes:            yes,
 	}, nil
-}
-
-// Lookup returns a command by name, or nil if not found.
-func (r *Registry) Lookup(name string) *Command {
-	return r.commands[name]
 }
 
 // CommandNames returns all registered command names.
