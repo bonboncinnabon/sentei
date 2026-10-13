@@ -40,6 +40,8 @@ func TestLoadConfig_RepoConfigLocation(t *testing.T) {
 	parent := t.TempDir()
 	plainBare := filepath.Join(parent, "a.git")
 	mustGit(parent, "init", "--bare", plainBare)
+	plainBareWorktree := filepath.Join(parent, "a-main")
+	mustGit(plainBare, "worktree", "add", "--orphan", "-b", "main", plainBareWorktree)
 	writeRepoConfig(t, parent, "from-parent")
 	writeRepoConfig(t, plainBare, "from-bare-repo")
 
@@ -53,6 +55,25 @@ func TestLoadConfig_RepoConfigLocation(t *testing.T) {
 	mustGit(container, "worktree", "add", "--orphan", "-b", "main", worktree)
 	writeRepoConfig(t, container, "from-container")
 
+	// The same layout built by hand, with the bare directory under another name.
+	namedContainer := t.TempDir()
+	mustGit(namedContainer, "init", "--bare", filepath.Join(namedContainer, "repo.git"))
+	if err := os.WriteFile(filepath.Join(namedContainer, ".git"), []byte("gitdir: ./repo.git\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeRepoConfig(t, namedContainer, "from-named-container")
+
+	// A .bare container nobody wrote a .git pointer for.
+	bareOnly := t.TempDir()
+	mustGit(bareOnly, "init", "--bare", filepath.Join(bareOnly, ".bare"))
+	bareOnlyWorktree := filepath.Join(bareOnly, "main")
+	mustGit(filepath.Join(bareOnly, ".bare"), "worktree", "add", "--orphan", "-b", "main", bareOnlyWorktree)
+	writeRepoConfig(t, bareOnly, "from-bare-only-container")
+
+	regular := t.TempDir()
+	mustGit(regular, "init")
+	writeRepoConfig(t, regular, "from-regular")
+
 	tests := []struct {
 		name     string
 		repoPath string
@@ -61,8 +82,13 @@ func TestLoadConfig_RepoConfigLocation(t *testing.T) {
 	}{
 		{"plain bare repository reads its own directory", plainBare, "from-bare-repo", "from-parent"},
 		{"plain bare repository with a trailing slash", plainBare + string(filepath.Separator), "from-bare-repo", "from-parent"},
+		{"worktree of a plain bare repository", plainBareWorktree, "from-bare-repo", "from-parent"},
 		{"container", container, "from-container", ""},
 		{"worktree inside the container", worktree, "from-container", ""},
+		{"the .bare directory inside the container", filepath.Join(container, ".bare"), "from-container", ""},
+		{"container whose bare directory has another name", namedContainer, "from-named-container", ""},
+		{"worktree of a .bare container without a .git pointer", bareOnlyWorktree, "from-bare-only-container", ""},
+		{"regular repository", regular, "from-regular", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
