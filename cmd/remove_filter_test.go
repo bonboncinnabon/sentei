@@ -64,6 +64,12 @@ func TestCheckMerged_RealGit(t *testing.T) {
 	mustGit(t, mainPath, "merge", "--no-ff", "-m", "merge feature", "feature/merge-commit")
 	check("feature/merge-commit", true, "main contains it through a merge commit")
 
+	// A branch checked out from origin and never pulled has no reflog either.
+	mustGit(t, bareRepo, "branch", "feature/merge-commit-no-reflog", "main")
+	commitOn("feature/merge-commit-no-reflog", "-c", "core.logAllRefUpdates=false")
+	mustGit(t, mainPath, "merge", "--no-ff", "-m", "merge feature", "feature/merge-commit-no-reflog")
+	check("feature/merge-commit-no-reflog", true, "a merge commit shows the merge without a reflog")
+
 	mustGit(t, bareRepo, "branch", "feature/squashed", "main")
 	commitOn("feature/squashed")
 	mustGit(t, mainPath, "merge", "--squash", "feature/squashed")
@@ -104,5 +110,23 @@ func TestCheckMerged_IgnoresTagWithBranchName(t *testing.T) {
 
 	if CheckMerged(&git.GitRunner{}, bareRepo, "main")("release") {
 		t.Error("branch release has an unmerged commit; the tag of the same name must not make it look merged")
+	}
+}
+
+// A tag with the default branch's name must not stand in for it either: every
+// branch would be judged against the commit the tag sits on.
+func TestCheckMerged_IgnoresTagWithDefaultBranchName(t *testing.T) {
+	bareRepo := setupBareRepo(t)
+	mustGit(t, bareRepo, "branch", "feature/unmerged", "main")
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	mustGit(t, bareRepo, "worktree", "add", wtPath, "feature/unmerged")
+	mustWriteFile(t, filepath.Join(wtPath, "feature.txt"), "unmerged\n")
+	mustGit(t, wtPath, "add", ".")
+	mustGit(t, wtPath, "commit", "-m", "unmerged work")
+	// The tag sits on the commit that main does not contain.
+	mustGit(t, bareRepo, "tag", "main", "feature/unmerged")
+
+	if CheckMerged(&git.GitRunner{}, bareRepo, "main")("feature/unmerged") {
+		t.Error("feature/unmerged has a commit that branch main lacks; the tag named main must not make it look merged")
 	}
 }
