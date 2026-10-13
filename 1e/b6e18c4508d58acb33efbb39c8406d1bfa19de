@@ -1,0 +1,33 @@
+internal/repo/clone_test.go
+  s_b5d41ab2ae0f4c::t_f1ff47b2ec4192 52,92,118,170,254,291
+internal/cleanup/protection_test.go
+  s_b5d41ab2ae0f4c::t_f1ff47b2ec4192 19
+internal/cleanup/branches_test.go
+  s_b5d41ab2ae0f4c::t_f1ff47b2ec4192 35-36,122-123,152,216,248,276-278,298,335
+internal/cleanup/dryrun_test.go
+  s_b5d41ab2ae0f4c::t_f1ff47b2ec4192 15-17
+internal/cleanup/branches.go
+  s_b5d41ab2ae0f4c::t_f1ff47b2ec4192 171,214
+internal/cleanup/cleanup_test.go
+  s_b5d41ab2ae0f4c::t_f1ff47b2ec4192 26
+internal/git/protection.go
+  s_b5d41ab2ae0f4c::t_f1ff47b2ec4192 34-37,39-51
+internal/git/default_branch_test.go
+  s_b5d41ab2ae0f4c::t_4ccd2559e4f963 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1eb6e18c4508d58acb33efbb39c8406d1bfa19de",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
