@@ -399,3 +399,17 @@ func TestGitRunner_ChildReadsNoInput(t *testing.T) {
 		t.Errorf("the child read %q from sentei's input, want nothing", out)
 	}
 }
+
+func TestGitRunner_ExplainsADisabledCredentialPrompt(t *testing.T) {
+	installScriptGit(t, `echo "fatal: could not read Username for 'https://example.com': terminal prompts disabled" >&2; exit 128`)
+
+	_, err := (&GitRunner{}).Run(t.TempDir(), "clone", "https://example.com/repo.git")
+	if err == nil {
+		t.Fatal("expected the clone to fail")
+	}
+	for _, want := range []string{"terminal prompts disabled", "credential helper", "SSH remote"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to contain %q", err, want)
+		}
+	}
+}

@@ -99,6 +99,10 @@ func (r *GitRunner) Run(dir string, args ...string) (string, error) {
 		// killed by a signal), fall back to the exec error so the cause is not
 		// erased into an empty message.
 		if stderrMsg := strings.TrimSpace(stderr.String()); stderrMsg != "" {
+			// What GIT_TERMINAL_PROMPT=0 turns a username or password prompt into.
+			if strings.Contains(stderrMsg, "terminal prompts disabled") {
+				stderrMsg += "; sentei does not ask for credentials: store them with a git credential helper or use an SSH remote, then run it again"
+			}
 			return "", fmt.Errorf("%s: %s", command, stderrMsg)
 		}
 		return "", fmt.Errorf("%s: %w", command, err)
