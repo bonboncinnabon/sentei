@@ -240,7 +240,7 @@ func (m Model) cleanupPreviewActions() []key.Binding {
 	case scan == nil: // still scanning, or the scan failed
 		return []key.Binding{keys.Back}
 	case cleanupScanIsClean(*scan):
-		return []key.Binding{withDesc(keys.Confirm, "back")}
+		return []key.Binding{cleanupCleanHint}
 	case m.cleanupAggressiveConfirm:
 		return confirmFooter
 	}

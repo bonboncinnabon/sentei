@@ -208,11 +208,12 @@ var (
 		keys.Back,
 	}}}
 
-	// The cleanup preview's keys depend on what the scan found; see
-	// cleanupPreviewActions.
-	cleanupSafeHint = withDesc(keys.Confirm, "safe cleanup")
-	aggressiveHint  = withDesc(keys.All, "aggressive")
-	detailsHint     = keys.Info
+	// The cleanup preview's keys depend on what the scan found;
+	// cleanupPreviewActions picks among these.
+	cleanupSafeHint  = withDesc(keys.Confirm, "safe cleanup")
+	cleanupCleanHint = withDesc(keys.Confirm, "back")
+	aggressiveHint   = withDesc(keys.All, "aggressive")
+	detailsHint      = keys.Info
 
 	progressFooter   = []key.Binding{keys.Quit}
 	progressSections = []keySection{{name: "Actions", bindings: []key.Binding{
