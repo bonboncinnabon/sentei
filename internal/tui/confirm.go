@@ -97,13 +97,6 @@ func removalSemanticStepID(kind, identity string) progress.StepID {
 	return progress.StepID(fmt.Sprintf("%s:%x", kind, sum[:8]))
 }
 
-// worktreeAtRisk reports whether removing wt could lose work that exists
-// nowhere else: uncommitted or untracked changes, commits not on a remote, a
-// status that could not be read, or a lock someone placed deliberately.
-func worktreeAtRisk(wt git.Worktree) bool {
-	return worktree.AtRisk(wt) || wt.IsLocked
-}
-
 // startDeletions kicks off the deletion goroutine for the current run's
 // worktree snapshot and begins consuming its events.
 func (m Model) startDeletions() (tea.Model, tea.Cmd) {
@@ -133,7 +126,7 @@ func worktreeRemover(runner git.CommandRunner, repoPath string, targets []worktr
 	unconfirmed := make(map[string]git.Worktree, len(targets))
 	locked := make(map[string]bool)
 	for _, target := range targets {
-		if !worktreeAtRisk(target.Worktree) {
+		if !worktree.AtRisk(target.Worktree) {
 			unconfirmed[target.Worktree.Path] = target.Worktree
 		}
 		locked[target.Worktree.Path] = target.Worktree.IsLocked

@@ -164,7 +164,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Safety gate: only at-risk selections need a confirmation stop;
 			// clean-and-pushed worktrees delete without friction.
 			for _, wt := range m.selectedWorktrees() {
-				if worktreeAtRisk(wt) {
+				if worktree.AtRisk(wt) {
 					m.view = confirmView
 					return m, nil
 				}
