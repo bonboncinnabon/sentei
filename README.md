@@ -139,6 +139,31 @@ merged. Protected branches and the default branch are never deleted.
 Removing worktrees does not run any of this: a removal ends with a local
 `git worktree prune` and nothing else.
 
+### Clone or migrate a repository
+
+sentei works on a container directory that holds the bare repository as
+`.bare`, a `.git` pointer file, and one directory per worktree:
+
+```
+project/
+├── .bare/        # the repository
+├── .git          # "gitdir: ./.bare"
+├── main/         # one worktree per branch
+└── feature-x/
+```
+
+```bash
+sentei clone --url git@github.com:you/project.git     # clone straight into the layout
+sentei migrate /path/to/existing/clone                 # convert an ordinary clone in place
+```
+
+`clone` keeps only the default branch as a local branch, as `git clone` does;
+the others are available as `origin/<branch>` and `sentei create --branch
+<name>` checks one out. `migrate` renames `.git` to `.bare` and moves the
+working tree into a worktree named after the current branch. It copies and
+deletes nothing, checks everything before the first change, and rolls back if
+a step fails; see "Scripts and agents" for what it refuses.
+
 ### Configuration
 
 Configuration is optional. sentei merges three layers, each overriding the
@@ -178,6 +203,16 @@ otherwise the command fails with a message saying so. git output is read with
 finished after an hour is stopped. Hooks that git starts inherit that
 environment.
 
+### Layouts and platforms
+
+- sentei can be started from the container, from any worktree inside it, or
+  with the container's path as an argument. A plain bare repository (for
+  example `project.git` with worktrees inside it) works when sentei is given
+  the bare directory itself; its worktrees are not recognised as entry points.
+- macOS and Linux are tested on every change. Windows binaries are published
+  but untested, and dependency installs run through `sh -c`, so they need a
+  POSIX shell on the `PATH`.
+
 ### Scripts and agents
 
 Every command runs without the TUI when given `--non-interactive` (or `--yes`,
@@ -199,15 +234,18 @@ What a caller can rely on:
   spelled out). It may be the repository container or any worktree inside it.
   `create` always places the new worktree beside the existing ones.
 - **The exit status is the result.** Non-zero means something failed: a bad
-  flag, a worktree that could not be removed, a cleanup step that errored, a
-  failed setup or install step.
+  flag, a config file that does not load, a worktree that could not be
+  removed, a cleanup step that errored, a failed setup or install step.
+- **Nothing waits for input.** git never prompts for credentials, and a
+  config file that fails to load stops the run before anything is created.
 - **`--non-interactive` does not override a safety.** `remove` refuses the
   whole run, and names the worktrees, when a match is locked, has uncommitted,
   untracked or unpushed work, or has a status that could not be read. `--force`
   removes those too. Protected branches and the worktree holding the current
   directory are never removed, with or without `--force`.
 - **`--dry-run` changes nothing.** It prints what `remove` or `cleanup` would
-  do and leaves locks in place.
+  do and leaves locks in place. It exits 0 and marks the matches the real run
+  would refuse without `--force`.
 - **`migrate` converts in place and never copies or deletes.** `.git` becomes
   `.bare` and the working tree moves, with its index, into a worktree named
   after the current branch, so staged, unstaged, untracked and ignored files,
@@ -248,9 +286,10 @@ What a caller can rely on:
 
 | Indicator | Meaning |
 |-----------|---------|
-| `[ok]` | Clean — no uncommitted changes |
-| `[~]` | Dirty — has uncommitted changes |
+| `[ok]` | Clean: no uncommitted changes |
+| `[~]` | Dirty: has uncommitted changes |
 | `[!]` | Has untracked files |
+| `[^]` | Commits on no remote (shown on the confirmation screen) |
 | `[?]` | Status could not be read (treated as at risk) |
 | `[L]` | Locked |
 | `[P]` | Protected branch (cannot be deleted) |
