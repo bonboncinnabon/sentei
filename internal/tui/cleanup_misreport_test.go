@@ -440,3 +440,24 @@ func TestCleanupPreviewHelp_MatchesWhatTheKeysDo(t *testing.T) {
 		}
 	}
 }
+
+// A message can change what the keys do while the help is open: the scan
+// lands behind it. The help must not go on listing the keys of the state
+// that ended.
+func TestCleanupPreviewHelp_FollowsAScanThatLandsWhileOpen(t *testing.T) {
+	updated, _ := previewModel().Update(tea.KeyPressMsg{Code: tea.KeyF1})
+	m := updated.(Model)
+	if help := stripANSI(m.portal.viewport.View()); !m.portal.Visible() || strings.Contains(help, "safe cleanup") {
+		t.Fatalf("want the help of a preview that is still scanning, got:\n%s", help)
+	}
+
+	updated, _ = m.Update(cleanupScanDoneMsg{result: *scanWithAggressive(2)})
+	m = updated.(Model)
+
+	help := strings.Join(strings.Fields(stripANSI(m.portal.viewport.View())), " ")
+	for _, want := range []string{"enter safe cleanup", "a aggressive", "? details", "esc back"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("help still lists the keys of the scanning state, missing %q:\n%s", want, help)
+		}
+	}
+}

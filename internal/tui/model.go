@@ -720,6 +720,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				model.portal = model.portal.Close()
 			}
 		}
+		// Help lists the keys of the view's current state, and a message can
+		// change that state behind the open portal (a cleanup scan landing).
+		if model.portal.trigger == portalHelp {
+			model.portal = model.portal.Refresh(model.helpContent())
+		}
 		if !wasMoving && model.motionActive() {
 			model.motionChain++
 			return model, tea.Batch(cmd, motionTickCmd(model.motionChain))
