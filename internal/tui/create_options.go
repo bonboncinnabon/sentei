@@ -25,6 +25,11 @@ func (m Model) buildOptionItems() []optionItem {
 	var items []optionItem
 
 	for _, eco := range m.create.ecosystems {
+		// A config can clear an install command (`command: ""`); such an
+		// ecosystem is still detected for its env files but installs nothing.
+		if eco.Install.Command == "" {
+			continue
+		}
 		items = append(items, optionItem{
 			label: fmt.Sprintf("Install dependencies (%s)", eco.Name),
 			hint:  eco.Name + " detected",

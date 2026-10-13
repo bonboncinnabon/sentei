@@ -37,11 +37,31 @@ func TestBuildOptionItems_BaseOptionsOnly(t *testing.T) {
 	}
 }
 
+// A config can clear an ecosystem's install command. The screen used to offer
+// "Install dependencies" for it anyway, and checking the row ran nothing.
+func TestBuildOptionItems_NoInstallRowWithoutAnInstallCommand(t *testing.T) {
+	m := createOptionsModel()
+	m.create.ecosystems = []config.EcosystemConfig{
+		{Name: "docs", EnvFiles: []string{".env"}},
+		{Name: "node", Install: config.InstallConfig{Command: "npm ci"}},
+	}
+
+	var keys []string
+	for _, item := range m.buildOptionItems() {
+		keys = append(keys, item.key)
+	}
+
+	// The env files of the command-less ecosystem are still offered.
+	if want := "eco:node,merge,envfiles"; strings.Join(keys, ",") != want {
+		t.Errorf("option keys = %v, want %s", keys, want)
+	}
+}
+
 func TestBuildOptionItems_EcosystemsAddDepsAndEnvFiles(t *testing.T) {
 	m := createOptionsModel()
 	m.create.ecosystems = []config.EcosystemConfig{
-		{Name: "node", EnvFiles: []string{".env", ".env.local"}},
-		{Name: "go"},
+		{Name: "node", Install: config.InstallConfig{Command: "npm ci"}, EnvFiles: []string{".env", ".env.local"}},
+		{Name: "go", Install: config.InstallConfig{Command: "go mod download"}},
 	}
 
 	items := m.buildOptionItems()
@@ -161,7 +181,7 @@ func drainCreatePipeline(t *testing.T, m Model) (creator.Result, []progress.Even
 
 func TestUpdateCreateOptions_CursorNavigationClamps(t *testing.T) {
 	m := createOptionsModel()
-	m.create.ecosystems = []config.EcosystemConfig{{Name: "node"}}
+	m.create.ecosystems = []config.EcosystemConfig{{Name: "node", Install: config.InstallConfig{Command: "npm ci"}}}
 	// Items: eco:node, merge.
 
 	updated, _ := m.updateCreateOptions(keyMsg("j"))
@@ -256,7 +276,10 @@ func TestUpdateCreateOptions_EnterStartsCreation(t *testing.T) {
 func TestStartCreation_OnlyEnabledEcosystemsPassed(t *testing.T) {
 	m := createOptionsModel()
 	m.runner = &stubRunner{responses: map[string]stubResponse{}}
-	m.create.ecosystems = []config.EcosystemConfig{{Name: "node"}, {Name: "go"}}
+	m.create.ecosystems = []config.EcosystemConfig{
+		{Name: "node", Install: config.InstallConfig{Command: "npm ci"}},
+		{Name: "go", Install: config.InstallConfig{Command: "go mod download"}},
+	}
 	m.create.ecoEnabled = map[string]bool{"node": true, "go": false}
 
 	m.startCreation()
@@ -300,7 +323,7 @@ func TestWaitForCreateEvent_DeliversEventThenCompletion(t *testing.T) {
 
 func TestViewCreateOptions_RendersOptions(t *testing.T) {
 	m := createOptionsModel()
-	m.create.ecosystems = []config.EcosystemConfig{{Name: "node"}}
+	m.create.ecosystems = []config.EcosystemConfig{{Name: "node", Install: config.InstallConfig{Command: "npm ci"}}}
 	m.create.ecoEnabled = map[string]bool{"node": true}
 
 	view := stripANSI(m.viewCreateOptions())

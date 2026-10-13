@@ -222,9 +222,9 @@ func unloadedWorktreesModel(t *testing.T) (Model, string) {
 		},
 	}}
 	cfg := &config.Config{Ecosystems: []config.EcosystemConfig{
-		{Name: "uv", Detect: config.DetectConfig{Files: []string{"uv.lock"}}, EnvFiles: []string{".env"}},
-		{Name: "go", Detect: config.DetectConfig{Files: []string{"go.mod"}}},
-		{Name: "pnpm", Detect: config.DetectConfig{Files: []string{"pnpm-lock.yaml"}}},
+		{Name: "uv", Detect: config.DetectConfig{Files: []string{"uv.lock"}}, Install: config.InstallConfig{Command: "uv sync"}, EnvFiles: []string{".env"}},
+		{Name: "go", Detect: config.DetectConfig{Files: []string{"go.mod"}}, Install: config.InstallConfig{Command: "go mod download"}},
+		{Name: "pnpm", Detect: config.DetectConfig{Files: []string{"pnpm-lock.yaml"}}, Install: config.InstallConfig{Command: "pnpm install"}},
 	}}
 	m := NewMenuModel(runner, runner, "/repo", cfg, repo.ContextBareRepo)
 	m.width, m.height = 80, 24
