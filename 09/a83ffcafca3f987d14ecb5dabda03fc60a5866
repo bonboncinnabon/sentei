@@ -1,0 +1,27 @@
+README.md
+  s_b5d41ab2ae0f4c::t_7581d72aadf61d 103-105
+cmd/remove.go
+  s_b5d41ab2ae0f4c::t_cffef1b52717d7 86-87,96
+cmd/remove_run_test.go
+  s_b5d41ab2ae0f4c::t_4871789f753c11 168-170,173-190,193,196
+internal/worktree/atrisk_test.go
+  s_b5d41ab2ae0f4c::t_19a000fc9353f2 22
+internal/worktree/enricher.go
+  s_b5d41ab2ae0f4c::t_573d93c2438428 87-89,92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "09a83ffcafca3f987d14ecb5dabda03fc60a5866",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
