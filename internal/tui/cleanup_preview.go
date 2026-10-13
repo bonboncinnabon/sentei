@@ -305,18 +305,26 @@ func cleanupStepFailed(errs []cleanup.OperationError, step string) bool {
 	return false
 }
 
-// writeCleanupErrors lists the failed steps. The reason is wrapped, not cut:
-// its end is where git says what went wrong. Only the first line of a
-// multi-line git error is shown; it names the command and the cause.
+// writeCleanupErrors lists the failed steps, one row per failure. The reason
+// is wrapped, not cut: its end is where git says what went wrong. Only the
+// first line of a multi-line git error is shown; it names the command and the
+// cause.
 func writeCleanupErrors(b *strings.Builder, errs []cleanup.OperationError, width int) {
 	for _, e := range errs {
-		reason := ""
-		if lines := nonEmptyLines(e.Err.Error()); len(lines) > 0 {
-			reason = lines[0]
+		// A step that deletes branches joins one failure per branch.
+		failures := []error{e.Err}
+		if joined, ok := e.Err.(interface{ Unwrap() []error }); ok {
+			failures = joined.Unwrap()
 		}
-		prefix := fmt.Sprintf("  %s %s: ", styleIndicatorFailed.Render(indicatorFailed), e.Step)
-		// An unknown width (no size message yet) falls back like viewSeparator.
-		writeProgressDetailValue(b, prefix, styleError.Render(reason), max(width, 40))
+		for _, failure := range failures {
+			reason := ""
+			if lines := nonEmptyLines(failure.Error()); len(lines) > 0 {
+				reason = lines[0]
+			}
+			prefix := fmt.Sprintf("  %s %s: ", styleIndicatorFailed.Render(indicatorFailed), e.Step)
+			// An unknown width (no size message yet) falls back like viewSeparator.
+			writeProgressDetailValue(b, prefix, styleError.Render(reason), max(width, 40))
+		}
 	}
 }
 

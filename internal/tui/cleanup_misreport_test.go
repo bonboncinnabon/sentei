@@ -244,3 +244,25 @@ func TestViewCleanupResult_LongErrorKeepsItsCause(t *testing.T) {
 		}
 	}
 }
+
+// A step that deletes branches fails once per branch and joins the failures.
+// Each one is a branch that is still there, so each needs its own row.
+func TestViewCleanupResult_EveryFailedDeletionIsListed(t *testing.T) {
+	m := resultModel(nil, cleanup.Result{Errors: []cleanup.OperationError{{
+		Step: "gone-branches",
+		Err: errors.Join(
+			errors.New("deleting branch gone/a: cannot lock ref\n\nAnother git process seems to be running"),
+			errors.New("deleting branch gone/b: cannot lock ref"),
+		),
+	}}})
+
+	view := stripANSI(m.viewCleanupResult())
+	for _, want := range []string{"deleting branch gone/a", "deleting branch gone/b"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "Another git process") {
+		t.Errorf("only the first line of each failure belongs on its row:\n%s", view)
+	}
+}
