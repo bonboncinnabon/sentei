@@ -53,9 +53,9 @@ func main() {
 	os.Exit(1)
 }
 
-// run dispatches the command line. Everything below it returns its error
-// instead of calling os.Exit: an exit would skip deferred cleanup, such as
-// removing the playground's temp repo.
+// run dispatches the command line. The code below it returns its error instead
+// of calling os.Exit: an exit would skip deferred cleanup, such as removing the
+// playground's temp repo.
 func run(registry *cli.Registry, args []string) error {
 	result, err := registry.Dispatch(args)
 	if err != nil {
@@ -247,6 +247,7 @@ func runTUI(model tui.Model) error {
 }
 
 func runRoot(args []string) error {
+	// ExitOnError exits inside Parse, before anything that needs cleanup.
 	fs := flag.NewFlagSet("sentei", flag.ExitOnError)
 	versionFlag := fs.Bool("version", false, "Print version and exit")
 	playgroundFlag := fs.Bool("playground", false, "Launch with a temporary test repo")
