@@ -89,7 +89,7 @@ func TestCleanupConfirmationVM_AggressiveWithDryRun(t *testing.T) {
 func TestUpdateCleanupConfirm_ProceedTransitionsToResult(t *testing.T) {
 	m := makeCleanupConfirmModel(nil)
 
-	updated, _ := m.updateCleanupConfirm(ConfirmProceedMsg{})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	result := updated.(Model)
 
 	if result.view != cleanupResultView {
@@ -100,24 +100,10 @@ func TestUpdateCleanupConfirm_ProceedTransitionsToResult(t *testing.T) {
 	}
 }
 
-func TestUpdateCleanupConfirm_BackReturnsToMenu(t *testing.T) {
-	m := makeCleanupConfirmModel(nil)
-
-	updated, cmd := m.updateCleanupConfirm(ConfirmBackMsg{})
-	result := updated.(Model)
-
-	if result.view != menuView {
-		t.Errorf("expected view=menuView, got %d", result.view)
-	}
-	if cmd != nil {
-		t.Error("expected nil cmd when going back to menu")
-	}
-}
-
 func TestUpdateCleanupConfirm_BackQuitsWhenLaunchedDirectly(t *testing.T) {
 	m := makeCleanupConfirmModel(&cleanup.Options{Mode: cleanup.ModeSafe})
 
-	_, cmd := m.updateCleanupConfirm(ConfirmBackMsg{})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if cmd == nil {
 		t.Fatal("expected quit cmd when launched directly with opts")
 	}
@@ -141,7 +127,7 @@ func TestUpdateCleanupConfirm_WindowSizeMsg(t *testing.T) {
 func TestUpdateCleanupConfirm_QuitKey(t *testing.T) {
 	m := makeCleanupConfirmModel(nil)
 
-	_, cmd := m.updateCleanupConfirm(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if cmd == nil {
 		t.Fatal("expected quit cmd for q key")
 	}

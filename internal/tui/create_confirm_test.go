@@ -115,7 +115,7 @@ func TestCreateConfirmationVM_ShowsMergeBaseAndCopyEnv(t *testing.T) {
 }
 
 func TestUpdateCreateConfirm_ProceedSetsStateBeforeCreate(t *testing.T) {
-	// ConfirmProceedMsg transitions to createProgressView and spawns a creation
+	// Enter transitions to createProgressView and spawns a creation
 	// goroutine via startCreation. Since that requires a real runner, we verify
 	// the pre-proceed state instead (nil runner would panic in the goroutine).
 	m := makeCreateConfirmModel(nil)
@@ -125,25 +125,10 @@ func TestUpdateCreateConfirm_ProceedSetsStateBeforeCreate(t *testing.T) {
 	}
 }
 
-func TestUpdateCreateConfirm_BackReturnsToOptions(t *testing.T) {
-	m := makeCreateConfirmModel(nil)
-	// Not launched directly (createOpts is nil), so back goes to options.
-
-	updated, cmd := m.updateCreateConfirm(ConfirmBackMsg{})
-	result := updated.(Model)
-
-	if result.view != createOptionsView {
-		t.Errorf("expected createOptionsView, got %d", result.view)
-	}
-	if cmd != nil {
-		t.Error("expected nil cmd when going back to options")
-	}
-}
-
 func TestUpdateCreateConfirm_BackQuitsWhenLaunchedDirectly(t *testing.T) {
 	m := makeCreateConfirmModel(&CreateOpts{Branch: "feat/x", Base: "main"})
 
-	_, c := m.updateCreateConfirm(ConfirmBackMsg{})
+	_, c := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if c == nil {
 		t.Fatal("expected quit cmd when launched directly with opts")
 	}
@@ -167,7 +152,7 @@ func TestUpdateCreateConfirm_WindowSizeMsg(t *testing.T) {
 func TestUpdateCreateConfirm_QuitKey(t *testing.T) {
 	m := makeCreateConfirmModel(nil)
 
-	_, c := m.updateCreateConfirm(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	_, c := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if c == nil {
 		t.Fatal("expected quit cmd for q key")
 	}

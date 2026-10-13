@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/git"
@@ -349,5 +350,130 @@ func TestUpdateCreateBranch_QuickCreateDoesNotMergeIntoAnExistingBranch(t *testi
 	}
 	if m.buildCreatorOptions().MergeBase {
 		t.Error("quick create merges the base into a branch that already exists on origin")
+	}
+}
+
+// directCreateRepo is a real repository as a direct `sentei create` finds it:
+// a worktree named taken, a branch local-only with no worktree, and a branch
+// remote-only that only origin has. The model's worktree list is not loaded.
+func directCreateRepo(t *testing.T) Model {
+	t.Helper()
+	bare := bareRepoWithWorktrees(t, "taken")
+	runTestGit(t, bare, "branch", "local-only", "main")
+	runTestGit(t, bare, "update-ref", "refs/remotes/origin/remote-only", "main")
+	m := NewMenuModel(&git.GitRunner{}, nil, bare, &config.Config{}, repo.ContextBareRepo)
+	m.width, m.height = 100, 24
+	m.view = createBranchView
+	return m
+}
+
+// The worktree list loads in the background. A duplicate submitted before it
+// lands used to pass the form and fail in git one screen later.
+func TestUpdateCreateBranch_RefusesExistingWorktreeBeforeTheListLoads(t *testing.T) {
+	for name, key := range map[string]tea.KeyPressMsg{
+		"enter":      {Code: tea.KeyEnter},
+		"ctrl+enter": {Code: tea.KeyEnter, Mod: tea.ModCtrl},
+	} {
+		m := directCreateRepo(t)
+		m.create.branchInput.SetValue("taken")
+
+		updated, cmd := m.updateCreateBranch(key)
+		model := updated.(Model)
+
+		if model.view != createBranchView || cmd != nil {
+			t.Errorf("%s: the form advanced to view %d for a worktree that exists", name, model.view)
+		}
+		if !strings.Contains(model.create.validationErr, `worktree "taken" already exists`) {
+			t.Errorf("%s: validationErr = %q, want the duplicate named", name, model.create.validationErr)
+		}
+	}
+}
+
+// The base only starts a branch that exists nowhere. The line under the title
+// must not say "from <base>" for a branch that is checked out as it is.
+func TestCreateFlow_SubtitleSaysWhereTheBranchComesFrom(t *testing.T) {
+	for branch, want := range map[string]string{
+		"brand-new":   "brand-new → from main",
+		"local-only":  "local-only → existing branch, not created from main",
+		"remote-only": "remote-only → tracks origin/remote-only, not created from main",
+	} {
+		m := directCreateRepo(t)
+		m.create.branchInput.SetValue(branch)
+		updated, _ := m.updateCreateBranch(tea.KeyPressMsg{Code: tea.KeyEnter})
+		model := updated.(Model)
+		if model.view != createOptionsView {
+			t.Fatalf("%s: view = %d, want the options screen: %q", branch, model.view, model.create.validationErr)
+		}
+
+		options := stripANSI(model.viewCreateOptions())
+		if !strings.Contains(options, "  "+want+"\n") {
+			t.Errorf("%s: options screen does not say %q:\n%s", branch, want, options)
+		}
+		if got := model.createLayout().Subtitle; got != want {
+			t.Errorf("%s: progress subtitle = %q, want %q", branch, got, want)
+		}
+	}
+}
+
+// Where the branch comes from is what the line under the title is for. A
+// branch name that leaves no room for it gives up its head, and the line
+// never runs past the terminal edge.
+func TestCreateFlow_SubtitleFitsTheTerminal(t *testing.T) {
+	const name = "feature/login-page-redesign"
+	const long = "feature/a-long-descriptive-branch-name-for-ticket-1234"
+	for label, tc := range map[string]struct {
+		branch, existing, want string
+	}{
+		"short":            {"fix/typo", "origin/fix/typo", "  fix/typo → tracks origin/fix/typo, not created from main"},
+		"remote-only":      {name, "origin/" + name, "  …redesign → tracks origin/" + name + ", not created from main"},
+		"long local":       {long, long, "  …iptive-branch-name-for-ticket-1234 → existing branch, not created from main"},
+		"long new":         {long + "-and-then-some-more-words", "", "  …escriptive-branch-name-for-ticket-1234-and-then-some-more-words → from main"},
+		"long remote-only": {long, "origin/" + long, "  tracks origin/" + long + ", not cre…"},
+	} {
+		m := createOptionsModel()
+		m.create.branchInput.SetValue(tc.branch)
+		m.create.existingBranch = tc.existing
+
+		// The options screen leaves a blank row under its title, the progress
+		// screen does not.
+		for screen, line := range map[string]string{
+			"options":  strings.Split(stripANSI(m.viewCreateOptions()), "\n")[2],
+			"progress": strings.Split(stripANSI(m.viewCreateProgress()), "\n")[1],
+		} {
+			if line != tc.want {
+				t.Errorf("%s, %s screen: line under the title = %q, want %q", label, screen, line, tc.want)
+			}
+			if got := lipgloss.Width(line); got > m.width {
+				t.Errorf("%s, %s screen: the line is %d cells on a %d-cell terminal", label, screen, got, m.width)
+			}
+		}
+	}
+}
+
+// `sentei create --branch <b> --base <base>` skips the options screen, so its
+// confirmation is where an unused base has to be stated. The Base row states
+// it: that row stays on screen whatever the branch is called.
+func TestCreateConfirm_SaysWhenTheBaseIsNotUsed(t *testing.T) {
+	const long = "feature/a-long-descriptive-branch-name-for-ticket-1234"
+	for branch, want := range map[string]string{
+		"brand-new":   "  Branch:      brand-new\n  Base:        main\n",
+		"local-only":  "  Branch:      local-only\n  Base:        main (not used: the branch already exists)\n",
+		"remote-only": "  Branch:      remote-only\n  Base:        main (not used: the branch exists on origin)\n",
+		long:          "  Branch:      " + long + "\n  Base:        main (not used: the branch already exists)\n",
+	} {
+		m := directCreateRepo(t)
+		runTestGit(t, m.repoPath, "branch", long, "main")
+		m.width = 80
+		m.SetCreateOpts(&CreateOpts{Branch: branch, Base: "main"})
+
+		view := stripANSI(m.viewCreateConfirm())
+		if m.view != createConfirmView || !strings.Contains(view, want) {
+			t.Errorf("%s: confirmation does not contain %q:\n%s", branch, want, view)
+		}
+		for _, line := range strings.Split(view, "\n") {
+			if strings.Contains(line, "Base:") && lipgloss.Width(line) > m.width {
+				t.Errorf("%s: the Base row is wider than the terminal: %q", branch, line)
+			}
+		}
 	}
 }

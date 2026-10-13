@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -75,26 +74,18 @@ func prepareRemoval(worktrees []git.Worktree) (removalPreparation, error) {
 	removal := progress.PlannedPhase{ID: worktree.RemovalPhaseID, Label: worktree.RemovalPhaseName}
 
 	for _, wt := range worktrees {
-		identity := normalizedWorktreeIdentity(wt)
+		// The path identifies a worktree: git lists no path twice.
+		identity := filepath.Clean(strings.TrimSpace(wt.Path))
 		if seenWorktrees[identity] {
 			return removalPreparation{}, fmt.Errorf("preparing removal: duplicate worktree identity %q", identity)
 		}
 		seenWorktrees[identity] = true
-		stepID := removalSemanticStepID("remove", identity)
+		stepID := progress.StepID("remove:" + identity)
 		prepared.targets = append(prepared.targets, worktree.RemovalTarget{Worktree: wt, StepID: stepID})
 		removal.Steps = append(removal.Steps, progress.PlannedStep{ID: stepID, Label: worktree.Label(wt), Checkpoints: 2})
 	}
 	prepared.plan.Phases = []progress.PlannedPhase{removal}
 	return prepared, nil
-}
-
-func normalizedWorktreeIdentity(wt git.Worktree) string {
-	return filepath.Clean(strings.TrimSpace(wt.Path)) + "\x00" + strings.TrimSpace(wt.Branch)
-}
-
-func removalSemanticStepID(kind, identity string) progress.StepID {
-	sum := sha256.Sum256([]byte(identity))
-	return progress.StepID(fmt.Sprintf("%s:%x", kind, sum[:8]))
 }
 
 // startDeletions kicks off the deletion goroutine for the current run's

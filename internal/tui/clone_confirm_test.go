@@ -56,6 +56,23 @@ func TestSetCloneOpts_NothingSet_EntersInputView(t *testing.T) {
 	}
 }
 
+// `sentei clone` without --url opens the form. Its URL field must have focus:
+// without it every key was dropped until tab had been pressed twice.
+func TestSetCloneOpts_NothingSet_URLFieldTakesTyping(t *testing.T) {
+	m := NewMenuModel(nil, nil, "/repo", &config.Config{}, repo.ContextNoRepo)
+	m.SetCloneOpts(&CloneOpts{})
+
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "git@host:me/project.git"})
+	model := updated.(Model)
+
+	if got := model.repo.urlInput.Value(); got != "git@host:me/project.git" {
+		t.Errorf("URL field = %q after typing, want the typed text", got)
+	}
+	if got := model.repo.cloneNameInput.Value(); got != "project" {
+		t.Errorf("name field = %q, want it derived from the typed URL", got)
+	}
+}
+
 func TestCloneConfirmationVM_RendersURLAndName(t *testing.T) {
 	m := makeCloneConfirmModel(&CloneOpts{
 		URL:  "git@github.com:user/repo.git",
@@ -95,7 +112,7 @@ func TestCloneConfirmationVM_URLOnly(t *testing.T) {
 }
 
 func TestUpdateCloneConfirm_ProceedSetsStateBeforeClone(t *testing.T) {
-	// ConfirmProceedMsg transitions to repoProgressView and spawns a clone
+	// Enter transitions to repoProgressView and spawns a clone
 	// goroutine. Since startRepoPipeline requires a real runner, we verify
 	// the state setup by checking the model fields that are set before the
 	// pipeline starts. We use a model with view set directly (no opts) and
@@ -111,25 +128,10 @@ func TestUpdateCloneConfirm_ProceedSetsStateBeforeClone(t *testing.T) {
 	}
 }
 
-func TestUpdateCloneConfirm_BackReturnsToInput(t *testing.T) {
-	m := makeCloneConfirmModel(nil)
-	// Not launched directly (cloneOpts is nil), so back goes to input.
-
-	updated, cmd := m.updateCloneConfirm(ConfirmBackMsg{})
-	result := updated.(Model)
-
-	if result.view != cloneInputView {
-		t.Errorf("expected cloneInputView, got %d", result.view)
-	}
-	if cmd != nil {
-		t.Error("expected nil cmd when going back to input")
-	}
-}
-
 func TestUpdateCloneConfirm_BackQuitsWhenLaunchedDirectly(t *testing.T) {
 	m := makeCloneConfirmModel(&CloneOpts{URL: "git@github.com:user/repo.git"})
 
-	_, c := m.updateCloneConfirm(ConfirmBackMsg{})
+	_, c := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if c == nil {
 		t.Fatal("expected quit cmd when launched directly with opts")
 	}
@@ -153,7 +155,7 @@ func TestUpdateCloneConfirm_WindowSizeMsg(t *testing.T) {
 func TestUpdateCloneConfirm_QuitKey(t *testing.T) {
 	m := makeCloneConfirmModel(nil)
 
-	_, c := m.updateCloneConfirm(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	_, c := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if c == nil {
 		t.Fatal("expected quit cmd for q key")
 	}
@@ -213,7 +215,7 @@ func TestCloneConfirm_URLOnlyClonesIntoTheDerivedName(t *testing.T) {
 		t.Errorf("confirm screen does not show the directory the clone lands in:\n%s", confirm)
 	}
 
-	updated, _ := m.updateCloneConfirm(ConfirmProceedMsg{})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	drainRepoPipeline(t, updated.(Model))
 
 	want := location + ":[clone --bare --single-branch -- git@github.com:user/myrepo.git " + filepath.Join(location, "myrepo", ".bare") + "]"

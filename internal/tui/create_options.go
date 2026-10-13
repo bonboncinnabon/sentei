@@ -108,14 +108,21 @@ func (m Model) updateCreateOptions(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, keys.Confirm):
-			m.startCreation()
-			m.progressStartedAt = time.Now()
-			m.progressToken++
-			m.view = createProgressView
-			return m, m.waitForCreateEvent()
+			return m.beginCreation()
 		}
 	}
 	return m, nil
+}
+
+// beginCreation runs the creation the form and the options describe and shows
+// its progress. The quick create of the branch form, the options screen and
+// the confirmation of a launch with flags all start here.
+func (m Model) beginCreation() (tea.Model, tea.Cmd) {
+	m.startCreation()
+	m.progressStartedAt = time.Now()
+	m.progressToken++
+	m.view = createProgressView
+	return m, m.waitForCreateEvent()
 }
 
 func (m *Model) startCreation() {
@@ -185,12 +192,9 @@ func (m Model) viewCreateOptions() string {
 	var b strings.Builder
 	items := m.buildOptionItems()
 
-	branch := m.create.branchInput.Value()
-	base := m.create.baseInput.Value()
-
 	b.WriteString(viewTitle(titleCreateWorktree))
 	b.WriteString("\n\n")
-	b.WriteString(styleAccent.Render(fmt.Sprintf("  %s \u2192 from %s", branch, base)))
+	b.WriteString(truncateWithEllipsis(styleAccent.Render("  "+m.createSubtitle()), max(m.width, 40)))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")

@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"strings"
 	"testing"
 
@@ -14,8 +17,36 @@ import (
 
 var keyCtrlC = tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 
-// lastView is the highest viewState; the every-view tests walk up to it.
-const lastView = cloneConfirmView
+// allViews returns every viewState, counted from the declaration itself: the
+// constants are consecutive from menuView, so their number is all that is
+// needed. No constant has to be named as the last one, and a view added
+// anywhere in the block is walked by the every-view tests.
+func allViews(t *testing.T) []viewState {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), "model.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var views []viewState
+	for _, decl := range file.Decls {
+		block, ok := decl.(*ast.GenDecl)
+		if !ok || block.Tok != token.CONST {
+			continue
+		}
+		if typ, ok := block.Specs[0].(*ast.ValueSpec).Type.(*ast.Ident); !ok || typ.Name != "viewState" {
+			continue
+		}
+		for _, spec := range block.Specs {
+			for range spec.(*ast.ValueSpec).Names {
+				views = append(views, viewState(len(views)))
+			}
+		}
+	}
+	if len(views) == 0 || views[0] != menuView {
+		t.Fatal("found no viewState constants in model.go: the every-view tests would cover nothing")
+	}
+	return views
+}
 
 func quits(cmd tea.Cmd) bool {
 	if cmd == nil {
@@ -56,10 +87,20 @@ func inFlightModel(view viewState) Model {
 var operationViews = []viewState{progressView, createProgressView, repoProgressView, migrateProgressView, cleanupResultView}
 
 func TestCtrlC_QuitsFromEveryView(t *testing.T) {
-	for view := menuView; view <= lastView; view++ {
+	for _, view := range allViews(t) {
 		m := quitTestModel(view)
 		if _, cmd := m.Update(keyCtrlC); !quits(cmd) {
 			t.Errorf("view %d: ctrl+c did not quit", view)
+		}
+	}
+}
+
+// A declared view with no case in viewContent is a blank screen. This also
+// pins that allViews walks real views, the last declared one included.
+func TestEveryViewRenders(t *testing.T) {
+	for _, view := range allViews(t) {
+		if quitTestModel(view).viewContent() == "" {
+			t.Errorf("view %d renders nothing: viewContent has no case for it", view)
 		}
 	}
 }

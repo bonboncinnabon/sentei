@@ -19,11 +19,8 @@ func (m Model) updateCreateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, keys.Confirm):
-			if m.menuItems != nil {
-				m.view = menuView
-				return m, nil
-			}
-			return m, tea.Quit
+			m.view = menuView
+			return m, nil
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 		}
@@ -66,15 +63,12 @@ func (m Model) viewCreateSummary() string {
 		b.WriteString("\n")
 	}
 
-	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Path"), truncateWithEllipsis(wtPath, max(m.width-16, 20)))
-	origin := "from " + base
-	if result != nil && result.ExistingBranch != "" {
-		origin = "existing branch, not created from " + base
-		if result.ExistingBranch != branch {
-			origin = fmt.Sprintf("tracks %s, not created from %s", result.ExistingBranch, base)
-		}
+	b.WriteString(summaryPathRow("Path", wtPath, m.width))
+	existing := ""
+	if result != nil {
+		existing = result.ExistingBranch
 	}
-	fmt.Fprintf(&b, "    %-10s %s (%s)\n", styleDim.Render("Branch"), branch, origin)
+	b.WriteString(summaryRow("Branch", fmt.Sprintf("%s (%s)", branch, branchOrigin(branch, base, existing))))
 
 	// Dependency steps are always listed; a setup step only when it failed,
 	// so "with issues" names its cause.
@@ -93,7 +87,7 @@ func (m Model) viewCreateSummary() string {
 				if failed {
 					status = styleIndicatorFailed.Render(indicatorFailed)
 				}
-				fmt.Fprintf(&b, "    %-10s %s %s\n", styleDim.Render(label), step.Name, status)
+				b.WriteString(summaryRow(label, step.Name+" "+status))
 				if failed && step.Error != nil {
 					peek := errorPeekLines(step.Error.Error(), max(m.width-8, 20))
 					for i, line := range peek {
@@ -111,12 +105,19 @@ func (m Model) viewCreateSummary() string {
 	b.WriteString("\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	// The cd line is the flow's one actionable artifact: never truncate it.
-	for _, line := range m.wrapSummaryLine("cd " + wtPath) {
+	b.WriteString(m.cdLine(wtPath))
+	b.WriteString("\n")
+	b.WriteString(viewFooter(m.width, summaryMenuFooter) + "\n")
+	return b.String()
+}
+
+// cdLine is the command that takes the user into what a flow created. It is
+// the flow's one actionable artifact, so it wraps and is never truncated.
+func (m Model) cdLine(path string) string {
+	var b strings.Builder
+	for _, line := range m.wrapSummaryLine("cd " + path) {
 		fmt.Fprintf(&b, "    %s\n", line)
 	}
-	b.WriteString("\n")
-	b.WriteString(m.createSummaryFooter())
 	return b.String()
 }
 
@@ -138,25 +139,26 @@ func (m Model) viewCreateFailed(branch string, result *creator.Result) string {
 		failure = step.Error
 	}
 	if failure != nil {
-		for _, line := range m.wrapSummaryLine(failure.Error()) {
-			fmt.Fprintf(&b, "    %s\n", styleError.Render(line))
-		}
+		b.WriteString(m.errorBlock(failure))
 		b.WriteString("\n")
 	}
 
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	b.WriteString(m.createSummaryFooter())
+	b.WriteString(viewFooter(m.width, summaryMenuFooter) + "\n")
+	return b.String()
+}
+
+// errorBlock renders an error as the body of a failure screen: wrapped to the
+// terminal, with every line under the same indent.
+func (m Model) errorBlock(err error) string {
+	var b strings.Builder
+	for _, line := range m.wrapSummaryLine(err.Error()) {
+		fmt.Fprintf(&b, "    %s\n", styleError.Render(line))
+	}
 	return b.String()
 }
 
 func (m Model) wrapSummaryLine(text string) []string {
 	return strings.Split(lipgloss.NewStyle().Width(max(m.width-8, 20)).Render(text), "\n")
-}
-
-func (m Model) createSummaryFooter() string {
-	if m.menuItems != nil {
-		return viewFooter(m.width, summaryMenuFooter) + "\n"
-	}
-	return viewFooter(m.width, createSummaryQuit) + "\n"
 }

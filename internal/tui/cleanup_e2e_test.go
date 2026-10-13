@@ -121,8 +121,8 @@ func TestE2E_CleanupConfirmUnit(t *testing.T) {
 		t.Errorf("expected 'safe' mode in view, got:\n%s", view)
 	}
 
-	// Send ConfirmProceedMsg — should transition to cleanupResultView.
-	newModel, cmd := m.Update(ConfirmProceedMsg{})
+	// Enter should transition to cleanupResultView.
+	newModel, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = newModel.(Model)
 	if m.view != cleanupResultView {
 		t.Errorf("expected cleanupResultView after proceed, got %d", m.view)
@@ -178,22 +178,6 @@ func TestE2E_CleanupConfirmBackQuitsWhenDirectLaunch(t *testing.T) {
 	tm.WaitFinished(t, teatest.WithFinalTimeout(testTimeout))
 }
 
-// TestE2E_CleanupConfirmBackReturnsToMenu tests Esc returns to menu when
-// reached from the menu (not direct launch).
-func TestE2E_CleanupConfirmBackReturnsToMenu(t *testing.T) {
-	m := setupBareRepoModel(t)
-
-	// Simulate reaching confirmation from menu.
-	m.view = cleanupConfirmView
-	// cleanupOpts is nil (not set via SetCleanupOpts), so back goes to menu.
-
-	newModel, _ := m.Update(ConfirmBackMsg{})
-	m = newModel.(Model)
-	if m.view != menuView {
-		t.Errorf("expected menuView after back from menu-launched confirm, got %d", m.view)
-	}
-}
-
 // TestE2E_FullCleanupFlow tests the complete flow: prefilled opts → confirm
 // → cleanup executes → result view → quit. Uses FinalModel for deterministic
 // state assertions rather than streaming output parsing.
@@ -216,7 +200,7 @@ func TestE2E_FullCleanupFlow(t *testing.T) {
 	}
 
 	// Step 2: Confirm → transitions to result view and returns a cleanup cmd.
-	newModel, cmd := m.Update(ConfirmProceedMsg{})
+	newModel, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = newModel.(Model)
 	if m.view != cleanupResultView {
 		t.Fatalf("expected cleanupResultView after proceed, got %d", m.view)

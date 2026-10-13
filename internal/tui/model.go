@@ -147,8 +147,10 @@ type createState struct {
 	ecoEnabled   map[string]bool
 	mergeBase    bool
 	copyEnvFiles bool
-	// mergeDefaultFor is the branch name mergeBase was last defaulted for.
+	// mergeDefaultFor is the branch name mergeBase was last defaulted for,
+	// and existingBranch what creator.ExistingBranch found for that name.
 	mergeDefaultFor string
+	existingBranch  string
 	optionsCursor   int
 
 	eventCh  chan progress.Event
@@ -270,31 +272,6 @@ func WithMinProgressDuration(d time.Duration) ModelOption {
 	return func(m *Model) {
 		m.minProgressDuration = d
 	}
-}
-
-func NewModel(worktrees []git.Worktree, runner git.CommandRunner, repoPath string) Model {
-	ti := textinput.New()
-	ti.Prompt = "filter: "
-
-	m := Model{
-		view:     listView,
-		runner:   runner,
-		repoPath: repoPath,
-		remove: removeState{
-			worktrees:     worktrees,
-			selected:      make(map[string]bool),
-			sortField:     SortByAge,
-			sortAscending: true,
-			filterInput:   ti,
-		},
-		width:            80,
-		height:           20,
-		bar:              newOverallBar(),
-		watch:            newElapsedTicker(),
-		motionPreference: motionPreference(os.Getenv),
-	}
-	m.reindex()
-	return m
 }
 
 func NewMenuModel(runner git.CommandRunner, shell git.ShellRunner, repoPath string, cfg *config.Config, context repo.RepoContext, opts ...ModelOption) Model {
@@ -743,6 +720,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				model.portal = model.portal.Close()
 			}
 		}
+		// Help lists the keys of the view's current state, and a message can
+		// change that state behind the open portal (a cleanup scan landing).
+		if model.portal.trigger == portalHelp {
+			model.portal = model.portal.Refresh(model.helpContent())
+		}
 		if !wasMoving && model.motionActive() {
 			model.motionChain++
 			return model, tea.Batch(cmd, motionTickCmd(model.motionChain))
@@ -806,15 +788,17 @@ func (m Model) dispatchByView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case migrateSummaryView:
 		return m.updateMigrateSummary(msg)
 	case cleanupConfirmView:
-		return m.updateCleanupConfirm(msg)
+		return m.updateLaunchConfirm(msg, func(m Model) (tea.Model, tea.Cmd) {
+			return m.startCleanupRun(m.resolvedCleanupOpts())
+		})
 	case cleanupPreviewView:
 		return m.updateCleanupPreview(msg)
 	case cleanupResultView:
 		return m.updateCleanupResult(msg)
 	case createConfirmView:
-		return m.updateCreateConfirm(msg)
+		return m.updateLaunchConfirm(msg, Model.beginCreation)
 	case cloneConfirmView:
-		return m.updateCloneConfirm(msg)
+		return m.updateLaunchConfirm(msg, Model.startClone)
 	}
 	return m, nil
 }

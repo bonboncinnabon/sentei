@@ -63,9 +63,9 @@ func printCleanupBranches(result cleanup.Result, dryRun bool) {
 		deleted, skipped, deletedStyle = "Would delete", "Would skip", ""
 	}
 
-	if count := len(result.GoneBranches) + len(result.NonWtBranchesDeleted); count > 0 {
+	if count := len(result.GoneBranchesDeleted) + len(result.NonWtBranchesDeleted); count > 0 {
 		fmt.Printf("%s%s %d branch(es):%s\n", deletedStyle, deleted, count, nc)
-		for _, name := range result.GoneBranches {
+		for _, name := range result.GoneBranchesDeleted {
 			fmt.Printf("  %s  (upstream gone)\n", name)
 		}
 		for _, name := range result.NonWtBranchesDeleted {

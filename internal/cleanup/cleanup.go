@@ -24,12 +24,12 @@ type Options struct {
 // Result is what one cleanup run did. After a dry run every count is what a
 // real run would do, and nothing was changed.
 type Result struct {
-	ConfigOrphanResult  ConfigResult
-	ConfigDedupResult   ConfigResult // duplicate config lines
-	StaleRefsRemoved    int
-	GoneBranchesDeleted int
-	// GoneBranches names the GoneBranchesDeleted branches.
-	GoneBranches []string
+	ConfigOrphanResult ConfigResult
+	ConfigDedupResult  ConfigResult // duplicate config lines
+	StaleRefsRemoved   int
+	// GoneBranchesDeleted names the branches deleted because their upstream
+	// is gone.
+	GoneBranchesDeleted []string
 	// NonWtBranchesDeleted names the branches aggressive mode deleted.
 	NonWtBranchesDeleted   []string
 	NonWtBranchesRemaining int
@@ -107,8 +107,7 @@ func Run(runner git.CommandRunner, repoPath string, opts Options, emit func(Even
 
 	gone, err := DeleteGoneBranches(runner, repoPath, stale, opts, emit)
 	record("gone-branches", err)
-	result.GoneBranches = gone.Deleted
-	result.GoneBranchesDeleted = len(gone.Deleted)
+	result.GoneBranchesDeleted = gone.Deleted
 	result.BranchesSkipped = append(result.BranchesSkipped, gone.Skipped...)
 
 	nonWorktree, err := CleanNonWorktreeBranches(runner, repoPath, stale, gone.Deleted, opts, emit)

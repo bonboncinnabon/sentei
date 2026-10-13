@@ -71,7 +71,7 @@ func TestPrintCloneEvent(t *testing.T) {
 }
 
 func TestPrintCreateEvent(t *testing.T) {
-	const id = "create-worktree:217d2bf51f16e9dc"
+	const id = "create-worktree:feature/x"
 	tests := []struct {
 		name  string
 		event progress.Event
@@ -92,7 +92,7 @@ func TestPrintCreateEvent(t *testing.T) {
 					t.Errorf("output %q missing %q", out, want)
 				}
 			}
-			// Step identities are opaque hashes; only labels are for people.
+			// Step identities match events; only labels are for people.
 			if strings.Contains(out, id) {
 				t.Errorf("output %q leaks the step identity %q", out, id)
 			}

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/repo"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
@@ -136,32 +138,6 @@ func TestUpdateSummary_MenuLaunch_QuitKeyMatchesFooter(t *testing.T) {
 	}
 }
 
-func TestUpdateSummary_DirectLaunch_KeysQuit(t *testing.T) {
-	cases := []struct {
-		name string
-		msg  tea.KeyPressMsg
-	}{
-		{"enter", tea.KeyPressMsg{Code: tea.KeyEnter}},
-		{"quit key", keyMsg("q")},
-		{"esc", tea.KeyPressMsg{Code: tea.KeyEsc}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			m := NewModel(nil, nil, "/repo")
-			m.view = summaryView
-
-			_, cmd := m.updateSummary(tc.msg)
-
-			if cmd == nil {
-				t.Fatal("expected a quit command")
-			}
-			if _, ok := cmd().(tea.QuitMsg); !ok {
-				t.Errorf("expected tea.QuitMsg, got %T", cmd())
-			}
-		})
-	}
-}
-
 func TestUpdateSummary_OtherKeysIgnored(t *testing.T) {
 	m := NewModel(nil, nil, "/repo")
 	m.view = summaryView
@@ -190,5 +166,88 @@ func TestViewSummary_ClaimsNoPruneWhenNoneRan(t *testing.T) {
 	}
 	if summary := stripAnsi(m.viewSummary()); strings.Contains(summary, "Pruned") {
 		t.Errorf("summary claims a prune that never ran:\n%s", summary)
+	}
+}
+
+func TestViewSummary_FailureRowsAndContinuationLinesShareOneIndent(t *testing.T) {
+	m := NewModel(nil, nil, "/repo")
+	m.view = summaryView
+	m.width, m.windowHeight, m.height = 100, 40, 34
+	m.remove.run.pruned = true
+	m.remove.run.pruneErr = errors.New("git worktree prune: error: first\nerror: second")
+	m.remove.run.result.SuccessCount = 1
+	m.remove.run.result.FailureCount = 2
+	m.remove.run.result.Err = errors.Join(errors.New("progress: first"), errors.New("progress: second"))
+	m.remove.run.result.Outcomes = []worktree.WorktreeOutcome{
+		{Path: "/repo/a", Error: errors.New("git worktree remove --force /repo/a: error: failed to delete 'x'\r\nerror: failed to delete 'y'")},
+		{Path: "/repo/done", Success: true},
+		{Path: "/repo/b", Error: errors.New("permission denied")},
+	}
+	m.remove.run.result.Phases = []progress.Phase{
+		{ID: worktree.RemovalPhaseID, Name: worktree.RemovalPhaseName, Steps: []progress.StepResult{
+			{Name: "a", Status: progress.StepFailed, Error: errors.New("listed above as an outcome")},
+		}},
+		{ID: "other", Name: "Other", Steps: []progress.StepResult{
+			{Name: "first", Status: progress.StepFailed, Error: errors.New("fatal: one\nhint: two")},
+			{Name: "second", Status: progress.StepFailed, Error: errors.New("fatal: three")},
+		}},
+	}
+
+	view := stripANSI(m.viewSummary())
+	want := strings.Join([]string{
+		"  1 removed, 2 failed",
+		"",
+		"  Removal failures:",
+		"    ✗ /repo/a: git worktree remove --force /repo/a: error: failed to delete 'x'",
+		"      error: failed to delete 'y'",
+		"    ✗ /repo/b: permission denied",
+		"",
+		"  ✗ progress: first",
+		"    progress: second",
+		"",
+		"  Execution failures:",
+		"    ✗ Other / first: fatal: one",
+		"      hint: two",
+		"    ✗ Other / second: fatal: three",
+		"",
+		"  Warning: failed to prune worktree metadata: git worktree prune: error: first",
+		"  error: second",
+		"  Run `git worktree prune` in the repository to retry.",
+		"",
+	}, "\n")
+	if !strings.Contains(view, want) {
+		t.Fatalf("failure block is not laid out as\n%s\n\ngot:\n%s", want, view)
+	}
+}
+
+func TestRemovalSummaryDetail_WrappedFailureRowsContinueUnderTheirText(t *testing.T) {
+	m := NewModel(nil, nil, "/repo")
+	m.view = summaryView
+	m.width, m.windowHeight, m.height = 60, 40, 34
+	m.portal = m.portal.SetSize(60, 40)
+	m.remove.run.result.FailureCount = 1
+	m.remove.run.result.Outcomes = []worktree.WorktreeOutcome{{
+		Path:  "/repo/" + strings.Repeat("long-worktree-name-", 6),
+		Error: errors.New("error: failed to delete\nhint: " + strings.Repeat("fix the permissions ", 6)),
+	}}
+
+	_, detail := m.detailContent()
+	lines := strings.Split(stripANSI(detail), "\n")
+	start := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, "    ✗ ") })
+	if start < 0 {
+		t.Fatalf("detail has no failure row:\n%s", stripANSI(detail))
+	}
+	continued := 0
+	for _, line := range lines[start+1:] {
+		if strings.TrimSpace(line) == "" {
+			break
+		}
+		continued++
+		if !strings.HasPrefix(line, "      ") {
+			t.Fatalf("continuation line starts left of the row's text: %q\n%s", line, stripANSI(detail))
+		}
+	}
+	if continued < 4 {
+		t.Fatalf("want the path, the error and the hint to wrap, got %d continuation lines:\n%s", continued, stripANSI(detail))
 	}
 }

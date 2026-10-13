@@ -49,9 +49,13 @@ func (m Model) viewCleanupResult() string {
 	// vocabulary: the preview title and would-act lines, never done marks.
 	ran := m.cleanupRan()
 	did := !ran.DryRun
+	failed := len(r.Errors)
 	title := titleCleanupComplete
-	if ran.DryRun {
+	switch {
+	case ran.DryRun:
 		title = titleCleanupPreview
+	case failed > 0:
+		title = titleCleanupErrors
 	}
 
 	b.WriteString(viewTitle(title))
@@ -59,32 +63,27 @@ func (m Model) viewCleanupResult() string {
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 
-	deleted := r.NonWtBranchesDeleted
+	gone, deleted := r.GoneBranchesDeleted, r.NonWtBranchesDeleted
 	skipped := len(r.BranchesSkipped)
-	totalActions := r.StaleRefsRemoved + r.GoneBranchesDeleted + r.ConfigOrphanResult.Removed +
+	totalActions := r.StaleRefsRemoved + len(gone) + r.ConfigOrphanResult.Removed +
 		r.ConfigDedupResult.Removed + len(deleted) + r.WorktreesPruned
 
 	switch {
 	case ran.DryRun:
 		fmt.Fprintf(&b, "  %s\n\n", styleDim.Render("Dry run: nothing was changed"))
-	case len(r.Errors) == 0 && totalActions == 0 && skipped > 0:
+	case failed > 0:
+		fmt.Fprintf(&b, "  %s %s\n\n", styleIndicatorFailed.Render(indicatorFailed),
+			styleError.Render(fmt.Sprintf("%d %s failed", failed, pluralize(failed, "step", "steps"))))
+	case totalActions == 0 && skipped > 0:
 		// Nothing happened but branches were skipped: never claim clean.
 		fmt.Fprintf(&b, "  %s Nothing cleaned: %d %s\n\n",
 			styleIndicatorWarning.Render(indicatorWarning), skipped, pluralize(skipped, "branch remains", "branches remain"))
-	case len(r.Errors) == 0 && totalActions == 0:
+	case totalActions == 0:
 		fmt.Fprintf(&b, "  %s Repository is clean\n\n",
 			styleIndicatorDone.Render(indicatorDone))
-	case totalActions > 0 && skipped > 0:
+	case skipped > 0:
 		fmt.Fprintf(&b, "  %s Cleanup complete: %d %s\n\n",
 			styleIndicatorWarning.Render(indicatorWarning), skipped, pluralize(skipped, "branch remains", "branches remain"))
-	}
-
-	writeSafeChecks(&b, [...]int{r.StaleRefsRemoved, r.GoneBranchesDeleted, r.ConfigOrphanResult.Removed, r.ConfigDedupResult.Removed, r.WorktreesPruned}, did, r.Errors)
-
-	// Aggressive deletions are named: they are the branches git cannot bring
-	// back from a remote. The names are fitted to the terminal below.
-	if len(deleted) > 0 {
-		b.WriteString(aggressiveCheck.line(len(deleted), did))
 	}
 	head := b.String()
 	b.Reset()
@@ -148,14 +147,30 @@ func (m Model) viewCleanupResult() string {
 	b.WriteString(viewFooter(m.width, cleanupDoneFooter))
 	b.WriteString("\n")
 	tail := b.String()
+	b.Reset()
 
-	// What follows the names must stay on screen. An unknown terminal height
-	// (no size message yet) leaves the list unbounded.
-	budget := len(deleted)
-	if m.windowHeight > 0 {
-		budget = m.windowHeight - strings.Count(head, "\n") - strings.Count(tail, "\n")
+	// Deleted branches are named: git cannot bring them back from a remote.
+	// The two lists share the rows the rest of the screen leaves free, each
+	// taking half unless the other needs less. An unknown terminal height
+	// (no size message yet) leaves them unbounded.
+	counts := [...]int{r.StaleRefsRemoved, len(gone), r.ConfigOrphanResult.Removed, r.ConfigDedupResult.Removed, r.WorktreesPruned}
+	writeSafeChecks(&b, counts, did, r.Errors, "")
+	if len(deleted) > 0 {
+		b.WriteString(aggressiveCheck.line(len(deleted), did))
 	}
-	return head + fitBranchNames(deleted, budget, m.width) + tail
+	budget := len(gone) + len(deleted)
+	if m.windowHeight > 0 {
+		budget = m.windowHeight - strings.Count(head+b.String()+tail, "\n")
+	}
+	goneBudget := max(min(len(gone), max(budget-len(deleted), budget/2)), 0)
+	b.Reset()
+
+	writeSafeChecks(&b, counts, did, r.Errors, fitBranchNames(gone, goneBudget, m.width))
+	if len(deleted) > 0 {
+		b.WriteString(aggressiveCheck.line(len(deleted), did))
+		b.WriteString(fitBranchNames(deleted, budget-goneBudget, m.width))
+	}
+	return head + b.String() + tail
 }
 
 // fitBranchNames lists names one per row in at most budget rows, the last of
