@@ -6,8 +6,11 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 func (m Model) updateSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -51,40 +54,40 @@ func (m Model) renderRemovalSummary() string {
 			styleSuccess.Render(fmt.Sprintf("%d removed", r.SuccessCount)),
 			styleError.Render(fmt.Sprintf("%d failed", r.FailureCount)),
 		)
+		mark := styleIndicatorFailed.Render(indicatorFailed)
 		if r.FailureCount > 0 {
 			b.WriteString("\n")
-			b.WriteString(styleError.Render("  Removal failures:\n"))
+			b.WriteString(styleError.Render("  Removal failures:") + "\n")
 			for _, o := range r.Outcomes {
 				if !o.Success {
-					fmt.Fprintf(&b, "    %s %s: %s\n",
-						styleIndicatorFailed.Render(indicatorFailed),
-						o.Path,
-						fmt.Sprint(o.Error))
+					writeHanging(&b, "    "+mark+" ", lipgloss.NewStyle(), fmt.Sprintf("%s: %v", o.Path, o.Error))
 				}
 			}
 		}
 		if r.Err != nil {
 			b.WriteString("\n")
-			fmt.Fprintf(&b, "  %s %s\n", styleIndicatorFailed.Render(indicatorFailed), styleError.Render(r.Err.Error()))
+			writeHanging(&b, "  "+mark+" ", styleError, r.Err.Error())
 		}
-		if progress.PhasesHaveFailures(r.Phases) {
-			b.WriteString("\n")
-			b.WriteString(styleError.Render("  Execution failures:\n"))
-			for _, phase := range r.Phases {
-				for _, step := range phase.Steps {
-					if step.Status == progress.StepFailed {
-						fmt.Fprintf(&b, "    %s %s / %s: %s\n", styleIndicatorFailed.Render(indicatorFailed), phase.Name, step.Name, step.Error)
-					}
+		// A failed step of the removal phase is one of the outcomes above.
+		var steps strings.Builder
+		for _, phase := range r.Phases {
+			for _, step := range phase.Steps {
+				if step.Status == progress.StepFailed && phase.ID != worktree.RemovalPhaseID {
+					writeHanging(&steps, "    "+mark+" ", lipgloss.NewStyle(), fmt.Sprintf("%s / %s: %v", phase.Name, step.Name, step.Error))
 				}
 			}
+		}
+		if steps.Len() > 0 {
+			b.WriteString("\n")
+			b.WriteString(styleError.Render("  Execution failures:") + "\n")
+			b.WriteString(steps.String())
 		}
 	}
 
 	switch err := m.remove.run.pruneErr; {
 	case err != nil:
 		b.WriteString("\n")
-		b.WriteString(styleWarning.Render(fmt.Sprintf("  Warning: failed to prune worktree metadata: %s", err)))
-		b.WriteString("\n")
+		writeHanging(&b, "  ", styleWarning, fmt.Sprintf("Warning: failed to prune worktree metadata: %s", err))
 		b.WriteString(styleDim.Render("  Run `git worktree prune` in the repository to retry."))
 		b.WriteString("\n")
 	case m.remove.run.pruned:
@@ -110,6 +113,19 @@ func (m Model) renderRemovalSummary() string {
 	b.WriteString("\n")
 
 	return b.String()
+}
+
+// writeHanging writes text after prefix, one row per line of text: the first
+// line follows prefix and every further line starts in the same column, so a
+// multi-line git error never restarts at column 0. Each line is styled on its
+// own because a style rendered across a newline pads every line to the widest.
+func writeHanging(b *strings.Builder, prefix string, style lipgloss.Style, text string) {
+	for i, line := range nonEmptyLines(text) {
+		if i == 1 {
+			prefix = strings.Repeat(" ", lipgloss.Width(prefix))
+		}
+		b.WriteString(prefix + style.Render(line) + "\n")
+	}
 }
 
 func (m Model) viewSummary() string {
@@ -163,7 +179,14 @@ func (m Model) removalSummaryDetailContent() (string, string) {
 	}
 	var detail strings.Builder
 	for _, line := range lines {
-		writeProgressDetailValue(&detail, "", line, m.portal.contentWidth())
+		// A wrapped row continues under its own text: past the row's indent
+		// and, on a failure row, past the mark.
+		plain := ansi.Strip(line)
+		lead := len(plain) - len(strings.TrimLeft(plain, " "))
+		if strings.HasPrefix(plain[lead:], indicatorFailed+" ") {
+			lead += 2
+		}
+		writeProgressDetailValue(&detail, ansi.Cut(line, 0, lead), ansi.Cut(line, lead, ansi.StringWidth(line)), m.portal.contentWidth())
 	}
 	return "Removal details", strings.TrimSuffix(detail.String(), "\n")
 }
