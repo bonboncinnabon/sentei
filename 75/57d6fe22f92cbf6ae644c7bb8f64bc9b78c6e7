@@ -1,0 +1,26 @@
+internal/tui/create_confirm_test.go
+  s_b5d41ab2ae0f4c::t_2b8678615de0e2 333-350
+internal/tui/create_confirm.go
+  s_b5d41ab2ae0f4c::t_fa48ded1d70809 28-29,32-34
+internal/tui/create_branch.go
+  s_b5d41ab2ae0f4c::t_fa48ded1d70809 121-123,133-135
+internal/tui/create_branch_test.go
+  s_b5d41ab2ae0f4c::t_85ab200e95c8af 4,206-227
+  s_b5d41ab2ae0f4c::t_263d8cde147ee5 228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "7557d6fe22f92cbf6ae644c7bb8f64bc9b78c6e7",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
