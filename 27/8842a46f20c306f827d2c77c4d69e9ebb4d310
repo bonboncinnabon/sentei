@@ -1,0 +1,25 @@
+internal/repo/repo.go
+  s_b5d41ab2ae0f4c::t_92cf4e3556a107 31-37,43
+README.md
+  s_b5d41ab2ae0f4c::t_5040cfc15a7e41 216-220
+internal/repo/repo_test.go
+  s_b5d41ab2ae0f4c::t_5b296642411172 71-103
+main_test.go
+  s_b5d41ab2ae0f4c::t_9af6906af1d314 518-544
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "278842a46f20c306f827d2c77c4d69e9ebb4d310",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
