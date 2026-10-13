@@ -50,11 +50,33 @@ func sshEnv(t *testing.T, runner *GitRunner, dir string) map[string]string {
 	return childEnvIn(t, runner, dir, "fetch")
 }
 
+// The git commands sentei runs that can end up in ssh: clone, fetch and push
+// connect themselves, remote does for set-head and prune, and worktree add
+// and merge check files out, where git-lfs or a partial clone connects.
 func TestGitRunner_RunsSSHInBatchMode(t *testing.T) {
 	noSSHChoice(t)
 
-	if got := sshEnv(t, &GitRunner{}, t.TempDir())["GIT_SSH_COMMAND"]; got != batchSSHCommand {
-		t.Errorf("GIT_SSH_COMMAND = %q, want %q: ssh would ask for a host key or passphrase on the terminal", got, batchSSHCommand)
+	for _, command := range []string{"clone", "fetch", "push", "remote", "worktree", "merge"} {
+		if got := childEnvIn(t, &GitRunner{}, t.TempDir(), command)["GIT_SSH_COMMAND"]; got != batchSSHCommand {
+			t.Errorf("git %s: GIT_SSH_COMMAND = %q, want %q: ssh would ask for a host key or passphrase on the terminal", command, got, batchSSHCommand)
+		}
+	}
+}
+
+// A conditional include hides an ssh command only from the read made before a
+// clone. In a repository that exists the read applies the include, so every
+// other command still runs ssh in batch mode.
+func TestGitRunner_AConditionalIncludeHoldsBackOnlyClone(t *testing.T) {
+	noSSHChoice(t)
+	// The common use: an identity for some repositories, and no ssh command.
+	globalGitConfig(t, "[includeIf \"gitdir:/nonexistent/work/\"]\n\tpath = work.gitconfig\n")
+	runner := &GitRunner{}
+
+	if got := sshEnv(t, runner, t.TempDir())["GIT_SSH_COMMAND"]; got != batchSSHCommand {
+		t.Errorf("git fetch: GIT_SSH_COMMAND = %q, want %q: the include names no ssh command here", got, batchSSHCommand)
+	}
+	if got, present := childEnvIn(t, runner, t.TempDir(), "clone")["GIT_SSH_COMMAND"]; present {
+		t.Errorf("git clone: GIT_SSH_COMMAND = %q reached git: the include may name an ssh command for the new repository", got)
 	}
 }
 
