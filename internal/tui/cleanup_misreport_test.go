@@ -58,7 +58,7 @@ func TestViewCleanupResult_DeletedNamesFitTheTerminal(t *testing.T) {
 func TestViewCleanupResult_DryRunSaysWouldNotDid(t *testing.T) {
 	m := resultModel(&cleanup.Options{Mode: cleanup.ModeAggressive, DryRun: true}, cleanup.Result{
 		StaleRefsRemoved:     2,
-		GoneBranchesDeleted:  1,
+		GoneBranchesDeleted:  []string{"feature/gone"},
 		ConfigOrphanResult:   cleanup.ConfigResult{Removed: 1},
 		ConfigDedupResult:    cleanup.ConfigResult{Removed: 3},
 		WorktreesPruned:      1,
@@ -278,6 +278,186 @@ func TestViewCleanupResult_OneRemainingBranchReadsAsSingular(t *testing.T) {
 		view := stripANSI(resultModel(nil, result).viewCleanupResult())
 		if !strings.Contains(view, "1 branch remains") {
 			t.Errorf("%s: expected \"1 branch remains\":\n%s", name, view)
+		}
+	}
+}
+
+// A run with a failed step is not "complete": the title and the first line
+// say so, whatever else the run did.
+func TestViewCleanupResult_FailedStepIsNamedInTheTitle(t *testing.T) {
+	failure := []cleanup.OperationError{{Step: "prune-refs", Err: errors.New("could not read from remote repository")}}
+	m := resultModel(nil, cleanup.Result{
+		ConfigDedupResult: cleanup.ConfigResult{Removed: 2},
+		BranchesSkipped:   []cleanup.SkippedBranch{{Name: "wip", Reason: cleanup.SkipUnmerged}},
+		Errors:            failure,
+	})
+
+	view := stripANSI(m.viewCleanupResult())
+	if strings.Contains(view, "Cleanup complete") {
+		t.Errorf("a run with a failed step reads as complete:\n%s", view)
+	}
+	for _, want := range []string{"sentei ─ Cleanup finished with errors", "✗ 1 step failed", "Removed 2 duplicate config lines", "prune-refs: could not read"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("missing %q:\n%s", want, view)
+		}
+	}
+
+	clean := stripANSI(resultModel(nil, cleanup.Result{StaleRefsRemoved: 1}).viewCleanupResult())
+	if !strings.Contains(clean, "sentei ─ Cleanup complete") {
+		t.Errorf("a run without failures lost its title:\n%s", clean)
+	}
+	dry := stripANSI(resultModel(&cleanup.Options{Mode: cleanup.ModeSafe, DryRun: true}, cleanup.Result{Errors: failure}).viewCleanupResult())
+	if !strings.Contains(dry, "sentei ─ Cleanup preview") {
+		t.Errorf("a dry run changed nothing and keeps the preview title:\n%s", dry)
+	}
+}
+
+// Branches deleted for a gone upstream are gone for good, like the ones
+// aggressive mode deletes: both lists are named under their own line.
+func TestViewCleanupResult_NamesGoneBranchesUnderTheirCheck(t *testing.T) {
+	result := cleanup.Result{
+		GoneBranchesDeleted:  []string{"feature/gone-a", "feature/gone-b"},
+		NonWtBranchesDeleted: []string{"old/one"},
+	}
+	for name, tc := range map[string]struct {
+		opts *cleanup.Options
+		line string
+	}{
+		"real run": {&cleanup.Options{Mode: cleanup.ModeAggressive}, "✦ Deleted 2 branches with gone upstream"},
+		"dry run":  {&cleanup.Options{Mode: cleanup.ModeAggressive, DryRun: true}, "▸ 2 branches with gone upstream would be deleted"},
+	} {
+		view := stripANSI(resultModel(tc.opts, result).viewCleanupResult())
+		want := "  " + tc.line + "\n      feature/gone-a\n      feature/gone-b\n  · No orphaned config sections\n"
+		if !strings.Contains(view, want) {
+			t.Errorf("%s: gone branches are not named under their check, want\n%s\ngot:\n%s", name, want, view)
+		}
+		if !strings.Contains(view, "not in any worktree") || !strings.Contains(view, "\n      old/one\n") {
+			t.Errorf("%s: aggressive deletions lost their names:\n%s", name, view)
+		}
+	}
+}
+
+// Two long lists share the rows a short terminal leaves free; neither may
+// push the footer off screen or starve the other.
+func TestViewCleanupResult_BothNameListsFitTheTerminal(t *testing.T) {
+	names := func(prefix string, n int) []string {
+		var out []string
+		for i := range n {
+			out = append(out, prefix+itoa(i))
+		}
+		return out
+	}
+	for name, tc := range map[string]struct {
+		gone, deleted int
+		want          []string
+	}{
+		"both long":      {30, 30, []string{"gone/0", "old/0", "and 2"}},
+		"short gone":     {2, 30, []string{"gone/0", "gone/1", "old/0", "and 2"}},
+		"short deleted":  {30, 2, []string{"gone/0", "old/0", "old/1", "and 2"}},
+		"only gone":      {30, 0, []string{"gone/0", "and 2"}},
+		"everything fit": {3, 3, []string{"gone/2", "old/2"}},
+	} {
+		m := resultModel(&cleanup.Options{Mode: cleanup.ModeAggressive}, cleanup.Result{
+			GoneBranchesDeleted:  names("gone/", tc.gone),
+			NonWtBranchesDeleted: names("old/", tc.deleted),
+		})
+		m.windowHeight = 24
+
+		view := stripANSI(m.viewCleanupResult())
+		if rows := strings.Count(view, "\n"); rows > 24 {
+			t.Errorf("%s: view is %d rows on a 24-row terminal:\n%s", name, rows, view)
+		}
+		for _, want := range append(tc.want, "enter quit") {
+			if !strings.Contains(view, want) {
+				t.Errorf("%s: missing %q:\n%s", name, want, view)
+			}
+		}
+		if tc.gone+tc.deleted <= 6 && strings.Contains(view, "more") {
+			t.Errorf("%s: names were dropped although they fit:\n%s", name, view)
+		}
+	}
+}
+
+// The F1 help lists the keys of the screen as it is now. On a preview with
+// nothing to clean enter goes back, so the help must not promise a cleanup.
+func TestCleanupPreviewHelp_MatchesWhatTheKeysDo(t *testing.T) {
+	unmerged := &cleanup.DryRunResult{AggressiveBranches: []cleanup.BranchInfo{{Name: "wip"}}}
+	confirming := previewModel()
+	confirming.cleanupScan = scanWithAggressive(2)
+	confirming.cleanupAggressiveConfirm = true
+
+	for name, tc := range map[string]struct {
+		model         func() Model
+		want, notWant []string
+	}{
+		"scanning": {previewModel, []string{"esc back"}, []string{"enter", "cleanup", "details"}},
+		"scan failed": {func() Model {
+			m := previewModel()
+			m.cleanupScanErr = errors.New("boom")
+			return m
+		}, []string{"esc back"}, []string{"enter", "cleanup", "details"}},
+		"clean": {func() Model {
+			m := previewModel()
+			m.cleanupScan = &cleanup.DryRunResult{}
+			return m
+		}, []string{"enter back"}, []string{"cleanup", "aggressive", "details"}},
+		"safe work only": {func() Model {
+			m := previewModel()
+			m.cleanupScan = scanWithAggressive(0)
+			return m
+		}, []string{"enter safe cleanup", "esc back"}, []string{"aggressive", "details"}},
+		"nothing deletable without --force": {func() Model {
+			m := previewModel()
+			m.cleanupScan = unmerged
+			return m
+		}, []string{"enter safe cleanup", "? details"}, []string{"aggressive"}},
+		"aggressive available": {func() Model {
+			m := previewModel()
+			m.cleanupScan = scanWithAggressive(2)
+			return m
+		}, []string{"enter safe cleanup", "a aggressive", "? details", "esc back"}, nil},
+		"aggressive prompt": {func() Model { return confirming }, []string{"y delete", "n go back"}, []string{"enter", "safe cleanup"}},
+	} {
+		m := tc.model()
+		_, help := m.helpContent()
+		help = strings.Join(strings.Fields(stripANSI(help)), " ")
+		for _, want := range tc.want {
+			if !strings.Contains(help, want) {
+				t.Errorf("%s: help is missing %q:\n%s", name, want, help)
+			}
+		}
+		for _, notWant := range tc.notWant {
+			if strings.Contains(help, notWant) {
+				t.Errorf("%s: help offers %q, which does nothing of the kind here:\n%s", name, notWant, help)
+			}
+		}
+		// The footer and the help are the same list.
+		footer := stripANSI(m.cleanupPreviewFooter())
+		for _, action := range m.cleanupPreviewActions() {
+			if hint := action.Help().Key + " " + action.Help().Desc; !strings.Contains(footer, hint) {
+				t.Errorf("%s: footer %q does not offer %q", name, footer, hint)
+			}
+		}
+	}
+}
+
+// A message can change what the keys do while the help is open: the scan
+// lands behind it. The help must not go on listing the keys of the state
+// that ended.
+func TestCleanupPreviewHelp_FollowsAScanThatLandsWhileOpen(t *testing.T) {
+	updated, _ := previewModel().Update(tea.KeyPressMsg{Code: tea.KeyF1})
+	m := updated.(Model)
+	if help := stripANSI(m.portal.viewport.View()); !m.portal.Visible() || strings.Contains(help, "safe cleanup") {
+		t.Fatalf("want the help of a preview that is still scanning, got:\n%s", help)
+	}
+
+	updated, _ = m.Update(cleanupScanDoneMsg{result: *scanWithAggressive(2)})
+	m = updated.(Model)
+
+	help := strings.Join(strings.Fields(stripANSI(m.portal.viewport.View())), " ")
+	for _, want := range []string{"enter safe cleanup", "a aggressive", "? details", "esc back"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("help still lists the keys of the scanning state, missing %q:\n%s", want, help)
 		}
 	}
 }

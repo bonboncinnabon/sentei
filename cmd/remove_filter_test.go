@@ -7,56 +7,94 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
-// --merged must mean "the default branch has absorbed this branch". A branch
-// that still points at the default branch's tip has nothing merged from it:
-// it was just created, so removing it would delete a worktree nobody has used
-// yet.
+// --merged must select the branches the default branch has absorbed, through a
+// merge commit or a fast-forward, and leave alone the ones nobody has worked
+// on. Branches are created from the bare repository unless a case says
+// otherwise, as `sentei create` does: git writes no reflog entry for a branch
+// created there, only for the commits made later in its worktree.
 func TestCheckMerged_RealGit(t *testing.T) {
 	bareRepo := setupBareRepo(t)
 	mainPath := filepath.Join(bareRepo, "main")
 	mustGit(t, bareRepo, "worktree", "add", mainPath, "main")
 
 	// commitOn adds one commit to branch through a throwaway worktree.
-	commitOn := func(branch string) {
+	// gitOptions go before the commit subcommand.
+	commitOn := func(branch string, gitOptions ...string) {
 		t.Helper()
 		wtPath := filepath.Join(t.TempDir(), "wt")
 		mustGit(t, bareRepo, "worktree", "add", wtPath, branch)
 		mustWriteFile(t, filepath.Join(wtPath, filepath.Base(branch)+".txt"), branch+"\n")
 		mustGit(t, wtPath, "add", ".")
-		mustGit(t, wtPath, "commit", "-m", "work on "+branch)
+		mustGit(t, wtPath, append(gitOptions, "commit", "-m", "work on "+branch)...)
 		mustGit(t, bareRepo, "worktree", "remove", "--force", wtPath)
 	}
 
-	isMerged := CheckMerged(&git.GitRunner{}, bareRepo, "main")
+	// Every check builds its own checker, as every run of the command does.
 	check := func(branch string, want bool, why string) {
 		t.Helper()
-		if got := isMerged(branch); got != want {
+		if got := CheckMerged(&git.GitRunner{}, bareRepo, "main")(branch); got != want {
 			t.Errorf("isMerged(%q) = %v, want %v: %s", branch, got, want, why)
 		}
 	}
 
-	mustGit(t, bareRepo, "branch", "feature/brand-new", "main")
-	check("feature/brand-new", false, "a branch at the default tip has nothing of its own merged")
+	mustGit(t, bareRepo, "branch", "feature/unused", "main")
+	// Created from inside a worktree, so its reflog holds the creation entry.
+	mustGit(t, mainPath, "branch", "feature/unused-logged", "main")
+	check("feature/unused", false, "nobody has worked on it")
+	check("feature/unused-logged", false, "its reflog shows only its creation")
 
 	mustGit(t, bareRepo, "branch", "feature/unmerged", "main")
 	commitOn("feature/unmerged")
 	check("feature/unmerged", false, "its commit is not in main")
+
+	mustGit(t, bareRepo, "branch", "feature/fast-forward", "main")
+	commitOn("feature/fast-forward")
+	mustGit(t, mainPath, "merge", "--ff-only", "feature/fast-forward")
+	check("feature/fast-forward", true, "main was fast-forwarded to its commit and has not moved since")
+	check("feature/unused", false, "main moving on does not make an unused branch merged")
+	check("feature/unused-logged", false, "main moving on does not make an unused branch merged")
+
+	// Never committed to, only brought up to date with main. Its reflog shows
+	// a move, and nothing tells that move from pulled work main absorbed.
+	mustGit(t, bareRepo, "branch", "feature/synced", "main~1")
+	syncedPath := filepath.Join(t.TempDir(), "wt")
+	mustGit(t, bareRepo, "worktree", "add", syncedPath, "feature/synced")
+	mustGit(t, syncedPath, "merge", "--ff-only", "main")
+	mustGit(t, bareRepo, "worktree", "remove", "--force", syncedPath)
+	check("feature/synced", true, "a fast-forward to main moves the branch as a commit does")
+
+	mustGit(t, bareRepo, "branch", "feature/no-reflog", "main")
+	commitOn("feature/no-reflog", "-c", "core.logAllRefUpdates=false")
+	mustGit(t, mainPath, "merge", "--ff-only", "feature/no-reflog")
+	check("feature/no-reflog", false, "without a reflog nothing shows that it was worked on")
 
 	mustGit(t, bareRepo, "branch", "feature/merge-commit", "main")
 	commitOn("feature/merge-commit")
 	mustGit(t, mainPath, "merge", "--no-ff", "-m", "merge feature", "feature/merge-commit")
 	check("feature/merge-commit", true, "main contains it through a merge commit")
 
-	mustGit(t, bareRepo, "branch", "feature/fast-forward", "main")
-	commitOn("feature/fast-forward")
-	mustGit(t, mainPath, "merge", "--ff-only", "feature/fast-forward")
-	check("feature/fast-forward", false, "right after a fast-forward it is indistinguishable from a new branch")
+	// A branch checked out from origin and never pulled has no reflog either.
+	mustGit(t, bareRepo, "branch", "feature/merge-commit-no-reflog", "main")
+	commitOn("feature/merge-commit-no-reflog", "-c", "core.logAllRefUpdates=false")
+	mustGit(t, mainPath, "merge", "--no-ff", "-m", "merge feature", "feature/merge-commit-no-reflog")
+	check("feature/merge-commit-no-reflog", true, "a merge commit shows the merge without a reflog")
+
+	mustGit(t, bareRepo, "branch", "feature/squashed", "main")
+	commitOn("feature/squashed")
+	mustGit(t, mainPath, "merge", "--squash", "feature/squashed")
+	mustGit(t, mainPath, "commit", "-m", "squash feature")
+	check("feature/squashed", false, "a squash merge leaves its commit outside main")
 
 	mustWriteFile(t, filepath.Join(mainPath, "later.txt"), "later\n")
 	mustGit(t, mainPath, "add", ".")
 	mustGit(t, mainPath, "commit", "-m", "main moves on")
 	check("feature/fast-forward", true, "main has moved past the fast-forwarded branch")
+	check("feature/merge-commit", true, "main has moved past the merge commit")
+	check("feature/unused", false, "still nobody has worked on it")
+	check("feature/unused-logged", false, "still nobody has worked on it")
+	check("feature/no-reflog", false, "still no reflog to show that it was worked on")
 	check("feature/unmerged", false, "its commit is still not in main")
+	check("feature/squashed", false, "its commit is still not in main")
 	check("main", false, "the default branch is never merged into itself")
 	check("no/such-branch", false, "an unknown branch is not merged")
 }
@@ -81,5 +119,23 @@ func TestCheckMerged_IgnoresTagWithBranchName(t *testing.T) {
 
 	if CheckMerged(&git.GitRunner{}, bareRepo, "main")("release") {
 		t.Error("branch release has an unmerged commit; the tag of the same name must not make it look merged")
+	}
+}
+
+// A tag with the default branch's name must not stand in for it either: every
+// branch would be judged against the commit the tag sits on.
+func TestCheckMerged_IgnoresTagWithDefaultBranchName(t *testing.T) {
+	bareRepo := setupBareRepo(t)
+	mustGit(t, bareRepo, "branch", "feature/unmerged", "main")
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	mustGit(t, bareRepo, "worktree", "add", wtPath, "feature/unmerged")
+	mustWriteFile(t, filepath.Join(wtPath, "feature.txt"), "unmerged\n")
+	mustGit(t, wtPath, "add", ".")
+	mustGit(t, wtPath, "commit", "-m", "unmerged work")
+	// The tag sits on the commit that main does not contain.
+	mustGit(t, bareRepo, "tag", "main", "feature/unmerged")
+
+	if CheckMerged(&git.GitRunner{}, bareRepo, "main")("feature/unmerged") {
+		t.Error("feature/unmerged has a commit that branch main lacks; the tag named main must not make it look merged")
 	}
 }

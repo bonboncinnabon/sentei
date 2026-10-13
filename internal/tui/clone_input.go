@@ -108,7 +108,7 @@ func (m Model) viewCloneInput() string {
 	b.WriteString("\n")
 
 	if m.repo.validationErr != "" {
-		b.WriteString("\n  " + styleError.Render(m.repo.validationErr))
+		b.WriteString("\n" + formErrorLine(m.repo.validationErr, m.width))
 		b.WriteString("\n")
 	}
 

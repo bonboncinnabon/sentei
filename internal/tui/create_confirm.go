@@ -3,9 +3,6 @@ package tui
 import (
 	"slices"
 	"strings"
-	"time"
-
-	tea "charm.land/bubbletea/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/cli"
 )
@@ -75,9 +72,20 @@ func (m Model) createConfirmationVM() ConfirmationViewModel {
 	branch := m.create.branchInput.Value()
 	base := m.create.baseInput.Value()
 
+	// A branch that already exists is checked out as it is, so the base is
+	// not used. Its own row says so: that row is short enough to stay on
+	// screen whatever the branch is called.
+	baseValue := base
+	switch m.create.existingBranch {
+	case "":
+	case branch:
+		baseValue += " (not used: the branch already exists)"
+	default:
+		baseValue += " (not used: the branch exists on origin)"
+	}
 	items := []ConfirmationItem{
 		{Label: "Branch:", Value: branch},
-		{Label: "Base:", Value: base},
+		{Label: "Base:", Value: baseValue},
 	}
 
 	var enabledEcos []string
@@ -135,30 +143,6 @@ func (m Model) createConfirmationVM() ConfirmationViewModel {
 		Items:      items,
 		CLICommand: cli.BuildFlagString("sentei create", flags),
 	}
-}
-
-func (m Model) updateCreateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
-	case ConfirmProceedMsg:
-		m.startCreation()
-		m.progressStartedAt = time.Now()
-		m.progressToken++
-		m.view = createProgressView
-		return m, m.waitForCreateEvent()
-
-	case ConfirmBackMsg:
-		if m.createOpts != nil {
-			return m, tea.Quit
-		}
-		m.view = createOptionsView
-		return m, nil
-	}
-
-	if cmd := UpdateConfirmation(msg); cmd != nil {
-		return m, cmd
-	}
-
-	return m, nil
 }
 
 func (m Model) viewCreateConfirm() string {

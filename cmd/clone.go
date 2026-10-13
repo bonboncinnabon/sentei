@@ -66,23 +66,25 @@ func cloneResultError(result repo.CloneResult) error {
 	return nil
 }
 
+// printCloneEvent prints labels, not the Phase/Step identities: those
+// ("clone:bare", "bare-repository") are meant for matching events.
 func printCloneEvent(e progress.Event) {
 	switch e.Status {
 	case progress.StepRunning:
-		fmt.Printf("%s→%s [%s] %s\n", blue, nc, e.Phase, e.Step)
+		fmt.Printf("%s→%s [%s] %s\n", blue, nc, e.PhaseLabel, e.StepLabel)
 	case progress.StepDone:
 		msg := ""
 		if e.Message != "" {
 			msg = fmt.Sprintf(" (%s)", e.Message)
 		}
-		fmt.Printf("%s✓%s [%s] %s%s\n", green, nc, e.Phase, e.Step, msg)
+		fmt.Printf("%s✓%s [%s] %s%s\n", green, nc, e.PhaseLabel, e.StepLabel, msg)
 	case progress.StepFailed:
-		fmt.Printf("%s✗%s [%s] %s: %v\n", yellow, nc, e.Phase, e.Step, e.Error)
+		fmt.Printf("%s✗%s [%s] %s: %v\n", yellow, nc, e.PhaseLabel, e.StepLabel, e.Error)
 	case progress.StepSkipped:
 		msg := ""
 		if e.Message != "" {
 			msg = fmt.Sprintf(" (%s)", e.Message)
 		}
-		fmt.Printf("%s⊘%s [%s] %s%s\n", dim, nc, e.Phase, e.Step, msg)
+		fmt.Printf("%s⊘%s [%s] %s%s\n", dim, nc, e.PhaseLabel, e.StepLabel, msg)
 	}
 }

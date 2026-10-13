@@ -27,11 +27,7 @@ func TestDetect_E2E_GoProject(t *testing.T) {
 		t.Fatalf("LoadConfig() error: %v", err)
 	}
 
-	reg := ecosystem.NewRegistry(cfg.Ecosystems)
-	detected, err := reg.Detect(repoDir)
-	if err != nil {
-		t.Fatalf("Detect() error: %v", err)
-	}
+	detected := ecosystem.Detect(cfg.Ecosystems, repoDir)
 
 	if len(detected) != 1 {
 		t.Fatalf("expected 1 ecosystem, got %d: %v", len(detected), namesOf(detected))
@@ -70,13 +66,9 @@ func TestDetect_E2E_PnpmMonorepo(t *testing.T) {
 		t.Fatalf("LoadConfig() error: %v", err)
 	}
 
-	reg := ecosystem.NewRegistry(cfg.Ecosystems)
-	detected, err := reg.Detect(repoDir)
-	if err != nil {
-		t.Fatalf("Detect() error: %v", err)
-	}
+	detected := ecosystem.Detect(cfg.Ecosystems, repoDir)
 
-	var pnpmEco *ecosystem.Ecosystem
+	var pnpmEco *config.EcosystemConfig
 	for i := range detected {
 		if detected[i].Name == "pnpm" {
 			pnpmEco = &detected[i]
@@ -88,7 +80,7 @@ func TestDetect_E2E_PnpmMonorepo(t *testing.T) {
 	}
 
 	// A workspace repo gets one install at the root, which covers every member.
-	if command := pnpmEco.Config.Install.Command; strings.Contains(command, "--filter") || strings.Contains(command, "{dir}") {
+	if command := pnpmEco.Install.Command; strings.Contains(command, "--filter") || strings.Contains(command, "{dir}") {
 		t.Errorf("pnpm install command %q must be a root install", command)
 	}
 }
@@ -111,11 +103,7 @@ func TestDetect_E2E_MultiLanguage(t *testing.T) {
 		t.Fatalf("LoadConfig() error: %v", err)
 	}
 
-	reg := ecosystem.NewRegistry(cfg.Ecosystems)
-	detected, err := reg.Detect(repoDir)
-	if err != nil {
-		t.Fatalf("Detect() error: %v", err)
-	}
+	detected := ecosystem.Detect(cfg.Ecosystems, repoDir)
 
 	if len(detected) != 2 {
 		t.Fatalf("expected 2 ecosystems, got %d: %v", len(detected), namesOf(detected))
@@ -148,7 +136,7 @@ func TestDetect_E2E_MultiLanguage(t *testing.T) {
 	}
 }
 
-func namesOf(ecosystems []ecosystem.Ecosystem) []string {
+func namesOf(ecosystems []config.EcosystemConfig) []string {
 	names := make([]string, len(ecosystems))
 	for i, e := range ecosystems {
 		names[i] = e.Name

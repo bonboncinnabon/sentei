@@ -86,14 +86,14 @@ The TUI SHALL display a summary using `viewTitle("Removal Complete")`, `viewSepa
 - **THEN** the summary SHALL show "Warning: failed to prune worktree metadata" with the error
 
 ### Requirement: Exit from summary
-The TUI SHALL exit or return to menu when the user presses the appropriate key from the summary view.
+The TUI SHALL return to the menu or exit when the user presses the appropriate key from the summary view. Every launch builds the menu, a direct `sentei remove` included, so the summary always has one to return to.
 
-#### Scenario: Quit from summary (standalone mode)
-- **WHEN** the user presses 'q', Enter, or Escape on the summary view and no menu is available
+#### Scenario: Quit from summary
+- **WHEN** the user presses 'q' on the summary view
 - **THEN** the application SHALL exit cleanly
 
 #### Scenario: Return to menu from summary
-- **WHEN** the user presses Enter or Escape on the summary view and a menu is available
+- **WHEN** the user presses Enter or Escape on the summary view
 - **THEN** the TUI SHALL return to the menu view
 
 ### Requirement: Create worktree progress uses shared layout
@@ -105,7 +105,15 @@ The create worktree progress view SHALL use the shared `ProgressLayout` renderer
 
 #### Scenario: Create progress uses standard title
 - **WHEN** the create progress view is rendered
-- **THEN** the title SHALL use `viewTitle("Creating Worktree")` with the subtitle showing branch and base
+- **THEN** the title SHALL use `viewTitle("Creating Worktree")` with the subtitle showing the branch and where it comes from
+
+#### Scenario: Subtitle says where the branch comes from
+- **WHEN** the create options view or the create progress view is rendered
+- **THEN** the subtitle SHALL read `<branch> → from <base>` for a branch that exists nowhere, `<branch> → existing branch, not created from <base>` for a local branch, and `<branch> → tracks origin/<branch>, not created from <base>` for a branch that only origin has
+
+#### Scenario: Subtitle wider than the terminal
+- **WHEN** the subtitle does not fit the terminal width
+- **THEN** the branch name SHALL give up its head so that the statement after the arrow stays visible, and the line SHALL never run past the terminal edge
 
 ### Requirement: Repo operations progress uses shared layout
 The repo operations progress view (create, clone, migrate) SHALL use the shared `ProgressLayout` renderer with operation-specific title, phases, overall progress bar, and standard chrome.

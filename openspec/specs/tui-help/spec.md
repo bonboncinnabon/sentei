@@ -37,6 +37,10 @@ Each view SHALL provide its own help content, so the help overlay shows relevant
 - **WHEN** a binding appears in a view's footer
 - **THEN** the same key and description SHALL appear in that view's help sections
 
+#### Scenario: Help follows the state of the view
+- **WHEN** a view's keys depend on its state, as on the cleanup preview (scanning, scan failed, nothing to clean, work found, aggressive prompt)
+- **THEN** the help SHALL list the keys of the current state, taken from the same list as the footer, so on a preview with nothing to clean Enter is described as "back" and not as running a cleanup
+
 ### Requirement: Contextual details via ?
 Views that support contextual details SHALL open the portal with view-specific detail content when the user presses `?`.
 

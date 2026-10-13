@@ -75,6 +75,14 @@ func installFakeGit(t *testing.T) {
 
 	t.Setenv("GO_WANT_HELPER_PROCESS", "1")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	chosenSSH(t)
+}
+
+// chosenSSH gives the test an ssh command of its own, so GitRunner does not
+// ask a stand-in git for core.sshCommand before the command under test.
+func chosenSSH(t *testing.T) {
+	t.Helper()
+	t.Setenv("GIT_SSH_COMMAND", "ssh")
 }
 
 func TestGitRunner_SuccessfulCommand(t *testing.T) {
@@ -147,7 +155,15 @@ func TestGitRunner_WorktreeListIntegration(t *testing.T) {
 // a shell alias so the assertion covers what really reaches the child.
 func childEnv(t *testing.T, runner *GitRunner) map[string]string {
 	t.Helper()
-	out, err := runner.Run(t.TempDir(), "-c", "alias.child-env=!env", "child-env")
+	return childEnvIn(t, runner, t.TempDir())
+}
+
+// childEnvIn is childEnv for a git started in dir. words are passed to git
+// after the alias and ignored by it; a test adds a command name such as
+// "fetch" to see the environment of a command GitRunner treats as that one.
+func childEnvIn(t *testing.T, runner *GitRunner, dir string, words ...string) map[string]string {
+	t.Helper()
+	out, err := runner.Run(dir, append([]string{"-c", "alias.child-env=!env #", "child-env"}, words...)...)
 	if err != nil {
 		t.Fatalf("reading the child environment: %v", err)
 	}
@@ -225,6 +241,7 @@ func installScriptGit(t *testing.T, script string) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", filepath.Dir(path)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	chosenSSH(t)
 	t.Cleanup(func() {
 		data, err := os.ReadFile(path + ".pid")
 		if err != nil {

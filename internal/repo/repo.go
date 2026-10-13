@@ -1,8 +1,6 @@
 package repo
 
 import (
-	"path/filepath"
-
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
@@ -27,45 +25,31 @@ func (c RepoContext) String() string {
 	}
 }
 
-// DetectContext determines the repo context at the given path.
+// DetectContext reports what kind of repository holds path. A bare layout is
+// any repository whose shared git directory is a bare repository, whatever
+// that directory is called and wherever its worktrees live; path may be the
+// bare directory, the container of a .bare layout, or any worktree.
 //
-// Detection logic:
-//  1. git rev-parse --is-bare-repository → "true" means ContextBareRepo
-//  2. Check for .bare directory at repo root (sentei's bare structure from a worktree)
-//  3. git rev-parse --git-dir succeeds → ContextNonBareRepo
-//  4. Otherwise → ContextNoRepo
+// Git answers for the shared directory because --git-dir names it; asked
+// plainly inside a worktree it answers for the worktree, which is never bare.
+// The directory is named and not entered for two reasons: git refuses a bare
+// directory it has to discover when safe.bareRepository is "explicit", and
+// inside a .git directory whose config has no core.bare it guesses "bare".
 func DetectContext(runner git.CommandRunner, path string) RepoContext {
-	output, err := runner.Run(path, "rev-parse", "--is-bare-repository")
-	if err == nil && output == "true" {
-		return ContextBareRepo
-	}
-
-	// Check if git repo at all
-	_, err = runner.Run(path, "rev-parse", "--git-dir")
+	commonDir, err := git.CommonDir(runner, path)
 	if err != nil {
 		return ContextNoRepo
 	}
-
-	// Inside a git repo — sentei's bare layout has a ".bare" common dir.
-	// (--show-toplevel returns the worktree root, not the bare repo root.)
-	if commonDir, err := git.CommonDir(runner, path); err == nil && filepath.Base(commonDir) == ".bare" {
+	if bare, err := runner.Run(path, "--git-dir="+commonDir, "rev-parse", "--is-bare-repository"); err == nil && bare == "true" {
 		return ContextBareRepo
 	}
-
 	return ContextNonBareRepo
 }
 
 // ResolveBareRoot resolves the root that holds a repository's worktrees from
-// any path into it: a worktree, the container of a .bare layout, or the bare
-// directory. For a .bare layout that is the container, also when path is the
-// .bare directory itself. A plain bare repository is its own root. Falls back
-// to path when git cannot resolve the common dir.
+// any path into it. See git.RepoRoot for the rule.
 func ResolveBareRoot(runner git.CommandRunner, path string) string {
-	commonDir, err := git.CommonDir(runner, path)
-	if err != nil || (commonDir == path && filepath.Base(commonDir) != ".bare") {
-		return path
-	}
-	return filepath.Dir(commonDir)
+	return git.RepoRoot(runner, path)
 }
 
 func (r CloneResult) HasFailures() bool { return r.Err != nil || progress.PhasesHaveFailures(r.Phases) }

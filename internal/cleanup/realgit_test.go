@@ -142,8 +142,8 @@ func TestDryRun_ListsBranchesThatPruningWillMakeGone(t *testing.T) {
 	}
 
 	dry := Run(runner, f.root, Options{Mode: ModeSafe, DryRun: true}, discard)
-	if dry.GoneBranchesDeleted != 1 {
-		t.Errorf("dry run reports %d gone branch(es), want 1", dry.GoneBranchesDeleted)
+	if want := []string{"feature/old"}; !slices.Equal(dry.GoneBranchesDeleted, want) {
+		t.Errorf("dry run reports gone branches %v, want %v", dry.GoneBranchesDeleted, want)
 	}
 	if !slices.Contains(f.branches(), "feature/old") {
 		t.Fatal("the dry run deleted the branch")
@@ -154,8 +154,8 @@ func TestDryRun_ListsBranchesThatPruningWillMakeGone(t *testing.T) {
 	if len(result.Errors) > 0 {
 		t.Fatalf("unexpected errors: %v", result.Errors)
 	}
-	if result.GoneBranchesDeleted != dry.GoneBranchesDeleted {
-		t.Errorf("real run deleted %d branch(es), the dry run announced %d", result.GoneBranchesDeleted, dry.GoneBranchesDeleted)
+	if !slices.Equal(result.GoneBranchesDeleted, dry.GoneBranchesDeleted) {
+		t.Errorf("real run deleted %v, the dry run announced %v", result.GoneBranchesDeleted, dry.GoneBranchesDeleted)
 	}
 	if slices.Contains(f.branches(), "feature/old") {
 		t.Error("the real run kept the gone branch")
@@ -183,8 +183,8 @@ func TestRun_CommitSubjectIsNotUpstreamState(t *testing.T) {
 	}
 
 	result := Run(runner, f.root, Options{Mode: ModeSafe}, discard)
-	if result.GoneBranchesDeleted != 0 {
-		t.Errorf("GoneBranchesDeleted = %d, want 0", result.GoneBranchesDeleted)
+	if len(result.GoneBranchesDeleted) != 0 {
+		t.Errorf("GoneBranchesDeleted = %v, want none", result.GoneBranchesDeleted)
 	}
 	if !slices.Contains(f.branches(), "feature/live") {
 		t.Error("a branch with a live upstream was deleted because of its commit subject")

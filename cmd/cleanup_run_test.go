@@ -168,3 +168,84 @@ func TestCleanupDryRun_RealRepo(t *testing.T) {
 		t.Error("AggressiveHasWork must be true")
 	}
 }
+
+// The counts alone do not say which branches are gone. Both the dry run and
+// the real run name every branch cleanup deletes and every one it leaves
+// alone, with the reason.
+func TestRunCleanup_NamesDeletedAndSkippedBranches(t *testing.T) {
+	repoPath := setupBareRepo(t)
+	origin := filepath.Join(t.TempDir(), "origin.git")
+	mustGit(t, repoPath, "clone", "--bare", repoPath, origin)
+	mustGit(t, repoPath, "remote", "add", "origin", origin)
+
+	// commitOn gives branch a commit that exists nowhere else.
+	commitOn := func(branch string) {
+		t.Helper()
+		wtPath := filepath.Join(t.TempDir(), "wt")
+		mustGit(t, repoPath, "worktree", "add", wtPath, branch)
+		mustGit(t, wtPath, "commit", "--allow-empty", "-m", "work on "+branch)
+		mustGit(t, repoPath, "worktree", "remove", "--force", wtPath)
+	}
+
+	gone := []string{"gone/merged", "gone/unmerged", "gone/in-worktree"}
+	for _, branch := range gone {
+		mustGit(t, origin, "branch", branch, "main")
+	}
+	mustGit(t, repoPath, "fetch", "origin")
+	for _, branch := range gone {
+		mustGit(t, repoPath, "branch", "--track", branch, "origin/"+branch)
+	}
+	commitOn("gone/unmerged")
+	mustGit(t, repoPath, "worktree", "add", filepath.Join(repoPath, "in-worktree"), "gone/in-worktree")
+	for _, branch := range gone {
+		mustGit(t, origin, "branch", "-D", branch)
+	}
+	mustGit(t, repoPath, "branch", "local/merged", "main")
+	mustGit(t, repoPath, "branch", "local/unmerged", "main")
+	commitOn("local/unmerged")
+
+	branchLines := []string{
+		"  gone/merged  (upstream gone)\n",
+		"  local/merged  (not in any worktree)\n",
+		"  gone/in-worktree  (checked out in worktree)\n",
+		"  gone/unmerged  (not fully merged)\n",
+		"  local/unmerged  (not fully merged)\n",
+	}
+	run := func(headings []string, args ...string) {
+		t.Helper()
+		var err error
+		out := captureStdout(t, func() {
+			err = RunCleanup(append(args, repoPath))
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		var missing []string
+		for _, want := range append(headings, branchLines...) {
+			if !strings.Contains(out, want) {
+				missing = append(missing, want)
+			}
+		}
+		if len(missing) > 0 {
+			t.Errorf("output is missing %q:\n%s", missing, out)
+		}
+	}
+
+	runner := &git.GitRunner{}
+	run([]string{"Would delete 2 branch(es):\n", "Would skip 3 branch(es):\n"}, "--mode", "aggressive", "--dry-run")
+	if !git.BranchExists(runner, repoPath, "gone/merged") || !git.BranchExists(runner, repoPath, "local/merged") {
+		t.Fatal("the dry run deleted a branch")
+	}
+
+	run([]string{"Deleted 2 branch(es):\n", "Skipped 3 branch(es):\n"}, "--mode", "aggressive")
+	for _, branch := range []string{"gone/merged", "local/merged"} {
+		if git.BranchExists(runner, repoPath, branch) {
+			t.Errorf("%s is listed as deleted but still exists", branch)
+		}
+	}
+	for _, branch := range []string{"gone/in-worktree", "gone/unmerged", "local/unmerged"} {
+		if !git.BranchExists(runner, repoPath, branch) {
+			t.Errorf("%s is listed as skipped but was deleted", branch)
+		}
+	}
+}

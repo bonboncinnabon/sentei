@@ -6,7 +6,6 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
 // ConfirmProceedMsg is sent when the user presses Enter to confirm.
@@ -46,6 +45,21 @@ func UpdateConfirmation(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+// updateLaunchConfirm handles the confirmation screen that a launch with flags
+// opens (sentei cleanup, create, clone): enter starts the operation. Nothing
+// is behind the screen, so esc quits like q.
+func (m Model) updateLaunchConfirm(msg tea.Msg, start func(Model) (tea.Model, tea.Cmd)) (tea.Model, tea.Cmd) {
+	if msg, ok := msg.(tea.KeyPressMsg); ok {
+		switch {
+		case key.Matches(msg, keys.Confirm):
+			return start(m)
+		case key.Matches(msg, keys.Back), key.Matches(msg, keys.Quit):
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
 // View renders the confirmation view using the standard chrome: a
 // confirmation is a full-screen step in a flow, not a floating modal.
 func (c ConfirmationViewModel) View() string {
@@ -79,10 +93,4 @@ func (c ConfirmationViewModel) View() string {
 	b.WriteString(viewFooter(c.Width, confirmationFooter) + "\n")
 
 	return b.String()
-}
-
-// BuildCLICommand constructs a CLI command string from a command name and flags.
-// Delegates to cli.BuildFlagString for consistent flag formatting.
-func BuildCLICommand(command string, flags map[string]string) string {
-	return cli.BuildFlagString("sentei "+command, flags)
 }

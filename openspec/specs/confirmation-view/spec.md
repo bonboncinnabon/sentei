@@ -8,6 +8,10 @@ The TUI SHALL provide a reusable confirmation view component that renders using 
 - **WHEN** the confirmation view is shown for a create operation with Branch="feature/foo", Base="main"
 - **THEN** the view SHALL display `viewTitle("Create Worktree")` followed by a separator, then each option as a labeled row, without any border wrapping
 
+#### Scenario: Create worktree confirmation for a branch that already exists
+- **WHEN** the confirmation view is shown for a create operation whose branch exists locally or only on origin
+- **THEN** the Base row SHALL say that the base is not used and why (`main (not used: the branch already exists)`, `main (not used: the branch exists on origin)`)
+
 #### Scenario: Cleanup confirmation
 - **WHEN** the confirmation view is shown for a cleanup operation with Mode="aggressive"
 - **THEN** the view SHALL display `viewTitle("Confirm Cleanup")` with Mode="aggressive" as a labeled row, using standard chrome
@@ -32,19 +36,19 @@ The confirmation view SHALL display the equivalent CLI command in summary/result
 - **THEN** the CLI command echo SHALL still be shown (CLI users benefit from seeing what they asked for)
 
 ### Requirement: Confirmation view accepts enter to proceed or esc to go back
-The confirmation view SHALL use `viewKeyHints` to render consistent key hints and transition to the execution phase when the user presses Enter, and return to the previous step when the user presses Escape.
+The confirmation view SHALL use `viewKeyHints` to render consistent key hints and transition to the execution phase when the user presses Enter. Escape SHALL return to the previous step when there is one, and exit otherwise.
 
 #### Scenario: User confirms
 - **WHEN** the user presses Enter on the confirmation view
 - **THEN** the TUI SHALL transition to the progress/execution view
 
-#### Scenario: User goes back from flag-based entry
-- **WHEN** the user entered the confirmation view via flags and presses Escape
-- **THEN** the TUI SHALL navigate to the first step of the full flow
+#### Scenario: Escape on a confirmation opened by flags
+- **WHEN** the user entered the confirmation view via flags (`sentei cleanup`, `sentei create --branch --base`, `sentei clone --url`, `sentei migrate`) and presses Escape
+- **THEN** the TUI SHALL exit cleanly: no earlier step exists to go back to
 
-#### Scenario: User goes back from normal flow
-- **WHEN** the user reached the confirmation view through the normal multi-step TUI flow and presses Escape
-- **THEN** the TUI SHALL navigate back to the previous step in the flow
+#### Scenario: User goes back to the menu
+- **WHEN** the user reached the migrate confirmation from the menu and presses Escape
+- **THEN** the TUI SHALL navigate back to the menu
 
 #### Scenario: User quits
 - **WHEN** the user presses 'q' or Ctrl+C on the confirmation view

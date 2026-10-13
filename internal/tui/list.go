@@ -77,11 +77,8 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.reindex()
 				return m, nil
 			}
-			if m.menuItems != nil {
-				m.view = menuView
-				return m, nil
-			}
-			return m, tea.Quit
+			m.view = menuView
+			return m, nil
 
 		case key.Matches(msg, keys.Filter):
 			m.remove.filterActive = true

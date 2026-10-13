@@ -1,10 +1,6 @@
 package tui
 
-import (
-	tea "charm.land/bubbletea/v2"
-
-	"github.com/bonboncinnabon/sentei/internal/cli"
-)
+import "github.com/bonboncinnabon/sentei/internal/cli"
 
 // SetCloneOpts sets the clone options and starts at the appropriate view.
 // If URL is set, starts at cloneConfirmView.
@@ -24,6 +20,8 @@ func (m *Model) SetCloneOpts(opts *CloneOpts) {
 		m.view = cloneConfirmView
 	} else {
 		m.view = cloneInputView
+		// The form opens ready to type, as it does from the menu.
+		m.repo.urlInput.Focus()
 	}
 }
 
@@ -53,26 +51,6 @@ func (m Model) cloneConfirmationVM() ConfirmationViewModel {
 		Items:      items,
 		CLICommand: cli.BuildFlagString("sentei clone", flags),
 	}
-}
-
-func (m Model) updateCloneConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
-	case ConfirmProceedMsg:
-		return m.startClone()
-
-	case ConfirmBackMsg:
-		if m.cloneOpts != nil {
-			return m, tea.Quit
-		}
-		m.view = cloneInputView
-		return m, nil
-	}
-
-	if cmd := UpdateConfirmation(msg); cmd != nil {
-		return m, cmd
-	}
-
-	return m, nil
 }
 
 func (m Model) viewCloneConfirm() string {

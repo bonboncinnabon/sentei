@@ -84,7 +84,7 @@ func (m Model) helpForView() (string, []keySection) {
 	case createOptionsView, repoOptionsView:
 		return "Options", optionsSections
 	case cleanupPreviewView:
-		return "Cleanup Preview", cleanupPreviewSections
+		return "Cleanup Preview", []keySection{{name: "Actions", bindings: m.cleanupPreviewActions()}}
 	case cleanupConfirmView, createConfirmView, cloneConfirmView, migrateConfirmView:
 		return "Confirmation", confirmationSections
 

@@ -102,9 +102,16 @@ sentei remove --non-interactive --merged --stale 30d --dry-run
 
 Filters combine with OR:
 
-- `--merged`: the default branch contains every commit of the branch and has
-  moved past it. A branch that still sits at the default branch's tip has no
-  commits of its own yet and is not selected.
+- `--merged`: the default branch contains the branch's tip, and the branch
+  either came in through a merge commit or was fast-forwarded in. A
+  fast-forward is recognised from the branch's reflog, which must show that
+  the branch moved after it was created: a branch still sitting where it was
+  created from the default branch is not selected, however far the default
+  branch has moved since, and neither is one whose reflog has expired or was
+  never written. A pull or a reset moves a branch as a commit does, so a
+  branch without commits of its own that was brought up to date with the
+  default branch is selected. Squash and rebase merges are not recognised:
+  they leave the branch's own commits outside the default branch.
 - `--stale 30d` (also `w` and `m`): the last commit, by committer date, is
   older than that.
 - `--all`: every worktree that is not protected.
@@ -118,7 +125,7 @@ them without `--force`.
 ### Clean up a repository
 
 ```bash
-sentei cleanup                                          # preview, then choose a mode
+sentei cleanup                                          # confirm, then run safe mode
 sentei cleanup --non-interactive --mode safe --dry-run  # print what would happen
 sentei cleanup --non-interactive --mode safe
 ```
@@ -186,13 +193,18 @@ ecosystems:
     detect:
       files: [mkdocs.yml]
     env_files: []              # an explicit empty list clears the inherited one
+  - name: go
+    install:
+      command: ""              # an explicit empty command clears the inherited one
   - name: cargo
     enabled: false
 ```
 
-An install command runs once, at the root of the new worktree. A key sentei
-does not know is an error that names the file, the line and the key, so a
-typo cannot silently switch a setting off.
+An install command runs once, at the root of the new worktree. `command: ""`
+turns an inherited install off and keeps the rest of the ecosystem, such as
+its env files; leaving the key out inherits the command. A key sentei does
+not know is an error that names the file, the line and the key, so a typo
+cannot silently switch a setting off.
 
 ### Git behaviour
 
@@ -203,12 +215,31 @@ otherwise the command fails with a message saying so. git output is read with
 finished after an hour is stopped. Hooks that git starts inherit that
 environment.
 
+ssh runs in batch mode (`GIT_SSH_COMMAND="ssh -oBatchMode=yes"`), so it fails
+instead of asking you to confirm a host key or type a key's passphrase. When
+that happens, connect to the host once by hand (`ssh -T git@github.com`) to
+accept its key, or load the key into an agent with `ssh-add`, and run the
+command again. If you have configured your own ssh command with `GIT_SSH`,
+`GIT_SSH_COMMAND` or `core.sshCommand`, sentei runs it unchanged: add
+`-oBatchMode=yes` to it if it should never prompt. `sentei clone` also leaves
+ssh alone when your git config has an `includeIf` section, because the include
+may set `core.sshCommand` for the new repository.
+
 ### Layouts and platforms
 
-- sentei can be started from the container, from any worktree inside it, or
-  with the container's path as an argument. A plain bare repository (for
-  example `project.git` with worktrees inside it) works when sentei is given
-  the bare directory itself; its worktrees are not recognised as entry points.
+- sentei works on any repository whose shared git directory is bare, whatever
+  that directory is called: the `.bare` layout above, or a plain bare
+  repository such as `project.git` with its worktrees inside it or beside it.
+  Start it in the bare directory, in the container, or in any worktree, or
+  pass one of them as the path: every command behaves the same from each. New
+  worktrees are created where `.sentei.yaml` is read. That is the container
+  when the bare directory is named `.bare` or a `.git` pointer file beside it
+  leads to it, and otherwise the bare directory itself, also when the existing
+  worktrees sit beside it. A container needs its `.git` pointer file. With
+  git's `safe.bareRepository=explicit` only a layout with that pointer file
+  works, started in the container or in a worktree: git refuses a bare
+  directory it is started in. An ordinary clone is not such a layout, even
+  when it has linked worktrees; see `migrate` above.
 - macOS and Linux are tested on every change. Windows binaries are published
   but untested, and dependency installs run through `sh -c`, so they need a
   POSIX shell on the `PATH`.
@@ -232,7 +263,8 @@ What a caller can rely on:
   error; it is never silently ignored.
 - **The repository path defaults to the current directory** (`migrate` needs it
   spelled out). It may be the repository container or any worktree inside it.
-  `create` always places the new worktree beside the existing ones.
+  `create` always places the new worktree at the layout's root, whichever
+  worktree it is run from (see "Layouts and platforms").
 - **The exit status is the result.** Non-zero means something failed: a bad
   flag, a config file that does not load, a worktree that could not be
   removed, a cleanup step that errored, a failed setup or install step.
@@ -249,12 +281,20 @@ What a caller can rely on:
 - **`migrate` converts in place and never copies or deletes.** `.git` becomes
   `.bare` and the working tree moves, with its index, into a worktree named
   after the current branch, so staged, unstaged, untracked and ignored files,
-  stashes, remotes, config and hooks all stay. It refuses before touching
+  stashes, remotes, config and hooks all stay. Linked worktrees stay where
+  they are and are relinked, submodules keep their commits and local changes,
+  a sparse checkout stays sparse, and a remote given as a relative path is
+  rewritten to the absolute path it meant. It refuses before touching
   anything when the conversion cannot be done safely (detached or unborn
-  `HEAD`, a merge or rebase in progress, submodules, linked worktrees, sparse
-  checkout, `core.worktree`, a config include that points into the working
-  tree, a directory already named like the worktree), and a step that fails
-  midway is rolled back to the original layout.
+  `HEAD`, a merge or rebase in progress, `core.worktree`, a config include
+  that points into the working tree, a directory already named like the
+  worktree, a linked worktree whose directory is missing, a submodule that
+  has linked worktrees of its own), and a step that fails midway is rolled
+  back to the original layout. Two things follow from the tree sitting one
+  directory further down, and need fixing by hand: a relative symlink that
+  points outside the repository now points somewhere else, and files that
+  record absolute paths into the tree, such as a Python virtual environment,
+  have to be recreated.
 - **`--copy-env` is independent of `--ecosystems`.** The files come from the
   ecosystems detected in the source worktree; `--ecosystems` only selects
   which installs run.
@@ -266,8 +306,12 @@ What a caller can rely on:
   removes code indexes; existing `.code-review-graph/` and `.cocoindex_code/`
   folders are left where they are.
 - **`migrate` converts in place.** It makes no backup because it copies and
-  deletes nothing, so `--delete-backup` is removed. It refuses repositories
-  with submodules, linked worktrees or sparse checkout.
+  deletes nothing, so `--delete-backup` is removed. Submodules, linked
+  worktrees and sparse checkouts are converted with the rest; "Scripts and
+  agents" lists what is still refused. The working tree ends up one directory
+  further down, so a relative symlink that points outside the repository, or
+  a Python virtual environment and other files that record absolute paths,
+  need fixing afterwards.
 - **Config is strict.** An unknown key is an error, and a config file that
   fails to load stops the run. Installs run once at the root of the new
   worktree; the per-workspace install keys are accepted and ignored.

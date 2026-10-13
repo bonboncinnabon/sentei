@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 // MergedChecker checks whether a branch is fully merged into the default branch.
@@ -29,7 +30,7 @@ func ResolveFilters(worktrees []git.Worktree, opts *RemoveOptions, defaultBranch
 			continue
 		}
 
-		branch := shortBranch(wt.Branch)
+		branch := worktree.ShortBranch(wt.Branch)
 		if git.IsProtectedBranchWith(wt.Branch, defaultBranch) {
 			continue
 		}
@@ -64,32 +65,64 @@ func matchesFilters(wt git.Worktree, opts *RemoveOptions, now time.Time, isMerge
 	return false
 }
 
-func shortBranch(branch string) string {
-	return strings.TrimPrefix(branch, "refs/heads/")
-}
+// reflogStart is a date older than any reflog entry. Asked for a branch at
+// that date, git answers with the commit the branch pointed at before its
+// reflog began, or with the first logged commit when the reflog begins at the
+// branch's creation.
+const reflogStart = "1980-01-01"
 
 // CheckMerged creates a MergedChecker that reports whether the default branch
-// has absorbed a branch: every commit of the branch is in the default branch,
-// and the default branch has moved past it. A branch still at the default
-// branch's tip is a new branch with no commits of its own, not a merged one; a
-// branch fast-forwarded into the default looks the same until the default gets
-// another commit. The default branch is never merged into itself, so --merged
+// has absorbed a branch. The default branch must contain the branch's tip, and
+// one of these must hold:
+//
+//   - the tip is not on the default branch's first-parent chain, so it arrived
+//     through a merge commit;
+//   - the tip is on that chain and the branch's reflog shows that it once
+//     pointed at another commit: commits were made on the branch and the
+//     default branch was fast-forwarded to them.
+//
+// A branch on the chain that never moved is one nobody has worked on, however
+// far the default branch has moved since. A branch with no reflog (it is
+// switched off, or its entries expired) cannot show that it moved and is not
+// merged either. The default branch is never merged into itself, so --merged
 // can never select the default worktree.
+//
+// The repository is read when the checker is created: one for-each-ref and one
+// first-parent walk for the whole run, however many branches there are. A
+// query then costs at most one reflog lookup.
 func CheckMerged(runner git.CommandRunner, repoPath string, defaultBranch string) MergedChecker {
+	never := func(string) bool { return false }
+	// Full ref names: a bare name resolves to a tag of that name first.
+	defaultRef := "refs/heads/" + defaultBranch
+
+	contained, err := runner.Run(repoPath, "for-each-ref", "--merged="+defaultRef,
+		"--format=%(objectname) %(refname:lstrip=2)", "refs/heads/")
+	if err != nil {
+		return never
+	}
+	tips := make(map[string]string)
+	for line := range strings.SplitSeq(contained, "\n") {
+		if tip, branch, ok := strings.Cut(line, " "); ok {
+			tips[branch] = tip
+		}
+	}
+
+	firstParents, err := runner.Run(repoPath, "rev-list", "--first-parent", defaultRef)
+	if err != nil {
+		return never
+	}
+
 	return func(branch string) bool {
-		if strings.EqualFold(branch, defaultBranch) {
+		tip, ok := tips[branch]
+		if !ok || strings.EqualFold(branch, defaultBranch) {
 			return false
 		}
-		// Full ref names: a bare name resolves to a tag of that name first.
-		out, err := runner.Run(repoPath, "rev-list", "--left-right", "--count",
-			"refs/heads/"+branch+"...refs/heads/"+defaultBranch)
-		if err != nil {
-			return false
+		// A full object name cannot match across two lines of the list.
+		if !strings.Contains(firstParents, tip) {
+			return true
 		}
-		var onlyInBranch, onlyInDefault int
-		if _, err := fmt.Sscan(out, &onlyInBranch, &onlyInDefault); err != nil {
-			return false
-		}
-		return onlyInBranch == 0 && onlyInDefault > 0
+		start, err := runner.Run(repoPath, "rev-parse", "--verify", "--quiet",
+			"refs/heads/"+branch+"@{"+reflogStart+"}")
+		return err == nil && start != tip
 	}
 }

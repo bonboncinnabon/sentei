@@ -206,7 +206,8 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 }
 
 // detectRepo reports what kind of repository holds path and, for a bare
-// layout, the layout's root: path may be any worktree inside it.
+// layout, the layout's root: path may be the bare directory, the container of
+// a .bare layout, or any worktree.
 func detectRepo(runner git.CommandRunner, path string) (repo.RepoContext, string) {
 	context := repo.DetectContext(runner, path)
 	if context == repo.ContextBareRepo {

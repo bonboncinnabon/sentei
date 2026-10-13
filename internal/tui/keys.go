@@ -200,8 +200,6 @@ var (
 	}}}
 
 	summaryMenuFooter = []key.Binding{withDesc(keys.Confirm, "menu"), keys.Quit}
-	summaryQuitFooter = []key.Binding{withDesc(keys.Confirm, "quit"), withDesc(keys.Back, "quit")}
-	createSummaryQuit = []key.Binding{withDesc(keys.Confirm, "quit"), keys.Quit}
 	repoSummaryFooter = []key.Binding{withDesc(keys.Confirm, "open in sentei"), keys.Quit}
 	quitOnlyFooter    = []key.Binding{keys.Quit}
 	cleanupDoneFooter = []key.Binding{withDesc(keys.Confirm, "quit")}
@@ -210,16 +208,12 @@ var (
 		keys.Back,
 	}}}
 
-	cleanupScanFooter      = []key.Binding{keys.Back, keys.Quit}
-	cleanupEmptyFooter     = []key.Binding{withDesc(keys.Confirm, "back"), keys.Quit}
-	aggressiveHint         = withDesc(keys.All, "aggressive")
-	detailsHint            = keys.Info
-	cleanupPreviewSections = []keySection{{name: "Actions", bindings: []key.Binding{
-		withDesc(keys.Confirm, "run safe cleanup"),
-		withDesc(keys.All, "aggressive cleanup (when available)"),
-		withDesc(keys.Info, "full branch details"),
-		keys.Back,
-	}}}
+	// The cleanup preview's keys depend on what the scan found;
+	// cleanupPreviewActions picks among these.
+	cleanupSafeHint  = withDesc(keys.Confirm, "safe cleanup")
+	cleanupCleanHint = withDesc(keys.Confirm, "back")
+	aggressiveHint   = withDesc(keys.All, "aggressive")
+	detailsHint      = keys.Info
 
 	progressFooter   = []key.Binding{keys.Quit}
 	progressSections = []keySection{{name: "Actions", bindings: []key.Binding{
@@ -245,5 +239,4 @@ var (
 
 	migrateBlockedFooter = []key.Binding{keys.Back, keys.Quit}
 	migrateOpenFooter    = []key.Binding{withDesc(keys.Confirm, "open in sentei"), withDesc(keys.Quit, "exit")}
-	cleanupSafeHint      = withDesc(keys.Confirm, "safe cleanup")
 )

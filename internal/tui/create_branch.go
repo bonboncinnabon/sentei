@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/ecosystem"
@@ -31,6 +31,7 @@ func (m Model) withCreateFlowReset() Model {
 	m.create.ecoEnabled = make(map[string]bool)
 	m.create.mergeBase = true
 	m.create.mergeDefaultFor = ""
+	m.create.existingBranch = ""
 	m.create.copyEnvFiles = true
 	m.create.optionsCursor = 0
 	m.create.events = nil
@@ -72,36 +73,16 @@ func (m Model) updateCreateBranch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, switchFormField(&m.create.focusedField, &m.create.branchInput, &m.create.baseInput)
 
 		case key.Matches(msg, keys.QuickCreate):
-			branch := m.create.branchInput.Value()
-			var existingPaths []string
-			for _, wt := range m.remove.worktrees {
-				existingPaths = append(existingPaths, wt.Path)
-			}
-			if err := validateBranchName(branch, existingPaths); err != nil {
-				m.create.validationErr = err.message
+			if !m.validateCreateBranch() {
 				return m, nil
 			}
-
-			m.create.validationErr = ""
 			m.prepareCreateOptions()
-			m.startCreation()
-			m.progressStartedAt = time.Now()
-			m.progressToken++
-			m.view = createProgressView
-			return m, m.waitForCreateEvent()
+			return m.beginCreation()
 
 		case key.Matches(msg, keys.Confirm):
-			branch := m.create.branchInput.Value()
-			var existingPaths []string
-			for _, wt := range m.remove.worktrees {
-				existingPaths = append(existingPaths, wt.Path)
-			}
-			if err := validateBranchName(branch, existingPaths); err != nil {
-				m.create.validationErr = err.message
+			if !m.validateCreateBranch() {
 				return m, nil
 			}
-
-			m.create.validationErr = ""
 			m.prepareCreateOptions()
 			m.view = createOptionsView
 			return m, nil
@@ -109,6 +90,20 @@ func (m Model) updateCreateBranch(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	}
 	return m.updateCreateBranchInput(msg)
+}
+
+// validateCreateBranch checks the branch name in the form against the
+// worktrees that exist and records why it was refused.
+func (m *Model) validateCreateBranch() bool {
+	var existingPaths []string
+	for _, wt := range m.currentWorktrees() {
+		existingPaths = append(existingPaths, wt.Path)
+	}
+	m.create.validationErr = ""
+	if err := validateBranchName(m.create.branchInput.Value(), existingPaths); err != nil {
+		m.create.validationErr = err.message
+	}
+	return m.create.validationErr == ""
 }
 
 func (m Model) updateCreateBranchInput(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -119,18 +114,52 @@ func (m Model) updateCreateBranchInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// defaultMergeBase turns the merge off for a branch that already exists,
-// locally or only on origin: the user is opening that branch, and merging the
-// base would add a commit to it. --merge-base keeps it on. The default is set
-// once per branch name, so a toggle survives a return to the branch form.
+// defaultMergeBase looks up whether the branch already exists and turns the
+// merge off when it does, locally or only on origin: the user is opening that
+// branch, and merging the base would add a commit to it. --merge-base keeps
+// it on. The default is set once per branch name, so a toggle survives a
+// return to the branch form.
 func (m *Model) defaultMergeBase() {
 	branch := m.create.branchInput.Value()
 	if branch == "" || branch == m.create.mergeDefaultFor {
 		return
 	}
 	m.create.mergeDefaultFor = branch
+	m.create.existingBranch = creator.ExistingBranch(m.runner, m.repoPath, branch)
 	requested := m.createOpts != nil && m.createOpts.MergeBase
-	m.create.mergeBase = requested || creator.ExistingBranch(m.runner, m.repoPath, branch) == ""
+	m.create.mergeBase = requested || m.create.existingBranch == ""
+}
+
+// branchOrigin says where the branch of a new worktree comes from. The base
+// only starts a branch that exists nowhere; existing is what
+// creator.ExistingBranch found for it.
+func branchOrigin(branch, base, existing string) string {
+	switch existing {
+	case "":
+		return "from " + base
+	case branch:
+		return "existing branch, not created from " + base
+	default:
+		return fmt.Sprintf("tracks %s, not created from %s", existing, base)
+	}
+}
+
+// createSubtitle is the line under the title of the options and progress
+// screens: the branch and where it comes from. Where it comes from is what
+// the line is for, so a branch name that leaves no room for it gives up its
+// head, and all of itself when even that does not fit. Both screens indent
+// the line by two cells. Width 0 means unknown.
+func (m Model) createSubtitle() string {
+	const arrow = " \u2192 "
+	branch := m.create.branchInput.Value()
+	origin := branchOrigin(branch, m.create.baseInput.Value(), m.create.existingBranch)
+	if m.width > 0 {
+		branch = fitPathTail(branch, m.width-4-ansi.StringWidth(arrow+origin))
+	}
+	if branch == "" {
+		return origin
+	}
+	return branch + arrow + origin
 }
 
 // prepareCreateOptions sets the options for the branch in the form. It offers
@@ -144,9 +173,8 @@ func (m *Model) prepareCreateOptions() {
 	if m.cfg == nil || sourceWT == "" {
 		return
 	}
-	detected, _ := ecosystem.NewRegistry(m.cfg.Ecosystems).Detect(sourceWT)
-	for _, eco := range detected {
-		m.create.ecosystems = append(m.create.ecosystems, eco.Config)
+	m.create.ecosystems = ecosystem.Detect(m.cfg.Ecosystems, sourceWT)
+	for _, eco := range m.create.ecosystems {
 		if _, chosen := m.create.ecoEnabled[eco.Name]; !chosen {
 			m.create.ecoEnabled[eco.Name] = true
 		}
@@ -154,15 +182,22 @@ func (m *Model) prepareCreateOptions() {
 }
 
 // findSourceWorktree returns the worktree that ecosystems are detected in and
-// env files are copied from. The menu loads the worktree list in the
-// background and a direct `sentei create` never loads it, so an empty list is
-// read from git here instead of being taken to mean "no worktrees".
+// env files are copied from.
 func (m Model) findSourceWorktree() string {
-	worktrees := m.remove.worktrees
-	if len(worktrees) == 0 {
-		worktrees, _ = git.ListWorktrees(m.runner, m.repoPath)
+	return creator.SourceWorktree(m.currentWorktrees())
+}
+
+// currentWorktrees returns the repository's worktrees for the create flow.
+// The list loads in the background together with every worktree's status, so
+// it can still be empty when the form is submitted, above all on a direct
+// `sentei create`. An empty list is read from git here instead of being taken
+// to mean "no worktrees".
+func (m Model) currentWorktrees() []git.Worktree {
+	if len(m.remove.worktrees) > 0 {
+		return m.remove.worktrees
 	}
-	return creator.SourceWorktree(worktrees)
+	worktrees, _ := git.ListWorktrees(m.runner, m.repoPath)
+	return worktrees
 }
 
 func (m Model) viewCreateBranch() string {
@@ -181,7 +216,7 @@ func (m Model) viewCreateBranch() string {
 	b.WriteString("  " + m.create.branchInput.View())
 	b.WriteString("\n")
 	if m.create.validationErr != "" {
-		b.WriteString("  " + styleError.Render(m.create.validationErr))
+		b.WriteString(formErrorLine(m.create.validationErr, m.width))
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")

@@ -22,12 +22,12 @@ const (
 	titleRepoCreated       = "Repository created"
 	titleRepoCloned        = "Repository cloned"
 	titleMigrate           = "Migrate to bare repository"
-	titleConfirmMigration  = "Confirm migration"
 	titleMigrationComplete = "Migration complete"
 	titleCleanupPreview    = "Cleanup preview"
 	titleConfirmCleanup    = "Confirm cleanup"
 	titleRunningCleanup    = "Running cleanup"
 	titleCleanupComplete   = "Cleanup complete"
+	titleCleanupErrors     = "Cleanup finished with errors"
 
 	portalWorktreeDetails   = "Worktree details"
 	portalAggressiveDetails = "Aggressive cleanup details"

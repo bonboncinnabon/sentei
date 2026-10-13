@@ -40,12 +40,16 @@ func DetectDefaultBranch(runner CommandRunner, repoPath string) string {
 	// directory's. A bare clone records the remote's default branch there, and
 	// that survives a non-standard default; refs/remotes/origin/HEAD is not
 	// created by a bare clone.
+	// The directory is named to git rather than entered: under
+	// safe.bareRepository=explicit git refuses a bare directory it only
+	// discovered, and the fallback below would then guess "main".
+	args := []string{"symbolic-ref", "HEAD"}
 	if commonDir, err := CommonDir(runner, repoPath); err == nil {
-		repoPath = commonDir
+		args = append([]string{"--git-dir=" + commonDir}, args...)
 	}
 	// The full ref, not --short: when a tag shares the branch's name the short
 	// form is "heads/<name>", which names no branch and protects nothing.
-	if ref, err := runner.Run(repoPath, "symbolic-ref", "HEAD"); err == nil {
+	if ref, err := runner.Run(repoPath, args...); err == nil {
 		if branch, ok := strings.CutPrefix(ref, "refs/heads/"); ok && branch != "" {
 			return branch
 		}

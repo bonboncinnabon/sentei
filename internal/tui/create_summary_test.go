@@ -36,21 +36,6 @@ func TestUpdateCreateSummary_EnterReturnsToMenuWhenMenuLaunched(t *testing.T) {
 	}
 }
 
-func TestUpdateCreateSummary_EnterQuitsWhenDirectLaunch(t *testing.T) {
-	m := createOptionsModel()
-	m.view = createSummaryView
-	m.menuItems = nil
-
-	_, cmd := m.updateCreateSummary(tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	if cmd == nil {
-		t.Fatal("expected a quit command")
-	}
-	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Errorf("expected tea.QuitMsg, got %T", cmd())
-	}
-}
-
 func TestUpdateCreateSummary_QuitKey(t *testing.T) {
 	m := createOptionsModel()
 	m.view = createSummaryView
@@ -112,17 +97,6 @@ func TestViewCreateSummary_FailuresShowDepsSteps(t *testing.T) {
 	}
 	if strings.Contains(view, "Create worktree") {
 		t.Error("Setup phase steps must not be listed in the summary")
-	}
-}
-
-func TestViewCreateSummary_DirectLaunchHintsQuit(t *testing.T) {
-	m := createOptionsModel()
-	m.menuItems = nil
-
-	view := stripANSI(m.viewCreateSummary())
-
-	if !strings.Contains(view, "enter quit") {
-		t.Errorf("direct launch should hint enter quits:\n%s", view)
 	}
 }
 

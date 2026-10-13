@@ -73,9 +73,8 @@ func RunCreate(args []string) error {
 			creatorOpts.SourceWorktree = creator.SourceWorktree(worktrees)
 		}
 		if creatorOpts.SourceWorktree != "" {
-			detected, _ := ecosystem.NewRegistry(cfg.Ecosystems).Detect(creatorOpts.SourceWorktree)
-			for _, eco := range detected {
-				creatorOpts.EnvFiles = append(creatorOpts.EnvFiles, eco.Config.EnvFiles...)
+			for _, eco := range ecosystem.Detect(cfg.Ecosystems, creatorOpts.SourceWorktree) {
+				creatorOpts.EnvFiles = append(creatorOpts.EnvFiles, eco.EnvFiles...)
 			}
 		}
 	}
@@ -110,8 +109,8 @@ func createResultError(result creator.Result) error {
 	return nil
 }
 
-// printCreateEvent prints labels, not the Phase/Step identities: those are
-// opaque hashes ("create-worktree:217d2bf51f16e9dc") meant for matching events.
+// printCreateEvent prints labels, not the Phase/Step identities: those
+// ("create-worktree:feature/x") are for matching events, not worded for people.
 func printCreateEvent(e progress.Event) {
 	switch e.Status {
 	case progress.StepRunning:

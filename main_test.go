@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"io"
@@ -9,12 +10,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/exp/teatest/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/cli"
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/repo"
 	"github.com/bonboncinnabon/sentei/internal/testtmp"
+	"github.com/bonboncinnabon/sentei/internal/testutil/layouts"
 )
 
 func mustGit(t *testing.T, dir string, args ...string) {
@@ -487,5 +493,100 @@ func TestNewMenuModel_StopsOnConfigLoadFailure(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "loading config") || !strings.Contains(err.Error(), "instal") {
 		t.Fatalf("error = %v, want the config load failure naming the unknown key", err)
+	}
+}
+
+// The summary is the same whichever path names the repository. Worktrees of a
+// bare directory not named .bare used to be refused as regular repositories.
+func TestRunRoot_DryRunFromEveryEntryPoint(t *testing.T) {
+	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
+		var err error
+		out := captureStdout(t, func() {
+			err = run(buildRegistry(), []string{"--dry-run", entry})
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, want := range []string{"feature", "scratch", layouts.DefaultBranch + " [P]"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("summary missing %q:\n%s", want, out)
+			}
+		}
+	})
+}
+
+// With safe.bareRepository=explicit git reaches a bare directory only through
+// a .git pointer or a worktree, which is how a container layout is entered.
+// The summary used to fail there with "requires a bare repository".
+func TestRunRoot_DryRunWhenBareRepositoriesMustBeExplicit(t *testing.T) {
+	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
+		if layout.Root == layout.Bare || entry == layout.Bare {
+			return // git refuses every command started in a bare directory
+		}
+		t.Setenv("GIT_CONFIG_COUNT", "1")
+		t.Setenv("GIT_CONFIG_KEY_0", "safe.bareRepository")
+		t.Setenv("GIT_CONFIG_VALUE_0", "explicit")
+
+		var err error
+		out := captureStdout(t, func() {
+			err = run(buildRegistry(), []string{"--dry-run", entry})
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, want := range []string{"feature", "scratch", layouts.DefaultBranch} {
+			if !strings.Contains(out, want) {
+				t.Errorf("summary missing %q:\n%s", want, out)
+			}
+		}
+	})
+}
+
+// The menu of a bare layout opens on the layout's root from every entry
+// point, with every worktree loaded.
+func TestMenu_BareLayoutFromEveryEntryPoint(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
+		runner := &git.GitRunner{}
+		context, root := detectRepo(runner, entry)
+		if context != repo.ContextBareRepo || root != layout.Root {
+			t.Fatalf("detectRepo(%q) = %v, %q; want %v, %q", entry, context, root, repo.ContextBareRepo, layout.Root)
+		}
+		model, err := newMenuModel(runner, root, context)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tm := teatest.NewTestModel(t, model, teatest.WithInitialTermSize(120, 24))
+		teatest.WaitFor(t, tm.Output(), func(out []byte) bool {
+			return bytes.Contains(out, []byte("Create new worktree")) && bytes.Contains(out, []byte("3 worktrees"))
+		}, teatest.WithDuration(10*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
+		tm.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+		tm.WaitFinished(t, teatest.WithFinalTimeout(5*time.Second))
+	})
+}
+
+// A regular clone is still offered the conversion, from its main working tree
+// and from a linked worktree.
+func TestMenu_RegularCloneOffersMigrate(t *testing.T) {
+	regular := t.TempDir()
+	mustGit(t, regular, "init", "--quiet")
+	mustGit(t, regular, "commit", "--quiet", "--allow-empty", "-m", "initial commit")
+	linked := filepath.Join(t.TempDir(), "linked")
+	mustGit(t, regular, "worktree", "add", "--quiet", "-b", "linked", linked)
+
+	for _, entry := range []string{regular, linked} {
+		runner := &git.GitRunner{}
+		context, root := detectRepo(runner, entry)
+		if context != repo.ContextNonBareRepo || root != entry {
+			t.Fatalf("detectRepo(%q) = %v, %q; want %v and the path unchanged", entry, context, root, repo.ContextNonBareRepo)
+		}
+		model, err := newMenuModel(runner, root, context)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if menu := model.View().Content; !strings.Contains(menu, "Migrate to bare repository") {
+			t.Errorf("menu for %s does not offer migrate:\n%s", entry, menu)
+		}
 	}
 }

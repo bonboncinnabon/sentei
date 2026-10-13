@@ -104,3 +104,99 @@ func TestLoadConfig_ClearedDetectFilesIsAnError(t *testing.T) {
 		}
 	}
 }
+
+const defaultPnpmInstall = "pnpm install --frozen-lockfile --prefer-offline"
+
+func TestLoadConfig_EmptyCommandClearsInheritedInstall(t *testing.T) {
+	for _, command := range []string{`""`, `''`} {
+		cfg, err := loadWithOverlays(t, "", "ecosystems:\n  - name: pnpm\n    install:\n      command: "+command+"\n")
+		if err != nil {
+			t.Fatalf("LoadConfig() error: %v", err)
+		}
+
+		pnpm := ecosystemNamed(t, cfg, "pnpm")
+		if pnpm.Install.Command != "" {
+			t.Errorf("command: %s left pnpm install = %q, want none: the repo config wrote an empty command", command, pnpm.Install.Command)
+		}
+		if !pnpm.IsEnabled() || len(pnpm.EnvFiles) == 0 || len(pnpm.Detect.Files) == 0 {
+			t.Errorf("pnpm = %+v, want the keys the overlay did not name left alone", pnpm)
+		}
+		if yarn := ecosystemNamed(t, cfg, "yarn"); yarn.Install.Command == "" {
+			t.Error("yarn install was cleared by an overlay that only named pnpm")
+		}
+	}
+}
+
+// The empty command is found in a second decode of the file and matched to
+// the first by position. An entry the decoder drops, or one that carries
+// other keys, must not shift the match.
+func TestLoadConfig_EmptyCommandClearsOnlyTheEntryThatWritesIt(t *testing.T) {
+	cfg, err := loadWithOverlays(t, "", `ecosystems:
+  -
+  - name: yarn
+    install:
+      parallel: true
+  - name: pnpm
+    install:
+      command: ""
+  - name: npm
+    env_files: []
+`)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if got := ecosystemNamed(t, cfg, "pnpm").Install.Command; got != "" {
+		t.Errorf("pnpm install = %q, want none: the repo config wrote an empty command", got)
+	}
+	for _, name := range []string{"yarn", "npm"} {
+		if ecosystemNamed(t, cfg, name).Install.Command == "" {
+			t.Errorf("%s install was cleared by the empty command written for pnpm", name)
+		}
+	}
+}
+
+func TestLoadConfig_AbsentOrNullCommandKeepsInheritedInstall(t *testing.T) {
+	for _, overlay := range []string{
+		"ecosystems:\n  - name: pnpm\n    env_files: []\n",
+		"ecosystems:\n  - name: pnpm\n    install: {}\n",
+		"ecosystems:\n  - name: pnpm\n    install:\n",
+		"ecosystems:\n  - name: pnpm\n    install:\n      command:\n",
+		"ecosystems:\n  - name: pnpm\n    install:\n      command: ~\n",
+		// A file written for an earlier version: the retired key is skipped.
+		"ecosystems:\n  - name: pnpm\n    install:\n      parallel: true\n",
+	} {
+		cfg, err := loadWithOverlays(t, "", overlay)
+		if err != nil {
+			t.Fatalf("LoadConfig(%q) error: %v", overlay, err)
+		}
+		if got := ecosystemNamed(t, cfg, "pnpm").Install.Command; got != defaultPnpmInstall {
+			t.Errorf("overlay %q left pnpm install = %q, want the built-in %q", overlay, got, defaultPnpmInstall)
+		}
+	}
+}
+
+func TestLoadConfig_EmptyCommandIsDecidedLayerByLayer(t *testing.T) {
+	overlay := func(command string) string {
+		return "ecosystems:\n  - name: pnpm\n    install:\n      command: " + command + "\n"
+	}
+	tests := []struct {
+		name, global, repo, want string
+	}{
+		{name: "repo clears what global set", global: overlay("pnpm i"), repo: overlay(`""`), want: ""},
+		{name: "repo sets what global cleared", global: overlay(`""`), repo: overlay("pnpm i"), want: "pnpm i"},
+		{name: "repo is silent after global cleared", global: overlay(`""`), repo: "ecosystems:\n  - name: pnpm\n    enabled: true\n", want: ""},
+		{name: "global clears, no repo config", global: overlay(`""`), want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := loadWithOverlays(t, tt.global, tt.repo)
+			if err != nil {
+				t.Fatalf("LoadConfig() error: %v", err)
+			}
+			if got := ecosystemNamed(t, cfg, "pnpm").Install.Command; got != tt.want {
+				t.Errorf("pnpm install = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

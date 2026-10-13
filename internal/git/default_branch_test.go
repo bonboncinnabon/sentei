@@ -31,6 +31,23 @@ func TestDetectDefaultBranch_ReadsTheSharedHead(t *testing.T) {
 		}
 	})
 
+	// Under safe.bareRepository=explicit git refuses a bare directory it is
+	// only pointed into. Detection then fell back to "main" and left trunk
+	// unprotected.
+	t.Run("bare repositories must be named explicitly", func(t *testing.T) {
+		strict := &GitRunner{Env: []string{
+			"GIT_CONFIG_COUNT=1",
+			"GIT_CONFIG_KEY_0=safe.bareRepository",
+			"GIT_CONFIG_VALUE_0=explicit",
+		}}
+		if _, err := strict.Run(bare, "symbolic-ref", "HEAD"); err == nil {
+			t.Fatal("control failed: git should refuse the bare directory under safe.bareRepository=explicit")
+		}
+		if got := DetectDefaultBranch(strict, feature); got != "trunk" {
+			t.Errorf("DetectDefaultBranch = %q, want trunk", got)
+		}
+	})
+
 	// With a tag of the same name, the short form of HEAD is "heads/trunk",
 	// which names no branch.
 	t.Run("a tag shares the branch's name", func(t *testing.T) {
