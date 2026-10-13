@@ -9,6 +9,7 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/repo"
 	"github.com/bonboncinnabon/sentei/internal/testtmp"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 // TestRemove_DefaultBranchProtectedFromWorktree builds a real sentei bare repo
@@ -69,7 +70,7 @@ func TestRemove_DefaultBranchProtectedFromWorktree(t *testing.T) {
 
 	var hasProduction, hasFeature bool
 	for _, wt := range filtered {
-		switch shortBranch(wt.Branch) {
+		switch worktree.ShortBranch(wt.Branch) {
 		case "production":
 			hasProduction = true
 		case "feature":

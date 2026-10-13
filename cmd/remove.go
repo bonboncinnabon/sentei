@@ -77,7 +77,7 @@ func RunRemove(args []string) error {
 		if wt.IsBare || !git.IsProtectedBranchWith(wt.Branch, defaultBranch) {
 			continue
 		}
-		if matchesFilters(wt, opts, now, isMerged, shortBranch(wt.Branch)) {
+		if matchesFilters(wt, opts, now, isMerged, worktree.ShortBranch(wt.Branch)) {
 			protectedCount++
 		}
 	}
@@ -88,7 +88,7 @@ func RunRemove(args []string) error {
 	var atRisk []string
 	for _, wt := range filtered {
 		if worktree.AtRisk(wt) {
-			atRisk = append(atRisk, shortBranch(wt.Branch))
+			atRisk = append(atRisk, worktree.ShortBranch(wt.Branch))
 		}
 	}
 	refused := len(atRisk) > 0 && !opts.Force
@@ -117,7 +117,7 @@ func RunRemove(args []string) error {
 			} else if wt.IsLocked {
 				marker = yellow + "  (locked)" + nc
 			}
-			fmt.Printf("  %s%s\n", shortBranch(wt.Branch), marker)
+			fmt.Printf("  %s%s\n", worktree.ShortBranch(wt.Branch), marker)
 		}
 		if dirtyCount > 0 {
 			fmt.Printf("\n%sWarning:%s %d worktree(s) have changes that removal will discard.\n", yellow, nc, dirtyCount)
@@ -150,7 +150,7 @@ func RunRemove(args []string) error {
 	for i, wt := range filtered {
 		stepID := progress.StepID(fmt.Sprintf("remove-%d", i))
 		targets[i] = worktree.RemovalTarget{Worktree: wt, StepID: stepID}
-		steps[i] = progress.PlannedStep{ID: stepID, Label: shortBranch(wt.Branch), Checkpoints: 2}
+		steps[i] = progress.PlannedStep{ID: stepID, Label: worktree.ShortBranch(wt.Branch), Checkpoints: 2}
 	}
 	execution, err := progress.Start(progress.Plan{Phases: []progress.PlannedPhase{{
 		ID: worktree.RemovalPhaseID, Label: worktree.RemovalPhaseName, Steps: steps,

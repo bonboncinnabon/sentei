@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 // MergedChecker checks whether a branch is fully merged into the default branch.
@@ -29,7 +30,7 @@ func ResolveFilters(worktrees []git.Worktree, opts *RemoveOptions, defaultBranch
 			continue
 		}
 
-		branch := shortBranch(wt.Branch)
+		branch := worktree.ShortBranch(wt.Branch)
 		if git.IsProtectedBranchWith(wt.Branch, defaultBranch) {
 			continue
 		}
@@ -62,10 +63,6 @@ func matchesFilters(wt git.Worktree, opts *RemoveOptions, now time.Time, isMerge
 	}
 
 	return false
-}
-
-func shortBranch(branch string) string {
-	return strings.TrimPrefix(branch, "refs/heads/")
 }
 
 // reflogStart is a date older than any reflog entry. Asked for a branch at
