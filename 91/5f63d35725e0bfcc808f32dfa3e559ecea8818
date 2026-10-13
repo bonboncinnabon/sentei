@@ -1,0 +1,37 @@
+internal/tui/cleanup_confirm_test.go
+  s_b5d41ab2ae0f4c::t_4efaba2ebf0568 92,106,130
+internal/tui/cleanup_e2e_test.go
+  s_b5d41ab2ae0f4c::t_fa72839aa022c3 124-125,203
+internal/tui/clone_confirm.go
+  s_b5d41ab2ae0f4c::t_a6f8efec4ae6b8 3
+internal/tui/clone_confirm_test.go
+  s_b5d41ab2ae0f4c::t_d198040dc545c2 115,134,158,218
+internal/tui/confirmation.go
+  s_b5d41ab2ae0f4c::t_da7884df7b518a 49-63
+internal/tui/confirmation_test.go
+  s_b5d41ab2ae0f4c::t_97d8aa5cb42215 8-12,207-242
+internal/tui/create_branch.go
+  s_b5d41ab2ae0f4c::t_36218e1e81d6d0 79
+internal/tui/create_confirm_test.go
+  s_b5d41ab2ae0f4c::t_121f9355f16241 118,131,155
+internal/tui/create_options.go
+  s_b5d41ab2ae0f4c::t_78560eb9d48391 111,117-127
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_90d4cf59a51955 811-813,819,821
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "915f63d35725e0bfcc808f32dfa3e559ecea8818",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
