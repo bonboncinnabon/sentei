@@ -108,7 +108,8 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 		}
 	}
 	plan := MigratePlan{RepoPath: root}
-	worktreeConfig, _ := runner.Run(root, "config", "--type=bool", "--get", "extensions.worktreeConfig")
+	// git takes its extensions from the repository's own config only.
+	worktreeConfig, _ := runner.Run(root, "config", "--local", "--type=bool", "--get", "extensions.worktreeConfig")
 	plan.worktreeConfig = worktreeConfig == "true"
 	// With per-worktree config git keeps core.worktree in config.worktree.
 	scopes := []string{"--local"}

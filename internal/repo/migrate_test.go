@@ -1630,6 +1630,26 @@ func TestMigrate_KeepsASparseCheckoutSparse(t *testing.T) {
 	}
 }
 
+// git takes its extensions from the repository's own config. Set anywhere
+// else, extensions.worktreeConfig switches nothing on: the bare flag belongs
+// in the shared config, and git refuses to write a per-worktree one.
+func TestMigrate_IgnoresAWorktreeConfigExtensionSetOutsideTheRepository(t *testing.T) {
+	gitConfigEnv(t, "extensions.worktreeConfig", "true")
+	_, root := newCheckout(t)
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	if bare := mustGit(t, root, "config", "--local", "core.bare"); bare != "true" {
+		t.Errorf("core.bare in the shared config = %q, want true", bare)
+	}
+	if exists(filepath.Join(root, ".bare", "config.worktree")) {
+		t.Error("a per-worktree config was written for a repository that does not use one")
+	}
+}
+
 // A remote given as a path relative to the checkout would lead somewhere else
 // from one directory further down. It is rewritten to the absolute path it
 // meant; every other remote stays as it is.
