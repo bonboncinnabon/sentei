@@ -1,0 +1,23 @@
+cmd/clone.go
+  s_b5d41ab2ae0f4c::t_66074076bdaba1 69-70,74,80,82,88
+cmd/clone_run_test.go
+  s_b5d41ab2ae0f4c::t_8528c02f4d6dc3 52-59
+cmd/output_format_test.go
+  s_b5d41ab2ae0f4c::t_9a4c52dce667c2 36-42,48-53,63-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9d07794b7ef881b8804036881c26064a8347ee71",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
