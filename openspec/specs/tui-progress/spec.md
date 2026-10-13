@@ -2,7 +2,7 @@
 Covers the TUI progress view during deletion, including progress bar updates, per-worktree status tracking, post-deletion summary, and the Cmd-chained event consumption pattern.
 ## Requirements
 ### Requirement: Display deletion progress
-The TUI SHALL display a progress view during deletion using the shared `ProgressLayout` renderer, showing a title (`sentei ─ Removing Worktrees`), phase-based layout (Teardown, Removing worktrees, Prune & cleanup), per-worktree status indicators under the active phase with 4-space indentation, adaptive windowing for large selections, an overall progress bar, and key hints. The view SHALL update in real-time as each deletion event is received from the deletion channel.
+The TUI SHALL display a progress view during deletion using the shared `ProgressLayout` renderer, showing a title (`sentei ─ Removing Worktrees`), phase-based layout (Removing worktrees, Prune), per-worktree status indicators under the active phase with 4-space indentation, adaptive windowing for large selections, an overall progress bar, and key hints. The view SHALL update in real-time as each deletion event is received from the deletion channel.
 
 #### Scenario: Progress bar updates incrementally
 - **WHEN** a worktree deletion completes (success or failure) and 2 out of 5 total have now finished
@@ -53,10 +53,10 @@ The TUI SHALL consume deletion progress events using a Cmd-chaining pattern wher
 
 #### Scenario: Channel closure triggers completion
 - **WHEN** the progress channel is closed (all deletions finished)
-- **THEN** the wait Cmd SHALL return a completion message and the TUI SHALL transition to prune, then cleanup, then summary
+- **THEN** the wait Cmd SHALL return a completion message and the TUI SHALL transition to prune, then summary
 
 ### Requirement: Transition to summary after all deletions
-The TUI SHALL run `git worktree prune` via a Cmd after all deletions complete, then run cleanup, then transition to the summary view with both results.
+The TUI SHALL run `git worktree prune` via a Cmd after all deletions complete, then transition to the summary view. The post-removal step SHALL be local only: it SHALL NOT fetch, delete branches or rewrite config, and a prune failure SHALL NOT turn a successful removal into a failed one.
 
 #### Scenario: All deletions complete triggers prune
 - **WHEN** every selected worktree has either succeeded or failed
@@ -64,11 +64,11 @@ The TUI SHALL run `git worktree prune` via a Cmd after all deletions complete, t
 
 #### Scenario: Prune completes successfully
 - **WHEN** the prune Cmd returns with no error
-- **THEN** the TUI SHALL store a nil prune error on the model and chain to cleanup
+- **THEN** the TUI SHALL store a nil prune error on the model and show the summary
 
 #### Scenario: Prune fails
 - **WHEN** the prune Cmd returns with an error
-- **THEN** the TUI SHALL store the error on the model and chain to cleanup
+- **THEN** the TUI SHALL store the error on the model and show the summary with the removals still reported as done
 
 ### Requirement: Post-deletion summary
 The TUI SHALL display a summary using `viewTitle("Removal Complete")`, `viewSeparator`, and `viewKeyHints` for consistent framing. Success markers SHALL use `●` (done indicator in green), not `"v"`.

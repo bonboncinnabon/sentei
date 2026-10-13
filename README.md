@@ -50,6 +50,22 @@ sentei create
 sentei create --branch feature/my-change --base main --non-interactive
 ```
 
+Which branch the worktree gets:
+
+- a name that does not exist yet becomes a new branch from `--base`;
+- an existing local branch is checked out as it is;
+- a branch that only `origin` has is checked out as a local branch tracking it.
+
+In the last two cases `--base` is not applied and the output says so.
+`--merge-base` merges the base into the branch afterwards; in the interactive
+flow that option starts unchecked for a branch that already exists. Branch and
+base names that start with `-` are refused.
+
+A run that could not create the worktree ends with `create failed: no worktree
+was created`. A run that created it but failed a later step (a hook, a file
+copy, an install) ends with `create completed with errors: the worktree exists
+at <path>`. Both exit non-zero.
+
 Repositories can declare private files that belong in every new worktree.
 Keep the source file in the bare-repository container, outside committed
 worktrees, and add rules to the container's `.sentei.yaml`:
@@ -76,6 +92,127 @@ keeps the created worktree and continues the independent dependency steps. File 
 `worktree_files` is automatic repository setup. Ecosystem `env_files` remains
 an independent, opt-in create option controlled by `--copy-env`.
 
+### Remove worktrees
+
+```bash
+sentei                                         # menu, then pick from the list
+sentei remove --merged                         # open the list with matches selected
+sentei remove --non-interactive --merged --stale 30d --dry-run
+```
+
+Filters combine with OR:
+
+- `--merged`: the default branch contains every commit of the branch and has
+  moved past it. A branch that still sits at the default branch's tip has no
+  commits of its own yet and is not selected.
+- `--stale 30d` (also `w` and `m`): the last commit, by committer date, is
+  older than that.
+- `--all`: every worktree that is not protected.
+
+A worktree is at risk when it is locked, has uncommitted changes, untracked
+files or commits on no remote, or when its status could not be read. The TUI
+shows those on a confirmation screen before anything is deleted and re-reads
+the status of the others at the moment of deletion. The command line refuses
+them without `--force`.
+
+### Clean up a repository
+
+```bash
+sentei cleanup                                          # preview, then choose a mode
+sentei cleanup --non-interactive --mode safe --dry-run  # print what would happen
+sentei cleanup --non-interactive --mode safe
+```
+
+Safe mode:
+
+- prunes remote-tracking refs whose branch is gone from the remote;
+- deletes local branches whose upstream is gone, when they are fully merged;
+- removes config sections left behind by deleted branches;
+- collapses duplicate config lines, only for a key whose values are all
+  identical, so the effective value cannot change;
+- prunes stale worktree metadata.
+
+`--mode aggressive` also deletes local branches that have no worktree and are
+fully merged. `--force` extends both deletions to branches that are not fully
+merged. Protected branches and the default branch are never deleted.
+
+Removing worktrees does not run any of this: a removal ends with a local
+`git worktree prune` and nothing else.
+
+### Clone or migrate a repository
+
+sentei works on a container directory that holds the bare repository as
+`.bare`, a `.git` pointer file, and one directory per worktree:
+
+```
+project/
+├── .bare/        # the repository
+├── .git          # "gitdir: ./.bare"
+├── main/         # one worktree per branch
+└── feature-x/
+```
+
+```bash
+sentei clone --url git@github.com:you/project.git     # clone straight into the layout
+sentei migrate /path/to/existing/clone                 # convert an ordinary clone in place
+```
+
+`clone` keeps only the default branch as a local branch, as `git clone` does;
+the others are available as `origin/<branch>` and `sentei create --branch
+<name>` checks one out. `migrate` renames `.git` to `.bare` and moves the
+working tree into a worktree named after the current branch. It copies and
+deletes nothing, checks everything before the first change, and rolls back if
+a step fails; see "Scripts and agents" for what it refuses.
+
+### Configuration
+
+Configuration is optional. sentei merges three layers, each overriding the
+one before it:
+
+1. built-in defaults (run `sentei ecosystems` to see them);
+2. a global file, `$XDG_CONFIG_HOME/sentei/config.yaml` (`~/.config` when the
+   variable is unset);
+3. a per-repository `.sentei.yaml`. With the `.bare` layout it sits in the
+   container, next to `.bare`. A plain bare repository keeps it inside
+   itself.
+
+```yaml
+ecosystems:
+  - name: pnpm                 # override a built-in by name, or add your own
+    install:
+      command: pnpm install --frozen-lockfile --prefer-offline
+    env_files: [.env, .env.local]
+  - name: docs
+    detect:
+      files: [mkdocs.yml]
+    env_files: []              # an explicit empty list clears the inherited one
+  - name: cargo
+    enabled: false
+```
+
+An install command runs once, at the root of the new worktree. A key sentei
+does not know is an error that names the file, the line and the key, so a
+typo cannot silently switch a setting off.
+
+### Git behaviour
+
+sentei runs git non-interactively. git never prompts on the terminal, so an
+HTTPS remote needs a credential helper and an SSH remote needs a loaded key;
+otherwise the command fails with a message saying so. git output is read with
+`LC_ALL=C`, an inherited `GIT_DIR` is ignored, and a git command that has not
+finished after an hour is stopped. Hooks that git starts inherit that
+environment.
+
+### Layouts and platforms
+
+- sentei can be started from the container, from any worktree inside it, or
+  with the container's path as an argument. A plain bare repository (for
+  example `project.git` with worktrees inside it) works when sentei is given
+  the bare directory itself; its worktrees are not recognised as entry points.
+- macOS and Linux are tested on every change. Windows binaries are published
+  but untested, and dependency installs run through `sh -c`, so they need a
+  POSIX shell on the `PATH`.
+
 ### Scripts and agents
 
 Every command runs without the TUI when given `--non-interactive` (or `--yes`,
@@ -97,15 +234,18 @@ What a caller can rely on:
   spelled out). It may be the repository container or any worktree inside it.
   `create` always places the new worktree beside the existing ones.
 - **The exit status is the result.** Non-zero means something failed: a bad
-  flag, a worktree that could not be removed, a cleanup step that errored, a
-  failed setup or install step.
+  flag, a config file that does not load, a worktree that could not be
+  removed, a cleanup step that errored, a failed setup or install step.
+- **Nothing waits for input.** git never prompts for credentials, and a
+  config file that fails to load stops the run before anything is created.
 - **`--non-interactive` does not override a safety.** `remove` refuses the
   whole run, and names the worktrees, when a match is locked, has uncommitted,
   untracked or unpushed work, or has a status that could not be read. `--force`
   removes those too. Protected branches and the worktree holding the current
   directory are never removed, with or without `--force`.
 - **`--dry-run` changes nothing.** It prints what `remove` or `cleanup` would
-  do and leaves locks in place.
+  do and leaves locks in place. It exits 0 and marks the matches the real run
+  would refuse without `--force`.
 - **`migrate` converts in place and never copies or deletes.** `.git` becomes
   `.bare` and the working tree moves, with its index, into a worktree named
   after the current branch, so staged, unstaged, untracked and ignored files,
@@ -140,15 +280,16 @@ What a caller can rely on:
 | `Enter` | Confirm deletion of selected |
 | `y` / `n` | Yes/no in confirmation dialog |
 | `Esc` | Go back / clear filter |
-| `q` / `Ctrl+C` | Quit |
+| `q` / `Ctrl+C` | Quit (press again to quit while an operation is running) |
 
 ### Status Indicators
 
 | Indicator | Meaning |
 |-----------|---------|
-| `[ok]` | Clean — no uncommitted changes |
-| `[~]` | Dirty — has uncommitted changes |
+| `[ok]` | Clean: no uncommitted changes |
+| `[~]` | Dirty: has uncommitted changes |
 | `[!]` | Has untracked files |
+| `[^]` | Commits on no remote (shown on the confirmation screen) |
 | `[?]` | Status could not be read (treated as at risk) |
 | `[L]` | Locked |
 | `[P]` | Protected branch (cannot be deleted) |

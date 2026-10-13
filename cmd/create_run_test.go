@@ -129,7 +129,9 @@ func TestRunCreate_EcosystemFlagLoadsConfig(t *testing.T) {
 	}
 }
 
-func TestRunCreate_WarnsOnConfigLoadFailure(t *testing.T) {
+// A config that cannot be loaded used to be a warning: the worktree was created
+// without its private files and installs, and the command exited 0.
+func TestRunCreate_StopsOnConfigLoadFailure(t *testing.T) {
 	xdgDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdgDir)
 	if err := os.MkdirAll(filepath.Join(xdgDir, "sentei"), 0o755); err != nil {
@@ -139,16 +141,15 @@ func TestRunCreate_WarnsOnConfigLoadFailure(t *testing.T) {
 	bareRepo := setupBareRepo(t)
 
 	var err error
-	stderr := captureStderr(t, func() {
-		captureStdout(t, func() {
-			err = RunCreate([]string{"--branch", "feature/badcfg", "--base", "main", "--ecosystems", "pnpm", bareRepo})
-		})
+	captureStdout(t, func() {
+		err = RunCreate([]string{"--branch", "feature/badcfg", "--base", "main", "--ecosystems", "pnpm", bareRepo})
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+
+	if err == nil || !strings.Contains(err.Error(), "loading config") {
+		t.Fatalf("error = %v, want the config load failure", err)
 	}
-	if !strings.Contains(stderr, "Warning: failed to load config") {
-		t.Errorf("expected config-load warning on stderr, got:\n%s", stderr)
+	if _, statErr := os.Stat(filepath.Join(bareRepo, "feature-badcfg")); !os.IsNotExist(statErr) {
+		t.Errorf("nothing may be created before the config loads (stat err: %v)", statErr)
 	}
 }
 

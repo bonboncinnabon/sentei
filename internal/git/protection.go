@@ -31,16 +31,24 @@ func IsProtectedBranchWith(branch, defaultBranch string) bool {
 	return IsProtectedBranch(branch)
 }
 
-// DetectDefaultBranch returns the repo's default branch by reading HEAD on the
-// bare repo. It works whether repoPath is the bare dir (.bare) or a sentei repo
-// root (whose .git pointer resolves HEAD to .bare). This is the single source of
-// truth for default-branch detection across clone, remove, and protection.
+// DetectDefaultBranch returns the repository's default branch: the branch HEAD
+// of the shared git directory points at. repoPath may be the bare directory,
+// the layout's root or any worktree. It is the single source of truth for
+// default-branch detection across clone, remove, cleanup and protection.
 func DetectDefaultBranch(runner CommandRunner, repoPath string) string {
-	// A bare clone records the remote's default branch in HEAD. This survives a
-	// non-standard default; refs/remotes/origin/HEAD is not created by a bare
-	// clone, so reading that always fails.
-	if branch, err := runner.Run(repoPath, "symbolic-ref", "--short", "HEAD"); err == nil && branch != "" {
-		return branch
+	// In a worktree HEAD names that worktree's own branch, so read the shared
+	// directory's. A bare clone records the remote's default branch there, and
+	// that survives a non-standard default; refs/remotes/origin/HEAD is not
+	// created by a bare clone.
+	if commonDir, err := CommonDir(runner, repoPath); err == nil {
+		repoPath = commonDir
+	}
+	// The full ref, not --short: when a tag shares the branch's name the short
+	// form is "heads/<name>", which names no branch and protects nothing.
+	if ref, err := runner.Run(repoPath, "symbolic-ref", "HEAD"); err == nil {
+		if branch, ok := strings.CutPrefix(ref, "refs/heads/"); ok && branch != "" {
+			return branch
+		}
 	}
 
 	// Fallback: try main, then master.

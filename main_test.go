@@ -12,6 +12,8 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/cli"
+	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/repo"
 	"github.com/bonboncinnabon/sentei/internal/testtmp"
 )
 
@@ -470,4 +472,20 @@ func TestVersionFlag(t *testing.T) {
 			t.Errorf("got %q, want %q", got, want)
 		}
 	})
+}
+
+// A config that fails to load used to be a warning printed just before the
+// alternate screen hid it, and the TUI then ran without the config.
+func TestNewMenuModel_StopsOnConfigLoadFailure(t *testing.T) {
+	bare := newBareRepo(t)
+	// A plain bare repository keeps its config inside itself.
+	if err := os.WriteFile(filepath.Join(bare, ".sentei.yaml"), []byte("instal:\n  command: make\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := newMenuModel(&git.GitRunner{}, bare, repo.ContextBareRepo)
+
+	if err == nil || !strings.Contains(err.Error(), "loading config") || !strings.Contains(err.Error(), "instal") {
+		t.Fatalf("error = %v, want the config load failure naming the unknown key", err)
+	}
 }

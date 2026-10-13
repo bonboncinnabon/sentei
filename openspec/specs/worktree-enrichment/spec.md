@@ -4,18 +4,18 @@ Covers parallel enrichment of worktrees with commit metadata and dirty/untracked
 ## Requirements
 
 ### Requirement: Enrich worktrees with commit metadata
-The system SHALL enrich each non-bare, non-prunable worktree with its last commit date by running `git -C <path> log -1 --format=%ai` and last commit subject by running `git -C <path> log -1 --format=%s`.
+The system SHALL enrich each non-bare, non-prunable worktree with its last commit date (the committer date, so a rebase counts as activity) by running `git -C <path> log -1 --format=%ci` and last commit subject by running `git -C <path> log -1 --format=%s`.
 
 #### Scenario: Normal worktree enrichment
 - **WHEN** a worktree has IsBare=false and IsPrunable=false and its directory exists
-- **THEN** the system SHALL populate LastCommitDate with the parsed datetime from `git log -1 --format=%ai` and LastCommitSubject with the output of `git log -1 --format=%s`
+- **THEN** the system SHALL populate LastCommitDate with the parsed datetime from `git log -1 --format=%ci` and LastCommitSubject with the output of `git log -1 --format=%s`
 
 #### Scenario: Worktree with no commits
 - **WHEN** `git log -1` returns empty output for a worktree (e.g., orphan branch with no commits)
 - **THEN** the system SHALL set LastCommitDate to the zero time value and LastCommitSubject to empty string, with no error
 
 ### Requirement: Enrich worktrees with dirty/untracked status
-The system SHALL determine dirty and untracked file status for each non-bare, non-prunable worktree by running `git -C <path> status --porcelain`.
+The system SHALL determine dirty and untracked file status for each non-bare, non-prunable worktree by running `git -C <path> status --porcelain --untracked-files=normal`, so untracked files are seen whatever the user's `status.showUntrackedFiles` says.
 
 #### Scenario: Clean worktree
 - **WHEN** `git status --porcelain` returns empty output

@@ -23,7 +23,7 @@ The `remove` command SHALL accept a `--stale <duration>` flag that pre-selects w
 - **THEN** the system SHALL delete all worktrees whose last commit is older than 30 days without TUI interaction
 
 ### Requirement: --merged flag filters worktrees by merge status
-The `remove` command SHALL accept a `--merged` flag that pre-selects worktrees whose branches are fully merged into the default branch.
+The `remove` command SHALL accept a `--merged` flag that pre-selects worktrees whose branches the default branch has absorbed: every commit of the branch is in the default branch and the default branch has moved past it. A branch still at the default branch's tip has no commits of its own and SHALL NOT be selected.
 
 #### Scenario: Merged filter with TUI
 - **WHEN** the user runs `sentei remove --merged`

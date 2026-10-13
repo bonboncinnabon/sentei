@@ -23,7 +23,7 @@ func orchestratorMock() *mock.Runner {
 		"/repo:[remote]":                                               {Output: "origin"},
 		"/repo:[remote prune origin --dry-run]":                        {Output: ""},
 		"/repo:[fetch --prune origin]":                                 {Output: ""},
-		"/repo:[symbolic-ref --short HEAD]":                            {Output: "main"},
+		"/repo:[symbolic-ref HEAD]":                                    {Output: "refs/heads/main"},
 		goneBranchCall:                                                 {Output: refLine("main", "refs/remotes/origin/main", "", "/repo/main") + "\n" + refLine("feature/old", "", "", "")},
 		"/repo:[worktree list --porcelain]":                            {Output: "worktree /repo/.bare\nbare\n\nworktree /repo/main\nHEAD abc\nbranch refs/heads/main"},
 		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "main\nfeature/old"},

@@ -54,7 +54,7 @@ func unreadableStatusModel() (Model, string) {
 
 func TestWorktreeAtRisk_UnreadableStatus(t *testing.T) {
 	wt := git.Worktree{EnrichmentError: "git log -1: fatal: no commits yet"}
-	if !worktreeAtRisk(wt) {
+	if !worktree.AtRisk(wt) {
 		t.Error("a worktree whose status could not be read must count as at risk")
 	}
 }

@@ -88,7 +88,11 @@ func RunWithIsolatedTemp(m *testing.M) int {
 	_ = os.WriteFile(gitconfig, []byte(
 		"[init]\n\tdefaultBranch = main\n"+
 			"[user]\n\tname = sentei-test\n\temail = test@example.com\n"+
-			"[core]\n\thooksPath = "+noHooks+"\n"), 0o644)
+			"[core]\n\thooksPath = "+noHooks+"\n"+
+			// No background maintenance: git starts it detached after a commit
+			// and it outlives the command, writing into a repository a test is
+			// comparing byte for byte or already deleting.
+			"[maintenance]\n\tauto = false\n[gc]\n\tauto = 0\n"), 0o644)
 	_ = os.Setenv("GIT_CONFIG_GLOBAL", gitconfig)
 	_ = os.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
 

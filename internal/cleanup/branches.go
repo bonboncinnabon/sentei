@@ -168,7 +168,7 @@ func listNonWorktreeCandidates(runner git.CommandRunner, repoPath string, exclud
 	// The repo's real default branch may be non-standard ("trunk"); it is not
 	// checked out when no worktree holds it, so the worktree set alone would
 	// let aggressive mode delete it.
-	protected := defaultBranch(runner, repoPath)
+	protected := git.DetectDefaultBranch(runner, repoPath)
 
 	var candidates []string
 	for _, b := range branches {
@@ -211,7 +211,7 @@ func listGoneBranches(runner git.CommandRunner, repoPath string, stale []string)
 	for _, ref := range stale {
 		pendingPrune["refs/remotes/"+ref] = true
 	}
-	protected := defaultBranch(runner, repoPath)
+	protected := git.DetectDefaultBranch(runner, repoPath)
 
 	for _, line := range strings.Split(output, "\n") {
 		fields := strings.SplitN(line, "\x1f", 4)
@@ -232,17 +232,6 @@ func listGoneBranches(runner git.CommandRunner, repoPath string, stale []string)
 		}
 	}
 	return gone, kept, nil
-}
-
-// defaultBranch returns the repository's default branch, read from HEAD of
-// the common git directory. repoPath may be a worktree, and there HEAD names
-// that worktree's branch: detecting from it would leave the real default
-// branch unprotected.
-func defaultBranch(runner git.CommandRunner, repoPath string) string {
-	if commonDir, err := git.CommonDir(runner, repoPath); err == nil {
-		repoPath = commonDir
-	}
-	return git.DetectDefaultBranch(runner, repoPath)
 }
 
 func parseWorktreeBranches(output string) map[string]bool {
