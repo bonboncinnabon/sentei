@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
@@ -18,14 +19,26 @@ type MigratePlan struct {
 	WorktreePath  string // directory the working tree moves into
 	DefaultBranch string // branch the bare HEAD will name
 
-	// Submodules is the number of submodules checked out in the working
-	// tree, which the conversion carries over.
-	Submodules int
+	// What the conversion handles besides the checkout itself.
+	LinkedWorktrees int // linked worktrees; they stay where they are
+	Submodules      int // submodules checked out in the working tree
 
+	linked     []string // directories of the linked worktrees
+	kept       []string // those inside the root, relative to it
+	relinks    []relink
 	submodules []submodule
 	// state is what git reported for the checkout before the conversion. The
 	// new worktree must report the same, or the conversion is rolled back.
 	state []string
+}
+
+// relink is a .git file that reaches the repository through <root>/.git and
+// has to reach it through <root>/.bare: the one of a linked worktree, which
+// stays where it is, or of a submodule checked out in one.
+type relink struct {
+	gitfile  string
+	link     []byte // content before the conversion
+	relinked []byte // and after it
 }
 
 // submodule is a submodule whose working directory points at a repository
@@ -53,7 +66,6 @@ var migrateBlockers = []struct{ path, reason string }{
 	{"rebase-merge", "a rebase is in progress; finish or abort it (git rebase --abort), then retry"},
 	{"rebase-apply", "a rebase or git am is in progress; finish or abort it (git rebase --abort or git am --abort), then retry"},
 	{"BISECT_LOG", "a bisect is in progress; end it (git bisect reset), then retry"},
-	{"worktrees", "the repository already has linked worktrees; remove them (git worktree remove <path>, or git worktree prune for deleted ones), migrate, then recreate them"},
 }
 
 // PlanMigrate checks that the repository at repoPath can be converted in
@@ -114,17 +126,28 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 	plan.WorktreePath = git.WorktreePath(root, plan.Branch)
 	plan.DefaultBranch = migrateDefaultBranch(runner, root, plan.Branch)
 
+	if plan.linked, plan.relinks, err = linkedWorktrees(runner, gitDir); err != nil {
+		return MigratePlan{}, err
+	}
+	for _, linked := range plan.linked {
+		if sameFile(linked, plan.WorktreePath) {
+			return MigratePlan{}, fmt.Errorf("%s is a linked worktree and is where the %q worktree goes; move it (git worktree move %s <new-path>) or switch to another branch, then retry", plan.WorktreePath, plan.Branch, plan.WorktreePath)
+		}
+		if inside, ok := pathInside(root, linked); ok {
+			plan.kept = append(plan.kept, inside)
+		}
+	}
 	if exists(plan.WorktreePath) {
 		return MigratePlan{}, fmt.Errorf("%s already exists and is where the %q worktree goes; rename it or switch to another branch, then retry", plan.WorktreePath, plan.Branch)
 	}
 	if plan.submodules, err = submodulesUnder(runner, root, filepath.Join(gitDir, "modules"), false); err != nil {
 		return MigratePlan{}, err
 	}
-	if plan.state, err = checkoutState(runner, root, nil); err != nil {
+	if plan.state, err = checkoutState(runner, root, plan.kept, nil); err != nil {
 		return MigratePlan{}, fmt.Errorf("reading the working tree status: %w", err)
 	}
 
-	plan.Submodules = len(plan.submodules)
+	plan.LinkedWorktrees, plan.Submodules = len(plan.linked), len(plan.submodules)
 	return plan, nil
 }
 
@@ -162,6 +185,66 @@ func migrateDefaultBranch(runner git.CommandRunner, root, current string) string
 		}
 	}
 	return current
+}
+
+// linkedWorktrees reads the worktrees registered under gitDir/worktrees and
+// works out the .git files that change once gitDir is named .bare: each
+// worktree's own, and those of the submodules checked out in it. Every
+// worktree has to be there and point back: the rollback prunes the new
+// worktree's registration, and pruning would take a missing one with it.
+func linkedWorktrees(runner git.CommandRunner, gitDir string) (dirs []string, relinks []relink, err error) {
+	entries, err := os.ReadDir(filepath.Join(gitDir, "worktrees"))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, nil, fmt.Errorf("reading the linked worktrees: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		admin := filepath.Join(gitDir, "worktrees", entry.Name())
+		// The gitdir file names the worktree's .git file. A relative path
+		// counts from the directory the gitdir file is in.
+		recorded, err := os.ReadFile(filepath.Join(admin, "gitdir"))
+		if err != nil {
+			return nil, nil, fmt.Errorf("the linked worktree %q has no readable record of where it is; drop it with git worktree prune, then retry", entry.Name())
+		}
+		gitfile := strings.TrimSpace(string(recorded))
+		if !filepath.IsAbs(gitfile) {
+			gitfile = filepath.Join(admin, gitfile)
+		}
+		dir := filepath.Dir(gitfile)
+		link, target, err := readGitfile(gitfile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("the linked worktree at %s cannot be read (its directory or its .git file is missing); bring it back, or drop it with git worktree prune (after git worktree unlock if it is locked), then retry", dir)
+		}
+		// git writes these paths with forward slashes on every platform.
+		through, throughBare := "/.git/worktrees/"+entry.Name(), "/.bare/worktrees/"+entry.Name()
+		pointer, ok := strings.CutSuffix(strings.TrimRight(string(link), "\r\n"), through)
+		if !ok || !sameFile(target, admin) {
+			return nil, nil, fmt.Errorf("the linked worktree at %s does not point back at %s; run git worktree repair in %s, then retry", dir, admin, filepath.Dir(gitDir))
+		}
+		dirs = append(dirs, dir)
+		relinks = append(relinks, relink{gitfile: gitfile, link: link, relinked: []byte(pointer + throughBare + "\n")})
+
+		// A submodule's repository names its working directory by a path
+		// that climbs out of the git directory without naming it, so only
+		// the .git file in the working directory changes.
+		submodules, err := submodulesUnder(runner, dir, filepath.Join(admin, "modules"), false)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, sub := range submodules {
+			pointer := strings.TrimRight(string(sub.link), "\r\n")
+			if strings.Count(pointer, through+"/modules/") != 1 {
+				return nil, nil, fmt.Errorf("the submodule %s of the linked worktree at %s does not point into %s; check it out again there (git submodule deinit, then git submodule update --init), then retry", sub.work, dir, admin)
+			}
+			relinks = append(relinks, relink{
+				gitfile: filepath.Join(dir, sub.work, ".git"), link: sub.link,
+				relinked: []byte(strings.Replace(pointer, through+"/modules/", throughBare+"/modules/", 1) + "\n"),
+			})
+		}
+	}
+	return dirs, relinks, nil
 }
 
 // submodulesUnder finds the repositories under a modules directory whose
@@ -251,21 +334,31 @@ var checkoutProbes = []struct {
 	name     string
 	args     []string
 	optional bool
+	// excludes marks the probe that takes the paths to leave out.
+	excludes bool
 }{
 	// Without the optional index lock, so a check never rewrites the index.
-	{name: "git status", args: []string{"--no-optional-locks", "status", "--porcelain"}},
+	{name: "git status", args: []string{"--no-optional-locks", "status", "--porcelain", "--"}, excludes: true},
 	{name: "git submodule status", args: []string{"submodule", "status", "--recursive"}, optional: true},
 }
 
-// checkoutState answers checkoutProbes for the checkout at path. With before,
-// the answers of an earlier call, an optional probe that had none is skipped.
-func checkoutState(runner git.CommandRunner, path string, before []string) ([]string, error) {
+// checkoutState answers checkoutProbes for the checkout at path. The kept
+// paths, relative to the top of the checkout, are left out of the status:
+// they do not move with it. With before, the answers of an earlier call, an
+// optional probe that had none is skipped.
+func checkoutState(runner git.CommandRunner, path string, kept, before []string) ([]string, error) {
 	state := make([]string, len(checkoutProbes))
 	for index, probe := range checkoutProbes {
 		if probe.optional && before != nil && before[index] == "" {
 			continue
 		}
-		answer, err := runner.Run(path, probe.args...)
+		args := slices.Clone(probe.args)
+		if probe.excludes {
+			for _, keep := range kept {
+				args = append(args, ":(exclude,top,literal)"+filepath.ToSlash(keep))
+			}
+		}
+		answer, err := runner.Run(path, args...)
 		if err != nil && !probe.optional {
 			return nil, err
 		}

@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -111,6 +112,32 @@ func commitAll(t *testing.T, dir, message string) {
 	mustGit(t, dir, "commit", "-qm", message)
 }
 
+// The linked worktrees addLinkedWorktrees makes, by where they are: beside the
+// repository, directly inside it, and deeper inside it.
+func linkedDirs(base, root string) (outside, relative, inside, deep string) {
+	return filepath.Join(base, "outside"), filepath.Join(base, "relative"),
+		filepath.Join(root, "inside"), filepath.Join(root, ".claude", "worktrees", "deep")
+}
+
+// addLinkedWorktrees gives the checkout four linked worktrees, each with work
+// in progress: a locked one and one linked by relative paths beside the
+// repository, one directly inside it, and one deeper inside it, next to a
+// file that belongs to the checkout.
+func addLinkedWorktrees(t *testing.T, base, root string) {
+	t.Helper()
+	outside, relative, inside, deep := linkedDirs(base, root)
+	mustWrite(t, filepath.Join(root, ".claude", "settings.json"), "{}\n")
+	mustGit(t, root, "worktree", "add", "-q", "-b", "out", outside)
+	mustGit(t, root, "worktree", "lock", outside)
+	// Older git versions ignore the setting and link by absolute paths.
+	mustGit(t, root, "-c", "worktree.useRelativePaths=true", "worktree", "add", "-q", "-b", "rel", relative)
+	mustGit(t, root, "worktree", "add", "-q", "-b", "in", inside)
+	mustGit(t, root, "worktree", "add", "-q", "-b", "deep", deep)
+	for _, dir := range []string{outside, relative, inside, deep} {
+		mustWrite(t, filepath.Join(dir, "wip.txt"), "work in "+filepath.Base(dir)+"\n")
+	}
+}
+
 // addSubmodules commits three submodules to the checkout: vendor/library,
 // which has a submodule of its own, vendor/plain, and tools/tool, which is
 // deinitialised again so that only its repository under .git/modules is left.
@@ -146,14 +173,18 @@ func dirtySubmodules(t *testing.T, root string) {
 	mustWrite(t, filepath.Join(root, "vendor", "library", "deps", "inner", "untracked.txt"), "new\n")
 }
 
-// submoduleCheckout is a checkout with submodules and uncommitted state, of
-// its own and inside the submodules.
-func submoduleCheckout(t *testing.T) (base, root string) {
+// everythingCheckout is a checkout with all of it at once: submodules,
+// uncommitted state and linked worktrees, one of them with the submodules
+// checked out too.
+func everythingCheckout(t *testing.T) (base, root string) {
 	t.Helper()
 	base, root = newCheckout(t)
 	addSubmodules(t, base, root)
 	dirty(t, base, root)
 	dirtySubmodules(t, root)
+	addLinkedWorktrees(t, base, root)
+	outside, _, _, _ := linkedDirs(base, root)
+	mustGit(t, outside, "-c", "protocol.file.allow=always", "submodule", "update", "-q", "--init", "--recursive")
 	return base, root
 }
 
@@ -368,12 +399,34 @@ func TestMigrate_RefusalsLeaveTheRepositoryUntouched(t *testing.T) {
 			want: "linked worktree or submodule",
 		},
 		{
-			name: "existing linked worktrees",
+			name: "linked worktree whose directory is gone",
 			setup: func(t *testing.T, base, root string) string {
-				mustGit(t, root, "worktree", "add", "-q", "-b", "linked", filepath.Join(base, "linked"))
+				linked := filepath.Join(base, "linked")
+				mustGit(t, root, "worktree", "add", "-q", "-b", "linked", linked)
+				if err := os.RemoveAll(linked); err != nil {
+					t.Fatal(err)
+				}
 				return root
 			},
-			want: "already has linked worktrees",
+			want: "cannot be read (its directory or its .git file is missing)",
+		},
+		{
+			name: "linked worktree that points somewhere else",
+			setup: func(t *testing.T, base, root string) string {
+				linked := filepath.Join(base, "linked")
+				mustGit(t, root, "worktree", "add", "-q", "-b", "linked", linked)
+				mustWrite(t, filepath.Join(linked, ".git"), "gitdir: "+filepath.Join(base, "elsewhere")+"\n")
+				return root
+			},
+			want: "does not point back at",
+		},
+		{
+			name: "linked worktree where the new worktree goes",
+			setup: func(t *testing.T, base, root string) string {
+				mustGit(t, root, "worktree", "add", "-q", "-b", "linked", filepath.Join(root, "main"))
+				return root
+			},
+			want: "is a linked worktree and is where the \"main\" worktree goes",
 		},
 		{
 			name: "unborn HEAD",
@@ -508,8 +561,8 @@ func TestMigrate_FailureAtAnyStepRestoresTheOriginalLayout(t *testing.T) {
 		{"checkout", dirtyCheckout, []progress.StepID{
 			"preflight", "move-git", "git-pointer", "worktree", "mark-bare", "move-files", "default-branch", "verify",
 		}},
-		{"submodules", submoduleCheckout, []progress.StepID{
-			"preflight", "detach-submodules", "move-git", "git-pointer", "worktree", "mark-bare",
+		{"everything at once", everythingCheckout, []progress.StepID{
+			"preflight", "detach-submodules", "move-git", "git-pointer", "relink-worktrees", "worktree", "mark-bare",
 			"move-files", "attach-submodules", "default-branch", "verify",
 		}},
 	}
@@ -549,33 +602,49 @@ func TestMigrate_FailureAtAnyStepRestoresTheOriginalLayout(t *testing.T) {
 
 // A directory without write permission cannot be renamed into a new parent.
 // The move stops part-way with entries on both sides, and the rollback has to
-// bring back exactly the ones that had moved.
+// bring back exactly the ones that had moved. Beside a linked worktree the
+// move goes entry by entry into a directory made for it, which has to go too.
 func TestMigrate_UnmovableEntryRollsBackThePartialMove(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory permissions")
 	}
-	base, root := dirtyCheckout(t)
-	locked := filepath.Join(root, "zz-locked")
-	mustWrite(t, filepath.Join(locked, "cache.bin"), "cache\n")
-	if err := os.Chmod(locked, 0o555); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name   string
+		linked bool
+		entry  string
+	}{
+		{"at the top of the checkout", false, "zz-locked"},
+		{"beside a linked worktree", true, filepath.Join(".claude", "zz-locked")},
 	}
-	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
-	before := snapshot(t, base)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			base, root := dirtyCheckout(t)
+			if test.linked {
+				addLinkedWorktrees(t, base, root)
+			}
+			locked := filepath.Join(root, test.entry)
+			mustWrite(t, filepath.Join(locked, "cache.bin"), "cache\n")
+			if err := os.Chmod(locked, 0o555); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+			before := snapshot(t, base)
 
-	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+			result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
 
-	failure := result.Failure()
-	if failure == nil || !strings.Contains(failure.Error(), "moving zz-locked into the worktree") {
-		t.Fatalf("Failure() = %v, want the unmovable entry named", failure)
+			failure := result.Failure()
+			if failure == nil || !strings.Contains(failure.Error(), "moving "+test.entry+" into the worktree") {
+				t.Fatalf("Failure() = %v, want the unmovable entry named", failure)
+			}
+			if !strings.Contains(failure.Error(), "the repository is unchanged") {
+				t.Errorf("Failure() = %v, want it reported as rolled back", failure)
+			}
+			if moved := stepResult(result.Phases, migrateConvertPhaseID, "move-files"); moved.Status != progress.StepFailed {
+				t.Errorf("move-files = %#v, want failed", moved)
+			}
+			assertSameSnapshot(t, before, snapshot(t, base))
+		})
 	}
-	if !strings.Contains(failure.Error(), "the repository is unchanged") {
-		t.Errorf("Failure() = %v, want it reported as rolled back", failure)
-	}
-	if moved := stepResult(result.Phases, migrateConvertPhaseID, "move-files"); moved.Status != progress.StepFailed {
-		t.Errorf("move-files = %#v, want failed", moved)
-	}
-	assertSameSnapshot(t, before, snapshot(t, base))
 }
 
 func TestMigrate_BrokenEventStreamStillRollsBack(t *testing.T) {
@@ -1018,12 +1087,108 @@ func TestMigrate_SplitIndexUnderAPathWithPatternCharacters(t *testing.T) {
 	}
 }
 
+// dropLines removes the lines that name a path from a status listing.
+func dropLines(listing string, paths ...string) string {
+	return strings.Join(slices.DeleteFunc(strings.Split(listing, "\n"), func(line string) bool {
+		return slices.ContainsFunc(paths, func(path string) bool { return strings.HasSuffix(line, " "+path) })
+	}), "\n")
+}
+
+// A repository that already has linked worktrees keeps every one of them
+// where it is: beside the repository, or inside it, where it ends up next to
+// the new worktree. Only their .git files change, to name .bare.
+func TestMigrate_KeepsLinkedWorktreesWhereTheyAre(t *testing.T) {
+	t.Parallel()
+	base, root := dirtyCheckout(t)
+	addLinkedWorktrees(t, base, root)
+	outside, relative, inside, deep := linkedDirs(base, root)
+	linked := []string{outside, relative, inside, deep}
+	gitBefore := gitState(t, root)
+	filesBefore := checkoutFiles(t, root)
+	statusBefore, linkedFilesBefore := map[string]string{}, map[string]map[string]string{}
+	for _, dir := range linked {
+		statusBefore[dir] = mustGit(t, dir, "status", "--porcelain", "--branch")
+		linkedFilesBefore[dir] = checkoutFiles(t, dir)
+	}
+	relativeLink, err := os.ReadFile(filepath.Join(relative, ".git"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	worktree := result.WorktreePath
+
+	// Each linked worktree is where it was, with its files and its work in
+	// progress, and git reads it again.
+	for _, dir := range linked {
+		if got := mustGit(t, dir, "status", "--porcelain", "--branch"); got != statusBefore[dir] {
+			t.Errorf("status of %s = %q, want %q", dir, got, statusBefore[dir])
+		}
+		assertSameSnapshot(t, linkedFilesBefore[dir], checkoutFiles(t, dir))
+	}
+	worktrees, err := git.ListWorktrees(realGit, root)
+	if err != nil || len(worktrees) != 6 {
+		t.Fatalf("worktrees = %+v, err %v; want the bare entry, the new worktree and the four linked ones", worktrees, err)
+	}
+	for _, listed := range worktrees {
+		if locked := filepath.Base(listed.Path) == "outside"; listed.IsLocked != locked || listed.IsPrunable {
+			t.Errorf("%s: locked %v, prunable %v", listed.Path, listed.IsLocked, listed.IsPrunable)
+		}
+	}
+	// A worktree linked by relative paths stays linked by relative paths.
+	if link, _ := os.ReadFile(filepath.Join(relative, ".git")); bytes.HasPrefix(relativeLink, []byte("gitdir: ..")) && !bytes.HasPrefix(link, []byte("gitdir: ..")) {
+		t.Errorf("the relative link %q became %q", relativeLink, link)
+	}
+
+	// The container holds the worktrees side by side. The checkout's own
+	// files moved into the new one, except the linked worktrees among them.
+	for dir, want := range map[string][]string{
+		root:                           {".bare", ".claude", ".git", "feature-x", "inside"},
+		filepath.Join(root, ".claude"): {"worktrees"},
+	} {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		if !slices.Equal(names, want) {
+			t.Errorf("%s holds %v, want %v", dir, names, want)
+		}
+	}
+	maps.DeleteFunc(filesBefore, func(path string, _ string) bool {
+		return git.PathContains("inside", path) || git.PathContains(filepath.Join(".claude", "worktrees"), path)
+	})
+	assertSameSnapshot(t, filesBefore, checkoutFiles(t, worktree))
+
+	// Git reports the same as before, but for the worktree that was an
+	// untracked directory of the checkout and now sits beside it.
+	for _, key := range []string{"status", "ignored"} {
+		gitBefore[key] = dropLines(gitBefore[key], "inside/")
+	}
+	assertSameGitState(t, gitBefore, gitState(t, worktree))
+
+	// Every worktree takes a commit.
+	for _, dir := range append(linked, worktree) {
+		mustGit(t, dir, "commit", "-q", "--allow-empty", "-m", "after migrate")
+	}
+}
+
 // Submodules keep their checked-out commits and local changes. Their
 // repositories end up where git keeps them for a linked worktree, nested ones
 // included, and a repository kept for a deinitialised submodule is still used.
 func TestMigrate_CarriesSubmodulesIntoTheWorktree(t *testing.T) {
 	t.Parallel()
-	_, root := submoduleCheckout(t)
+	base, root := newCheckout(t)
+	addSubmodules(t, base, root)
+	dirty(t, base, root)
+	dirtySubmodules(t, root)
 	gitBefore := gitState(t, root)
 	filesBefore := checkoutFiles(t, root)
 	if !strings.Contains(gitBefore["submodules"], "vendor/library/deps/inner") || gitBefore["status"] == "" {
@@ -1065,6 +1230,42 @@ func TestMigrate_CarriesSubmodulesIntoTheWorktree(t *testing.T) {
 	if !exists(filepath.Join(worktree, "tools", "tool", "tool.txt")) {
 		t.Error("tools/tool was not checked out again")
 	}
+}
+
+// A linked worktree has its submodules' repositories under its own entry in
+// .git/worktrees, and their .git files reach them through .git by name. They
+// have to follow it to .bare.
+func TestMigrate_RelinksTheSubmodulesOfALinkedWorktree(t *testing.T) {
+	t.Parallel()
+	base, root := newCheckout(t)
+	addSubmodules(t, base, root)
+	linked := filepath.Join(base, "linked")
+	mustGit(t, root, "worktree", "add", "-q", "-b", "linked", linked)
+	mustGit(t, linked, "-c", "protocol.file.allow=always", "submodule", "update", "-q", "--init", "--recursive")
+	inner := filepath.Join(linked, "vendor", "library", "deps", "inner")
+	mustWrite(t, filepath.Join(inner, "untracked.txt"), "new\n")
+	state := func() []string {
+		return []string{
+			mustGit(t, linked, "status", "--porcelain"),
+			mustGit(t, linked, "submodule", "status", "--recursive"),
+			mustGit(t, inner, "status", "--porcelain"),
+		}
+	}
+	before := state()
+	filesBefore := checkoutFiles(t, linked)
+	if !strings.Contains(before[1], "vendor/library/deps/inner") || before[2] != "?? untracked.txt" {
+		t.Fatalf("fixture: want a nested submodule with a local change, got %q", before)
+	}
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	if after := state(); !slices.Equal(after, before) {
+		t.Errorf("the linked worktree reports\n%q\nwant\n%q", after, before)
+	}
+	assertSameSnapshot(t, filesBefore, checkoutFiles(t, linked))
 }
 
 // git absorbs the submodules the superproject tracks by name. A repository
@@ -1167,4 +1368,31 @@ func TestMigrate_InterruptedSubmoduleAbsorbRollsBack(t *testing.T) {
 		t.Fatalf("Failure() = %v, want the interruption reported as rolled back", failure)
 	}
 	assertSameSnapshot(t, before, snapshot(t, base))
+}
+
+// All of it in one repository: each part has to work beside the others.
+func TestMigrate_ConvertsACheckoutWithEverythingAtOnce(t *testing.T) {
+	t.Parallel()
+	base, root := everythingCheckout(t)
+	gitBefore := gitState(t, root)
+	filesBefore := checkoutFiles(t, root)
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	worktree := result.WorktreePath
+	for _, key := range []string{"status", "ignored"} {
+		gitBefore[key] = dropLines(gitBefore[key], "inside/")
+	}
+	assertSameGitState(t, gitBefore, gitState(t, worktree))
+	maps.DeleteFunc(filesBefore, func(path string, _ string) bool {
+		return git.PathContains("inside", path) || git.PathContains(filepath.Join(".claude", "worktrees"), path)
+	})
+	assertSameSnapshot(t, filesBefore, checkoutFiles(t, worktree))
+	outside, relative, inside, deep := linkedDirs(base, root)
+	for _, dir := range []string{outside, relative, inside, deep, worktree} {
+		mustGit(t, dir, "commit", "-q", "--allow-empty", "-m", "after migrate")
+	}
 }

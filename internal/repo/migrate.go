@@ -67,9 +67,13 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 	gitDir := filepath.Join(root, ".git")
 	barePath := filepath.Join(root, ".bare")
 	configPath := filepath.Join(barePath, "config")
-	var gitMoved, stateMoved, filesMoved renames
+	var gitMoved, stateMoved renames
 	var originalConfig []byte // the repository config before the first git edit
 	registered := false       // git created the worktree directory and its .git file
+	files := treeMove{root: root, keep: []string{gitDir, barePath, plan.WorktreePath}}
+	for _, kept := range plan.kept {
+		files.keep = append(files.keep, filepath.Join(root, kept))
+	}
 
 	migrate := flow{name: "repository migration"}
 	migrate.add(migrateValidatePhaseID, "Validate", step{id: "preflight", label: "Check repository", run: func() (string, error) {
@@ -134,6 +138,26 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			return errors.Join(undoErr, removeFile(gitDir))
 		},
 	})
+	if len(plan.relinks) > 0 {
+		migrate.add(migrateConvertPhaseID, "Convert", step{
+			id: "relink-worktrees", label: "Relink linked worktrees",
+			run: func() (string, error) {
+				for _, file := range plan.relinks {
+					if err := os.WriteFile(file.gitfile, file.relinked, 0o644); err != nil {
+						return "", err
+					}
+				}
+				return "", nil
+			},
+			undo: func() error {
+				var undoErr error
+				for _, file := range plan.relinks {
+					undoErr = errors.Join(undoErr, os.WriteFile(file.gitfile, file.link, 0o644))
+				}
+				return undoErr
+			},
+		})
+	}
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "worktree", label: "Register worktree",
 		run: func() (string, error) {
@@ -209,22 +233,12 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "move-files", label: "Move working tree",
 		run: func() (string, error) {
-			entries, err := os.ReadDir(root)
-			if err != nil {
+			if err := files.entries(root, plan.WorktreePath); err != nil {
 				return "", err
 			}
-			for _, entry := range entries {
-				name := entry.Name()
-				if name == ".git" || name == ".bare" || name == filepath.Base(plan.WorktreePath) {
-					continue
-				}
-				if err := filesMoved.move(filepath.Join(root, name), filepath.Join(plan.WorktreePath, name)); err != nil {
-					return "", fmt.Errorf("moving %s into the worktree: %w", name, err)
-				}
-			}
-			return fmt.Sprintf("%d entries", len(filesMoved)), nil
+			return fmt.Sprintf("%d entries", len(files.moved)), nil
 		},
-		undo: filesMoved.undo,
+		undo: files.undo,
 	})
 	if len(plan.submodules) > 0 {
 		migrate.add(migrateConvertPhaseID, "Convert", step{
@@ -276,7 +290,7 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 		undo: func() error { return pointHEAD(plan.Branch) },
 	})
 	migrate.add(migrateConvertPhaseID, "Convert", step{id: "verify", label: "Verify working tree", run: func() (string, error) {
-		state, err := checkoutState(runner, plan.WorktreePath, plan.state)
+		state, err := checkoutState(runner, plan.WorktreePath, plan.kept, plan.state)
 		if err != nil {
 			return "", err
 		}
@@ -361,6 +375,67 @@ func (s submodule) restore(root string) error {
 	}
 	// The file was created anew, and the umask may have taken bits off.
 	return os.Chmod(gitfile, s.mode)
+}
+
+// treeMove moves the entries of a directory into another, except the paths
+// to keep. A directory that holds a kept path stays where it is, and its
+// other entries move into a new directory like it.
+type treeMove struct {
+	root    string   // the directory being emptied, for naming entries in errors
+	keep    []string // absolute paths that stay where they are
+	moved   renames
+	created []string // directories made for the entries beside a kept path
+}
+
+func (m *treeMove) entries(from, to string) error {
+	entries, err := os.ReadDir(from)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		source, target := filepath.Join(from, entry.Name()), filepath.Join(to, entry.Name())
+		holdsKept := func(kept string) bool { return strings.HasPrefix(kept, source+string(filepath.Separator)) }
+		switch {
+		case slices.Contains(m.keep, source):
+		case slices.ContainsFunc(m.keep, holdsKept):
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			if err := os.Mkdir(target, info.Mode().Perm()); err != nil {
+				return err
+			}
+			m.created = append(m.created, target)
+			// The umask may have taken bits off.
+			if err := os.Chmod(target, info.Mode().Perm()); err != nil {
+				return err
+			}
+			if err := m.entries(source, target); err != nil {
+				return err
+			}
+			// Removing a directory only works on an empty one: nothing but
+			// the kept path was in the original, so no twin is needed.
+			if os.Remove(target) == nil {
+				m.created = m.created[:len(m.created)-1]
+			}
+		default:
+			if err := m.moved.move(source, target); err != nil {
+				name, _ := filepath.Rel(m.root, source)
+				return fmt.Errorf("moving %s into the worktree: %w", name, err)
+			}
+		}
+	}
+	return nil
+}
+
+// undo moves everything back and removes the directories entries made, which
+// are empty again by then.
+func (m *treeMove) undo() error {
+	undoErr := m.moved.undo()
+	for _, dir := range slices.Backward(m.created) {
+		undoErr = errors.Join(undoErr, os.Remove(dir))
+	}
+	return undoErr
 }
 
 // renames records completed renames so they can be reversed exactly.
