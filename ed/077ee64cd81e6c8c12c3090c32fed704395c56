@@ -1,0 +1,25 @@
+cmd/cleanup.go
+  s_b5d41ab2ae0f4c::t_20963cfff0f264 40,57-84
+cmd/cleanup_run_test.go
+  s_b5d41ab2ae0f4c::t_8cf1160f102838 171-251
+internal/cleanup/cleanup.go
+  s_b5d41ab2ae0f4c::t_ab4242a89fffbf 31-32,110
+openspec/specs/dry-run/spec.md
+  s_b5d41ab2ae0f4c::t_68354dc8aa8590 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ed077ee64cd81e6c8c12c3090c32fed704395c56",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
