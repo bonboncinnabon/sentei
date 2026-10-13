@@ -232,3 +232,65 @@ func TestViewRepoSummary_LongPathsKeepTheirEnd(t *testing.T) {
 		}
 	}
 }
+
+// A run that left no usable repository must not be titled "created" or
+// "cloned", and a long error must stay under its indent when it wraps.
+func TestViewRepoSummary_FailureIsNotTitledAsSuccess(t *testing.T) {
+	long := errors.New("git: " + strings.Repeat("something went wrong and here is why ", 5) + "\nhint: second line")
+	failedClone := cloneFailureResult()
+	failedClone.Err = long
+	failedCreate := repo.CreateResult{RepoPath: "/tmp/my-project", Err: long}
+
+	for name, tc := range map[string]struct {
+		result      any
+		title, lies string
+	}{
+		"clone":  {failedClone, "sentei ─ Clone repository", "Repository cloned"},
+		"create": {failedCreate, "sentei ─ Create repository", "Repository created"},
+	} {
+		view := stripANSI(makeRepoSummaryModel(tc.result).viewRepoSummary())
+		if !strings.Contains(view, tc.title) || strings.Contains(view, tc.lies) {
+			t.Errorf("%s: want the title %q on a failed run:\n%s", name, tc.title, view)
+		}
+		_, after, _ := strings.Cut(view, " failed\n\n")
+		block, _, _ := strings.Cut(after, "\n\n")
+		lines := strings.Split(block, "\n")
+		if len(lines) < 3 || !strings.Contains(block, "hint: second line") {
+			t.Fatalf("%s: expected the wrapped error after the failure line:\n%s", name, view)
+		}
+		for _, line := range lines {
+			if !strings.HasPrefix(line, "    ") {
+				t.Errorf("%s: error line starts left of the block's indent: %q", name, line)
+			}
+		}
+	}
+}
+
+// The publish error wraps inside the value column, and the published URL is
+// marked with the done indicator: the full circle is retired.
+func TestViewRepoSummary_GitHubRow(t *testing.T) {
+	failed := repo.CreateResult{RepoPath: "/tmp/p", WorktreePath: "/tmp/p/main", Phases: []progress.Phase{
+		{Name: repo.PhaseGitHub, Steps: []progress.StepResult{{
+			Name: "Push", Status: progress.StepFailed,
+			Error: errors.New("git push: " + strings.Repeat("the remote said no ", 8)),
+		}}},
+	}}
+	view := stripANSI(makeRepoSummaryModel(failed).viewRepoSummary())
+	_, after, found := strings.Cut(view, "    GitHub     ✗ git push: ")
+	rows, _, _ := strings.Cut(after, "\n\n")
+	continued := strings.Split(rows, "\n")[1:]
+	if !found || len(continued) == 0 {
+		t.Fatalf("expected a wrapped GitHub row:\n%s", view)
+	}
+	for _, line := range continued {
+		if !strings.HasPrefix(line, strings.Repeat(" ", 15)) {
+			t.Errorf("publish error continues left of the value column: %q", line)
+		}
+	}
+
+	published := repo.CreateResult{RepoPath: "/tmp/p", WorktreePath: "/tmp/p/main", GitHubURL: "https://github.com/me/p"}
+	view = stripANSI(makeRepoSummaryModel(published).viewRepoSummary())
+	if !strings.Contains(view, "    GitHub     https://github.com/me/p "+indicatorDone+"\n") {
+		t.Errorf("published repository row is not marked done:\n%s", view)
+	}
+}

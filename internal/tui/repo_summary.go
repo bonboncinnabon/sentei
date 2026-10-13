@@ -29,7 +29,7 @@ func cloneFailed(result repo.CloneResult) (bool, error) {
 // repoOutcome is what the summary of a create-repository or a clone run shows
 // and acts on. The two flows differ in these values and in nothing else.
 type repoOutcome struct {
-	title    string
+	title    string // says "created" or "cloned" only when that is true
 	verb     string // names the flow on the failure line: "<verb> failed"
 	repoPath string
 	branch   string // the default branch, "" when it is not known
@@ -45,20 +45,22 @@ type repoOutcome struct {
 func (m Model) repoOutcome() (repoOutcome, bool) {
 	switch result := m.repo.result.(type) {
 	case repo.CreateResult:
-		outcome := repoOutcome{title: titleRepoCreated, verb: "create", repoPath: result.RepoPath, worktree: result.WorktreePath}
+		outcome := repoOutcome{title: titleCreateRepo, verb: "create", repoPath: result.RepoPath, worktree: result.WorktreePath}
 		// A Setup-phase failure means the local repository is broken (for
 		// example the initial commit could not be made).
 		if outcome.failed, outcome.err = result.SetupFailed(); !outcome.failed {
-			outcome.branch = "main"
+			outcome.title, outcome.branch = titleRepoCreated, "main"
 			outcome.ready, outcome.rows = m.githubOutcome(result)
 		}
 		return outcome, true
 	case repo.CloneResult:
 		outcome := repoOutcome{
-			title: titleRepoCloned, verb: "clone", ready: "ready",
+			title: titleCloneRepo, verb: "clone", ready: "ready",
 			repoPath: result.RepoPath, worktree: result.WorktreePath, branch: result.DefaultBranch,
 		}
-		outcome.failed, outcome.err = cloneFailed(result)
+		if outcome.failed, outcome.err = cloneFailed(result); !outcome.failed {
+			outcome.title = titleRepoCloned
+		}
 		if result.OriginURL != "" {
 			outcome.rows = summaryPathRow("Origin", result.OriginURL, m.width)
 		}
@@ -83,7 +85,7 @@ func (m Model) githubOutcome(result repo.CreateResult) (ready, row string) {
 	}
 	switch {
 	case result.GitHubURL != "":
-		row = summaryRow("GitHub", result.GitHubURL+" "+styleSuccess.Render("\u25cf"))
+		row = summaryRow("GitHub", result.GitHubURL+" "+styleIndicatorDone.Render(indicatorDone))
 	case failure != "":
 		row = summaryRow("GitHub", styleError.Width(max(m.width-16, 30)).Render(indicatorFailed+" "+failure))
 	}
@@ -121,8 +123,8 @@ func (m Model) viewRepoSummary() string {
 	if outcome.failed {
 		fmt.Fprintf(&b, "  %s %s failed\n\n", styleIndicatorFailed.Render(indicatorFailed), outcome.verb)
 		if outcome.err != nil {
-			b.WriteString("    " + styleError.Width(max(m.width-8, 30)).Render(outcome.err.Error()))
-			b.WriteString("\n\n")
+			b.WriteString(m.errorBlock(outcome.err))
+			b.WriteString("\n")
 		}
 		b.WriteString(summaryPathRow("Path", outcome.repoPath, m.width))
 		if outcome.branch != "" {

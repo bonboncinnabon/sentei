@@ -142,15 +142,23 @@ func (m Model) viewCreateFailed(branch string, result *creator.Result) string {
 		failure = step.Error
 	}
 	if failure != nil {
-		for _, line := range m.wrapSummaryLine(failure.Error()) {
-			fmt.Fprintf(&b, "    %s\n", styleError.Render(line))
-		}
+		b.WriteString(m.errorBlock(failure))
 		b.WriteString("\n")
 	}
 
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 	b.WriteString(m.createSummaryFooter())
+	return b.String()
+}
+
+// errorBlock renders an error as the body of a failure screen: wrapped to the
+// terminal, with every line under the same indent.
+func (m Model) errorBlock(err error) string {
+	var b strings.Builder
+	for _, line := range m.wrapSummaryLine(err.Error()) {
+		fmt.Fprintf(&b, "    %s\n", styleError.Render(line))
+	}
 	return b.String()
 }
 

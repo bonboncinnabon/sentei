@@ -158,8 +158,9 @@ func inputFieldLabel(label string, focused bool) string {
 
 // summaryRow renders one "label value" line of a summary. The label is padded
 // before it is styled: escape codes would otherwise count toward the column
-// width.
+// width. A value of several lines continues in the value column.
 func summaryRow(label, value string) string {
+	value = strings.ReplaceAll(value, "\n", "\n"+strings.Repeat(" ", 15))
 	return fmt.Sprintf("    %s %s\n", styleDim.Render(fmt.Sprintf("%-10s", label)), value)
 }
 
