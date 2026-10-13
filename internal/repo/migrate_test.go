@@ -772,3 +772,140 @@ func TestMigrate_FailedWorktreeAddLeavesTheDirectoryAlone(t *testing.T) {
 	}
 	assertSameSnapshot(t, before, snapshot(t, base))
 }
+
+// failingAt returns the migrate flow for root with the named step doing its
+// work and then reporting a failure.
+func failingAt(t *testing.T, root, stepID string) (flow, func([]progress.Phase, error) MigrateResult) {
+	t.Helper()
+	migrate, finish := prepareMigrate(realGit, MigrateOptions{RepoPath: root})
+	for index, declared := range migrate.steps {
+		if declared.id != stepID {
+			continue
+		}
+		migrate.steps[index].run = func() (string, error) {
+			if _, err := declared.run(); err != nil {
+				t.Fatalf("fixture: %s failed on its own: %v", stepID, err)
+			}
+			return "", errors.New("injected")
+		}
+		return migrate, finish
+	}
+	t.Fatalf("fixture: the migrate flow has no step %q", stepID)
+	return migrate, finish
+}
+
+// gitConfigEnv sets one git config value for every git process the test
+// starts, the way a user's global config would.
+func gitConfigEnv(t *testing.T, key, value string) {
+	t.Helper()
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", key)
+	t.Setenv("GIT_CONFIG_VALUE_0", value)
+}
+
+// Registering the worktree can make git rewrite more of the config than
+// core.bare: with relative worktree paths it adds an extension and raises
+// the repository format version, which older git versions refuse to read.
+// The rollback has to take that back too.
+func TestMigrate_RollbackRestoresTheConfigGitRewrote(t *testing.T) {
+	gitConfigEnv(t, "worktree.useRelativePaths", "true")
+	base, root := dirtyCheckout(t)
+	before := snapshot(t, base)
+	migrate, finish := failingAt(t, root, "move-files")
+
+	result := finish(migrate.run(nil))
+
+	if failure := result.Failure(); failure == nil || !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Fatalf("Failure() = %v, want the failure reported as rolled back", failure)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
+}
+
+// git edits a read-only config by replacing the file. The rollback has to
+// get core.bare back out of it all the same.
+func TestMigrate_RollbackRestoresAReadOnlyConfig(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file permissions")
+	}
+	base, root := dirtyCheckout(t)
+	if err := os.Chmod(filepath.Join(root, ".git", "config"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	before := snapshot(t, base)
+	migrate, finish := failingAt(t, root, "move-files")
+
+	result := finish(migrate.run(nil))
+
+	if failure := result.Failure(); failure == nil || !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Fatalf("Failure() = %v, want the failure reported as rolled back", failure)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
+}
+
+// With safe.bareRepository=explicit git refuses a bare repository it finds
+// on its own, so every command has to reach .bare through the .git pointer.
+func TestMigrate_WorksWhenBareRepositoriesMustBeExplicit(t *testing.T) {
+	gitConfigEnv(t, "safe.bareRepository", "explicit")
+
+	t.Run("converts", func(t *testing.T) {
+		_, root := dirtyCheckout(t)
+		status := mustGit(t, root, "status", "--porcelain")
+
+		result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+		if err := result.Failure(); err != nil {
+			t.Fatalf("migrate failed: %v", err)
+		}
+		if got := mustGit(t, result.WorktreePath, "status", "--porcelain"); got != status {
+			t.Errorf("status = %q, want %q", got, status)
+		}
+		if got := git.DetectDefaultBranch(realGit, root); got != "main" {
+			t.Errorf("default branch = %q, want main", got)
+		}
+	})
+
+	t.Run("rolls back", func(t *testing.T) {
+		base, root := dirtyCheckout(t)
+		before := snapshot(t, base)
+		migrate, finish := failingAt(t, root, "verify")
+
+		result := finish(migrate.run(nil))
+
+		if failure := result.Failure(); failure == nil || !strings.Contains(failure.Error(), "the repository is unchanged") {
+			t.Fatalf("Failure() = %v, want the failure reported as rolled back", failure)
+		}
+		assertSameSnapshot(t, before, snapshot(t, base))
+	})
+}
+
+// If the config cannot be read there is nothing to put back, and the undo
+// must not write an empty file in its place.
+func TestMigrate_RollbackWritesNoConfigItNeverRead(t *testing.T) {
+	_, root := newCheckout(t)
+	config := filepath.Join(root, ".bare", "config")
+	migrate, finish := prepareMigrate(realGit, MigrateOptions{RepoPath: root})
+	for index, declared := range migrate.steps {
+		if declared.id != "git-pointer" {
+			continue
+		}
+		migrate.steps[index].run = func() (string, error) {
+			// The config disappears just before the step that reads it.
+			if err := os.Rename(config, config+".away"); err != nil {
+				t.Fatal(err)
+			}
+			return declared.run()
+		}
+	}
+
+	result := finish(migrate.run(nil))
+
+	if marked := stepResult(result.Phases, migrateConvertPhaseID, "mark-bare"); marked.Status != progress.StepFailed {
+		t.Fatalf("mark-bare = %#v, want failed on the missing config", marked)
+	}
+	if exists(filepath.Join(root, ".git", "config")) {
+		t.Error("the rollback wrote a config file it had never read")
+	}
+	if _, err := os.Stat(filepath.Join(root, ".git", "config.away")); err != nil {
+		t.Errorf(".git did not return with the original config: %v", err)
+	}
+}
