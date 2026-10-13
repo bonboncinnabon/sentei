@@ -65,7 +65,7 @@ func TestCleanupPreview_AggressiveGateNeedsDeletable(t *testing.T) {
 func TestCleanupPreview_CleanStateShowsChecks(t *testing.T) {
 	m := cleanupModelWithScan(&cleanup.DryRunResult{})
 	view := stripAnsi(m.viewCleanupPreview())
-	for _, check := range []string{"No stale remote refs", "No branches with gone upstream", "No stale worktrees"} {
+	for _, check := range []string{"No stale remote refs", "No branches with gone upstream", "No orphaned config sections", "No duplicate config lines", "No stale worktrees"} {
 		if !strings.Contains(view, check) {
 			t.Errorf("clean preview must show what was checked (%q):\n%s", check, view)
 		}
@@ -108,8 +108,9 @@ func TestCleanupResult_CheckOrderMatchesPreview(t *testing.T) {
 	refs := strings.Index(view, "stale remote refs")
 	gone := strings.Index(view, "gone upstream")
 	orphans := strings.Index(view, "orphaned config sections")
-	if refs >= gone || gone >= orphans {
-		t.Errorf("result check order must match the preview (refs, gone, orphaned sections):\n%s", view)
+	duplicates := strings.Index(view, "duplicate config lines")
+	if refs >= gone || gone >= orphans || orphans >= duplicates {
+		t.Errorf("result check order must match the preview (refs, gone, orphaned sections, duplicate lines):\n%s", view)
 	}
 }
 

@@ -1,6 +1,7 @@
 package cleanup
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,6 +91,25 @@ func (f repoFixture) appendConfig(text string) {
 	f.t.Helper()
 	if err := os.WriteFile(f.configPath(), []byte(f.readConfig()+text), 0o644); err != nil {
 		f.t.Fatal(err)
+	}
+}
+
+// configValues returns every value of key in the repository's own config,
+// read exactly.
+func (f repoFixture) configValues(key string) []string {
+	f.t.Helper()
+	out, err := exec.Command("git", "-C", f.root, "config", "--local", "--null", "--get-all", key).Output()
+	if err != nil {
+		f.t.Fatalf("reading config key %s: %v", key, err)
+	}
+	return strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
+}
+
+// repeatConfig writes value under key on count lines of the config.
+func (f repoFixture) repeatConfig(key, value string, count int) {
+	f.t.Helper()
+	for range count {
+		f.git(f.root, "config", "--add", key, value)
 	}
 }
 
@@ -219,6 +239,37 @@ func TestRun_DeleteFailureIsNotReportedAsUnmerged(t *testing.T) {
 	}
 }
 
+// The lines the VS Code GitHub extension appends over and over all say the
+// same thing, so one of each is enough.
+func TestRun_CollapsesIdenticalConfigLines(t *testing.T) {
+	f := newRepoFixture(t)
+	f.repeatConfig("branch.main.vscode-merge-base", "origin/main", 3)
+	f.repeatConfig("branch.main.github-pr-owner-number", "acme#sentei#12", 2)
+
+	result := Run(&git.GitRunner{}, f.root, Options{Mode: ModeSafe}, discard)
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	if result.ConfigDedupResult.Removed != 3 {
+		t.Errorf("Removed = %d, want 3", result.ConfigDedupResult.Removed)
+	}
+	for key, want := range map[string]string{
+		"branch.main.vscode-merge-base":      "origin/main",
+		"branch.main.github-pr-owner-number": "acme#sentei#12",
+	} {
+		if got := f.configValues(key); !slices.Equal(got, []string{want}) {
+			t.Errorf("%s = %q, want the single value %q", key, got, want)
+		}
+	}
+	if lines := strings.Count(f.readConfig(), "vscode-merge-base"); lines != 1 {
+		t.Errorf("the config holds %d vscode-merge-base lines, want 1:\n%s", lines, f.readConfig())
+	}
+	if _, err := os.Stat(f.configPath() + ".bak"); !os.IsNotExist(err) {
+		t.Errorf("cleanup left a config.bak beside the config (stat err: %v)", err)
+	}
+}
+
 // Repeated lines are not always redundant: git reads the last value of a
 // single-valued key, so dropping a later repeat changes the effective value.
 func TestRun_LeavesRepeatedConfigLinesAlone(t *testing.T) {
@@ -235,7 +286,154 @@ func TestRun_LeavesRepeatedConfigLinesAlone(t *testing.T) {
 		t.Errorf("effective sentei-test.flag = %q after cleanup, want false", got)
 	}
 	if after := f.readConfig(); after != before {
-		t.Errorf("config changed although nothing was orphaned:\n%s", after)
+		t.Errorf("config changed although no key holds one value twice:\n%s", after)
+	}
+}
+
+func TestRun_LeavesConfigKeysWithoutDuplicatesAlone(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+	}{
+		{
+			name:   "a multi-valued key with distinct values",
+			config: "[remote \"origin\"]\n\tfetch = +refs/tags/*:refs/tags/*\n",
+		},
+		{
+			name:   "one variable in two sections",
+			config: "[sentei-a]\n\tname = same\n[sentei-b]\n\tname = same\n[sentei-a \"sub\"]\n\tname = same\n",
+		},
+		{
+			name:   "a key repeated without a value",
+			config: "[sentei-test]\n\tflag\n\tflag\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newRepoFixture(t)
+			f.appendConfig(tt.config)
+			before := f.readConfig()
+
+			result := Run(&git.GitRunner{}, f.root, Options{Mode: ModeSafe}, discard)
+			if len(result.Errors) > 0 {
+				t.Fatalf("unexpected errors: %v", result.Errors)
+			}
+
+			if result.ConfigDedupResult.Removed != 0 {
+				t.Errorf("Removed = %d, want 0", result.ConfigDedupResult.Removed)
+			}
+			if after := f.readConfig(); after != before {
+				t.Errorf("config changed:\n%s", after)
+			}
+		})
+	}
+}
+
+// git quotes a value when it writes it. What cleanup hands back must be the
+// value git read, not the text of the line.
+func TestRun_CollapsedConfigValueIsUnchanged(t *testing.T) {
+	values := []string{
+		"  two  spaces, \"quotes\", a # and a ; \\\nsecond line\t",
+		"ends in a newline\n",
+		"-leading-dash",
+		"",
+	}
+	f := newRepoFixture(t)
+	for i, value := range values {
+		f.repeatConfig(fmt.Sprintf("sentei-test.value%d", i), value, 2)
+	}
+
+	result := Run(&git.GitRunner{}, f.root, Options{Mode: ModeSafe}, discard)
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	if result.ConfigDedupResult.Removed != len(values) {
+		t.Errorf("Removed = %d, want %d", result.ConfigDedupResult.Removed, len(values))
+	}
+	for i, want := range values {
+		if got := f.configValues(fmt.Sprintf("sentei-test.value%d", i)); !slices.Equal(got, []string{want}) {
+			t.Errorf("value %d = %q, want the single value %q", i, got, want)
+		}
+	}
+}
+
+func TestRun_DryRunCountsDuplicateConfigLinesAndKeepsThem(t *testing.T) {
+	f := newRepoFixture(t)
+	f.repeatConfig("branch.main.vscode-merge-base", "origin/main", 3)
+	before := f.readConfig()
+	runner := &git.GitRunner{}
+
+	dry := Run(runner, f.root, Options{Mode: ModeSafe, DryRun: true}, discard)
+	scan, err := DryRun(runner, f.root)
+	if err != nil {
+		t.Fatalf("DryRun: %v", err)
+	}
+
+	if len(dry.Errors) > 0 || len(scan.Errors) > 0 {
+		t.Fatalf("unexpected errors: dry run %v, preview %v", dry.Errors, scan.Errors)
+	}
+	if dry.ConfigDedupResult.Removed != 2 {
+		t.Errorf("dry run reports %d duplicate line(s), want 2", dry.ConfigDedupResult.Removed)
+	}
+	if scan.ConfigDuplicates != 2 {
+		t.Errorf("preview reports %d duplicate line(s), want 2", scan.ConfigDuplicates)
+	}
+	if after := f.readConfig(); after != before {
+		t.Errorf("a dry run changed the config:\n%s", after)
+	}
+}
+
+func TestRun_DedupHonoursConfigLock(t *testing.T) {
+	f := newRepoFixture(t)
+	f.repeatConfig("branch.main.vscode-merge-base", "origin/main", 2)
+	before := f.readConfig()
+	if err := os.WriteFile(f.configPath()+".lock", nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := Run(&git.GitRunner{}, f.root, Options{Mode: ModeSafe}, discard)
+
+	if err := stepError(result.Errors, "dedup-config"); err == nil || !strings.Contains(err.Error(), "could not lock config file") {
+		t.Errorf("expected a dedup-config error naming the held lock, got %v", result.Errors)
+	}
+	if result.ConfigDedupResult.Removed != 0 {
+		t.Errorf("Removed = %d although nothing could be written", result.ConfigDedupResult.Removed)
+	}
+	if after := f.readConfig(); after != before {
+		t.Errorf("config was rewritten while another writer held config.lock:\n%s", after)
+	}
+}
+
+// writeAfterConfigRead is a git runner under which another process writes
+// the config between cleanup's read of it and the collapse.
+type writeAfterConfigRead struct {
+	git.GitRunner
+	write func()
+}
+
+func (r *writeAfterConfigRead) Run(dir string, args ...string) (string, error) {
+	out, err := r.GitRunner.Run(dir, args...)
+	if slices.Contains(args, "--null") {
+		r.write()
+	}
+	return out, err
+}
+
+func TestRun_DedupKeepsValueWrittenSinceTheRead(t *testing.T) {
+	f := newRepoFixture(t)
+	f.repeatConfig("sentei-test.flag", "false", 2)
+	runner := &writeAfterConfigRead{write: func() {
+		f.git(f.root, "config", "--add", "sentei-test.flag", "true")
+	}}
+
+	result := Run(runner, f.root, Options{Mode: ModeSafe}, discard)
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	if got, want := f.configValues("sentei-test.flag"), []string{"false", "true"}; !slices.Equal(got, want) {
+		t.Errorf("sentei-test.flag = %q, want %q: the later value is the effective one", got, want)
 	}
 }
 
@@ -300,10 +498,12 @@ func TestRun_DryRunReportsWhatTheRealRunDoes(t *testing.T) {
 	modes := []struct {
 		name string
 		opts Options
+		// duplicates counts the repeated lines in sections that outlive the run.
+		duplicates int
 	}{
-		{"safe", Options{Mode: ModeSafe}},
-		{"aggressive", Options{Mode: ModeAggressive}},
-		{"aggressive with force", Options{Mode: ModeAggressive, Force: true}},
+		{"safe", Options{Mode: ModeSafe}, 3},
+		{"aggressive", Options{Mode: ModeAggressive}, 2},
+		{"aggressive with force", Options{Mode: ModeAggressive, Force: true}, 1},
 	}
 	for _, mode := range modes {
 		t.Run(mode.name, func(t *testing.T) {
@@ -323,6 +523,12 @@ func TestRun_DryRunReportsWhatTheRealRunDoes(t *testing.T) {
 			f.git(f.root, "branch", "--quiet", "local/work", "main")
 			f.commitOn("local/work", false)
 			f.git(f.root, "config", "branch.ghost.remote", "origin")
+			// One repeated line each in the section of a branch every mode
+			// keeps, an orphaned section, and the sections of branches that
+			// some modes delete.
+			for _, name := range []string{"main", "ghost", "gone/merged", "local/merged", "local/work"} {
+				f.repeatConfig("branch."+name+".vscode-merge-base", "origin/main", 2)
+			}
 			runner := &git.GitRunner{}
 
 			dryOpts := mode.opts
@@ -335,6 +541,9 @@ func TestRun_DryRunReportsWhatTheRealRunDoes(t *testing.T) {
 			}
 			if dry.StaleRefsRemoved != 3 {
 				t.Fatalf("fixture is off: %d stale refs, want 3", dry.StaleRefsRemoved)
+			}
+			if dry.ConfigDedupResult.Removed != mode.duplicates {
+				t.Errorf("dry run reports %d duplicate config line(s), want %d", dry.ConfigDedupResult.Removed, mode.duplicates)
 			}
 			if !reflect.DeepEqual(dry, result) {
 				t.Errorf("the dry run announced\n  %+v\nbut the real run did\n  %+v", dry, result)

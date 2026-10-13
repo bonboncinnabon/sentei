@@ -60,6 +60,7 @@ func TestViewCleanupResult_DryRunSaysWouldNotDid(t *testing.T) {
 		StaleRefsRemoved:     2,
 		GoneBranchesDeleted:  1,
 		ConfigOrphanResult:   cleanup.ConfigResult{Removed: 1},
+		ConfigDedupResult:    cleanup.ConfigResult{Removed: 3},
 		WorktreesPruned:      1,
 		NonWtBranchesDeleted: []string{"old/one"},
 	})
@@ -75,6 +76,7 @@ func TestViewCleanupResult_DryRunSaysWouldNotDid(t *testing.T) {
 		"2 stale remote refs would be pruned",
 		"1 branch with gone upstream would be deleted",
 		"1 orphaned config section would be removed",
+		"3 duplicate config lines would be removed",
 		"1 stale worktree would be pruned",
 		"1 branch not in any worktree would be deleted",
 		"old/one",

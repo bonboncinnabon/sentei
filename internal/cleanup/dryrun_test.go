@@ -28,6 +28,7 @@ func dryRunMock() *mock.Runner {
 		"/repo:[merge-base --is-ancestor feature/extra origin/feature/extra]": {Output: ""},
 		"/repo:[rev-parse --abbrev-ref feature/gone@{upstream}]":              {Err: errors.New("no such ref")},
 		"/repo:[merge-base --is-ancestor feature/gone HEAD]":                  {Output: ""},
+		"/repo:[config --local --null --list]":                                {Output: "core.bare\ntrue\x00branch.main.remote\norigin\x00"},
 	}}
 }
 
@@ -118,12 +119,13 @@ func TestDryRun_CollectsProbeErrors(t *testing.T) {
 	runner := dryRunMock()
 	runner.Responses["/repo:[remote]"] = mock.Response{Err: errors.New("remote unreachable")}
 	runner.Responses["/repo:[config --local --name-only --list]"] = mock.Response{Err: errors.New("bad config line 3")}
+	runner.Responses["/repo:[config --local --null --list]"] = mock.Response{Err: errors.New("bad config line 3")}
 
 	result, err := DryRun(runner, "/repo")
 	if err != nil {
 		t.Fatalf("a failed probe must not abort the scan: %v", err)
 	}
-	for _, step := range []string{"prune-refs", "orphaned-configs"} {
+	for _, step := range []string{"prune-refs", "orphaned-configs", "dedup-config"} {
 		if stepError(result.Errors, step) == nil {
 			t.Errorf("missing %s error, got %v", step, result.Errors)
 		}
@@ -144,6 +146,7 @@ func TestDryRunResult_HasWork(t *testing.T) {
 		{"stale refs only", DryRunResult{StaleRefs: 2}, true, false},
 		{"gone branches only", DryRunResult{GoneBranches: []string{"a"}}, true, false},
 		{"orphaned configs only", DryRunResult{OrphanedConfigs: 1}, true, false},
+		{"config duplicates only", DryRunResult{ConfigDuplicates: 1}, true, false},
 		{"prunable worktrees only", DryRunResult{PrunableWorktrees: 1}, true, false},
 		{"aggressive only", DryRunResult{AggressiveBranches: []BranchInfo{{Name: "x"}}}, false, true},
 		{"both", DryRunResult{StaleRefs: 1, AggressiveBranches: []BranchInfo{{Name: "x"}}}, true, true},

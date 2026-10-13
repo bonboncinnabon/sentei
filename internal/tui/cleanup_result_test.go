@@ -95,11 +95,15 @@ func TestViewCleanupResult_ShowsActions(t *testing.T) {
 	result := cleanup.Result{
 		StaleRefsRemoved:    3,
 		GoneBranchesDeleted: 1,
+		ConfigDedupResult:   cleanup.ConfigResult{Removed: 4},
 	}
 	m.cleanupResult = &result
 
 	output := stripAnsi(m.viewCleanupResult())
 
+	if !strings.Contains(output, "Removed 4 duplicate config lines") {
+		t.Errorf("expected 'Removed 4 duplicate config lines' in output, got:\n%s", output)
+	}
 	if !strings.Contains(output, "Pruned 3") {
 		t.Errorf("expected 'Pruned 3' in output, got:\n%s", output)
 	}

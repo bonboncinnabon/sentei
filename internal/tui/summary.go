@@ -98,7 +98,7 @@ func (m Model) renderRemovalSummary() string {
 				fmt.Fprintf(&b, "    %s %s: %s\n", styleIndicatorFailed.Render(indicatorFailed), operationErr.Step, operationErr.Err)
 			}
 		}
-		cleanupActions := cr.StaleRefsRemoved + cr.GoneBranchesDeleted + cr.ConfigOrphanResult.Removed
+		cleanupActions := cr.StaleRefsRemoved + cr.GoneBranchesDeleted + cr.ConfigOrphanResult.Removed + cr.ConfigDedupResult.Removed
 		if cleanupActions > 0 {
 			b.WriteString("\n")
 			b.WriteString(styleDim.Render("  Cleanup:"))
@@ -111,6 +111,9 @@ func (m Model) renderRemovalSummary() string {
 			}
 			if cr.ConfigOrphanResult.Removed > 0 {
 				fmt.Fprintf(&b, "    %s Removed %d orphaned config %s\n", styleIndicatorDone.Render(indicatorDone), cr.ConfigOrphanResult.Removed, pluralize(cr.ConfigOrphanResult.Removed, "section", "sections"))
+			}
+			if cr.ConfigDedupResult.Removed > 0 {
+				fmt.Fprintf(&b, "    %s Removed %d duplicate config %s\n", styleIndicatorDone.Render(indicatorDone), cr.ConfigDedupResult.Removed, pluralize(cr.ConfigDedupResult.Removed, "line", "lines"))
 			}
 		}
 		if cr.NonWtBranchesRemaining > 0 {

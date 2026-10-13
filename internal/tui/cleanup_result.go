@@ -62,7 +62,7 @@ func (m Model) viewCleanupResult() string {
 	deleted := r.NonWtBranchesDeleted
 	skipped := len(r.BranchesSkipped)
 	totalActions := r.StaleRefsRemoved + r.GoneBranchesDeleted + r.ConfigOrphanResult.Removed +
-		len(deleted) + r.WorktreesPruned
+		r.ConfigDedupResult.Removed + len(deleted) + r.WorktreesPruned
 
 	switch {
 	case ran.DryRun:
@@ -79,7 +79,7 @@ func (m Model) viewCleanupResult() string {
 			styleIndicatorWarning.Render(indicatorWarning), skipped, pluralize(skipped, "branch remains", "branches remain"))
 	}
 
-	writeSafeChecks(&b, [...]int{r.StaleRefsRemoved, r.GoneBranchesDeleted, r.ConfigOrphanResult.Removed, r.WorktreesPruned}, did, r.Errors)
+	writeSafeChecks(&b, [...]int{r.StaleRefsRemoved, r.GoneBranchesDeleted, r.ConfigOrphanResult.Removed, r.ConfigDedupResult.Removed, r.WorktreesPruned}, did, r.Errors)
 
 	// Aggressive deletions are named: they are the branches git cannot bring
 	// back from a remote. The names are fitted to the terminal below.

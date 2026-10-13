@@ -16,6 +16,7 @@ type DryRunResult struct {
 	StaleRefs         int
 	GoneBranches      []string // safe mode deletes these (gone upstream, fully merged, not in a worktree)
 	OrphanedConfigs   int
+	ConfigDuplicates  int // duplicate config lines safe mode removes
 	PrunableWorktrees int
 
 	// AggressiveBranches are local branches in no worktree and not protected,
@@ -41,7 +42,7 @@ type BranchInfo struct {
 // SafeHasWork reports whether a safe-mode cleanup would change anything.
 func (r DryRunResult) SafeHasWork() bool {
 	return r.StaleRefs > 0 || len(r.GoneBranches) > 0 ||
-		r.OrphanedConfigs > 0 || r.PrunableWorktrees > 0
+		r.OrphanedConfigs > 0 || r.ConfigDuplicates > 0 || r.PrunableWorktrees > 0
 }
 
 // AggressiveHasWork reports whether aggressive mode would delete branches
@@ -92,6 +93,10 @@ func DryRun(runner git.CommandRunner, repoPath string) (DryRunResult, error) {
 	orphans, err := PurgeOrphanedBranchConfigs(runner, repoPath, probe, noop)
 	record("orphaned-configs", err)
 	result.OrphanedConfigs = orphans.Removed
+
+	duplicates, err := DedupConfig(runner, repoPath, gone.Deleted, probe, noop)
+	record("dedup-config", err)
+	result.ConfigDuplicates = duplicates.Removed
 
 	result.PrunableWorktrees, err = pruneWorktrees(runner, repoPath, probe, noop)
 	record("worktree-prune", err)

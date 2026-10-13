@@ -149,7 +149,7 @@ func (m Model) viewCleanupPreview() string {
 		return b.String()
 	}
 
-	safeCounts := [...]int{scan.StaleRefs, len(scan.GoneBranches), scan.OrphanedConfigs, scan.PrunableWorktrees}
+	safeCounts := [...]int{scan.StaleRefs, len(scan.GoneBranches), scan.OrphanedConfigs, scan.ConfigDuplicates, scan.PrunableWorktrees}
 
 	if cleanupScanIsClean(*scan) {
 		fmt.Fprintf(&b, "  %s Repository is clean\n\n", styleIndicatorDone.Render(indicatorDone))
@@ -262,6 +262,7 @@ var (
 		{"prune-refs", "stale remote %s would be pruned", "Pruned %d stale remote %s", "ref", "refs", "No stale remote refs"},
 		{"gone-branches", "%s with gone upstream would be deleted", "Deleted %d %s with gone upstream", "branch", "branches", "No branches with gone upstream"},
 		{"orphaned-configs", "orphaned config %s would be removed", "Removed %d orphaned config %s", "section", "sections", "No orphaned config sections"},
+		{"dedup-config", "duplicate config %s would be removed", "Removed %d duplicate config %s", "line", "lines", "No duplicate config lines"},
 		{"worktree-prune", "stale %s would be pruned", "Pruned %d stale %s", "worktree", "worktrees", "No stale worktrees"},
 	}
 	// aggressiveCheck is the one check only aggressive mode acts on.

@@ -15,8 +15,8 @@ func collectEvents(t *testing.T) *mock.EventCollector[Event] {
 }
 
 // orchestratorMock answers every git call a clean safe run makes: main in a
-// worktree, feature/old in none, an origin with nothing stale, and one config
-// section for a branch that no longer exists.
+// worktree, feature/old in none, an origin with nothing stale, one config
+// section for a branch that no longer exists and one repeated config line.
 func orchestratorMock() *mock.Runner {
 	return &mock.Runner{Responses: map[string]mock.Response{
 		"/repo:[rev-parse --git-dir]":                                  {Output: "/repo/.bare"},
@@ -29,6 +29,8 @@ func orchestratorMock() *mock.Runner {
 		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "main\nfeature/old"},
 		"/repo:[config --local --name-only --list]":                    {Output: "core.bare\nbranch.main.remote\nbranch.ghost.remote\nbranch.ghost.merge"},
 		"/repo:[config --local --remove-section branch.ghost]":         {Output: ""},
+		"/repo:[config --local --null --list]":                         {Output: "core.bare\ntrue\x00branch.main.vscode-merge-base\norigin/main\x00branch.main.vscode-merge-base\norigin/main\x00"},
+		"/repo:[config --local --fixed-value --replace-all branch.main.vscode-merge-base origin/main origin/main]": {Output: ""},
 	}}
 }
 
@@ -45,6 +47,9 @@ func TestRun_SafeMode(t *testing.T) {
 	}
 	if result.ConfigOrphanResult.Removed != 1 {
 		t.Errorf("ConfigOrphanResult.Removed = %d, want 1", result.ConfigOrphanResult.Removed)
+	}
+	if result.ConfigDedupResult.Removed != 1 {
+		t.Errorf("ConfigDedupResult.Removed = %d, want 1", result.ConfigDedupResult.Removed)
 	}
 	if len(result.Errors) > 0 {
 		t.Errorf("unexpected errors: %v", result.Errors)
@@ -72,7 +77,7 @@ func TestRun_DryRunIssuesNoMutatingCall(t *testing.T) {
 		t.Fatalf("unexpected errors: %v", result.Errors)
 	}
 	assertNoMutatingCall(t, runner)
-	if result.StaleRefsRemoved != 1 || len(result.NonWtBranchesDeleted) != 1 || result.ConfigOrphanResult.Removed != 1 {
+	if result.StaleRefsRemoved != 1 || len(result.NonWtBranchesDeleted) != 1 || result.ConfigOrphanResult.Removed != 1 || result.ConfigDedupResult.Removed != 1 {
 		t.Errorf("a dry run must still report what a real run would do, got %+v", result)
 	}
 }
@@ -82,6 +87,7 @@ func assertNoMutatingCall(t *testing.T, runner *mock.Runner) {
 	readOnly := []string{
 		"/repo:[rev-parse ", "/repo:[remote]", "/repo:[remote prune origin --dry-run]", "/repo:[symbolic-ref ",
 		"/repo:[for-each-ref ", "/repo:[worktree list ", "/repo:[config --local --name-only --list]",
+		"/repo:[config --local --null --list]",
 		"/repo:[merge-base ", "/repo:[show-ref ",
 	}
 	for _, call := range runner.Calls {

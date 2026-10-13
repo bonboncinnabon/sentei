@@ -25,6 +25,7 @@ type Options struct {
 // real run would do, and nothing was changed.
 type Result struct {
 	ConfigOrphanResult  ConfigResult
+	ConfigDedupResult   ConfigResult // duplicate config lines
 	StaleRefsRemoved    int
 	GoneBranchesDeleted int
 	// NonWtBranchesDeleted names the branches aggressive mode deleted.
@@ -121,6 +122,9 @@ func Run(runner git.CommandRunner, repoPath string, opts Options, emit func(Even
 
 	result.ConfigOrphanResult, err = PurgeOrphanedBranchConfigs(runner, repoPath, opts, emit)
 	record("orphaned-configs", err)
+
+	result.ConfigDedupResult, err = DedupConfig(runner, repoPath, slices.Concat(gone.Deleted, nonWorktree.Deleted), opts, emit)
+	record("dedup-config", err)
 
 	result.WorktreesPruned, err = pruneWorktrees(runner, repoPath, opts, emit)
 	record("worktree-prune", err)
