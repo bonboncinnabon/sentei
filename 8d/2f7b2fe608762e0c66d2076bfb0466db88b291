@@ -1,0 +1,21 @@
+internal/tui/summary.go
+  s_b5d41ab2ae0f4c::t_c0d4310393eafb 9-10,13,57,60,63,69,71-76,80-84,90,118-130,182-189
+internal/tui/summary_test.go
+  s_b5d41ab2ae0f4c::t_7b103ff0040e4a 5,15,197-279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8d2f7b2fe608762e0c66d2076bfb0466db88b291",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
