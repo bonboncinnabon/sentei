@@ -76,13 +76,26 @@ func TestRunRemove_NoFilters(t *testing.T) {
 }
 
 func TestRunRemove_RequiresBareRepo(t *testing.T) {
-	dir := t.TempDir()
-	err := RunRemove([]string{"--all", dir})
-	if err == nil {
-		t.Fatal("expected error for non-bare path")
+	tests := []struct {
+		name     string
+		dir      string
+		detected string
+	}{
+		{"not a repository", t.TempDir(), "detected: no repository"},
+		{"regular repository", setupNonBareRepo(t), "detected: regular repository"},
 	}
-	if !strings.Contains(err.Error(), "remove requires a bare repository") {
-		t.Errorf("unexpected error: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := RunRemove([]string{"--all", tt.dir})
+			if err == nil {
+				t.Fatal("expected error for non-bare path")
+			}
+			for _, want := range []string{"remove requires a bare repository", tt.detected} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q missing %q", err, want)
+				}
+			}
+		})
 	}
 }
 

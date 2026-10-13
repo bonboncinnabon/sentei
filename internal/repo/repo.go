@@ -15,6 +15,18 @@ const (
 	ContextNoRepo                         // not in a git repo — offer create/clone
 )
 
+// String names the context in user-facing messages.
+func (c RepoContext) String() string {
+	switch c {
+	case ContextBareRepo:
+		return "bare repository"
+	case ContextNonBareRepo:
+		return "regular repository"
+	default:
+		return "no repository"
+	}
+}
+
 // DetectContext determines the repo context at the given path.
 //
 // Detection logic:

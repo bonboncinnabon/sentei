@@ -33,12 +33,9 @@ func buildRegistry() *cli.Registry {
 	r := cli.NewRegistry()
 
 	r.Register(&cli.Command{
-		Name: "ecosystems",
-		Type: cli.Output,
-		RunCLI: func(args []string) error {
-			cmd.RunEcosystems(args)
-			return nil
-		},
+		Name:   "ecosystems",
+		Type:   cli.Output,
+		RunCLI: cmd.RunEcosystems,
 	})
 
 	r.Register(&cli.Command{
