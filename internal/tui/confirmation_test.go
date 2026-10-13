@@ -5,6 +5,11 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/bonboncinnabon/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
 func TestConfirmationView_ContainsTitle(t *testing.T) {
@@ -197,5 +202,41 @@ func TestBuildCLICommand_FlagsSortedAlphabetically(t *testing.T) {
 	expected := "sentei run --alpha a --mid m --zebra z"
 	if result != expected {
 		t.Errorf("flags should be sorted alphabetically: got %q, want %q", result, expected)
+	}
+}
+
+// The confirmation a launch with flags opens acts on the key itself. Enter
+// starts the operation in that same update, and esc and q quit: nothing is
+// behind the screen to go back to.
+func TestLaunchConfirm_KeysActInOneUpdate(t *testing.T) {
+	cleanupModel := makeCleanupConfirmModel(&cleanup.Options{Mode: cleanup.ModeSafe})
+
+	createModel := makeCreateConfirmModel(&CreateOpts{Branch: "feat/x", Base: "main"})
+	createModel.runner = &stubRunner{responses: map[string]stubResponse{}}
+
+	cloneModel := NewMenuModel(&mock.Runner{}, nil, t.TempDir(), &config.Config{}, repo.ContextNoRepo)
+	cloneModel.SetCloneOpts(&CloneOpts{URL: "git@github.com:user/myrepo.git"})
+
+	for name, tc := range map[string]struct {
+		model   Model
+		started viewState
+		drain   func(Model)
+	}{
+		"cleanup": {cleanupModel, cleanupResultView, func(Model) {}},
+		"create":  {createModel, createProgressView, func(m Model) { drainCreatePipeline(t, m) }},
+		"clone":   {cloneModel, repoProgressView, func(m Model) { drainRepoPipeline(t, m) }},
+	} {
+		updated, cmd := tc.model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if got := updated.(Model).view; got != tc.started || cmd == nil {
+			t.Errorf("%s: enter left the view at %d, want the operation started (view %d)", name, got, tc.started)
+			continue
+		}
+		tc.drain(updated.(Model))
+
+		for _, quitKey := range []tea.KeyPressMsg{{Code: tea.KeyEsc}, {Code: 'q', Text: "q"}} {
+			if _, cmd := tc.model.Update(quitKey); !quits(cmd) {
+				t.Errorf("%s: %q did not quit", name, quitKey.String())
+			}
+		}
 	}
 }

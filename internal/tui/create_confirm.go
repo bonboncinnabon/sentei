@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
-
-	tea "charm.land/bubbletea/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/cli"
 )
@@ -142,30 +139,6 @@ func (m Model) createConfirmationVM() ConfirmationViewModel {
 		Items:      items,
 		CLICommand: cli.BuildFlagString("sentei create", flags),
 	}
-}
-
-func (m Model) updateCreateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
-	case ConfirmProceedMsg:
-		m.startCreation()
-		m.progressStartedAt = time.Now()
-		m.progressToken++
-		m.view = createProgressView
-		return m, m.waitForCreateEvent()
-
-	case ConfirmBackMsg:
-		if m.createOpts != nil {
-			return m, tea.Quit
-		}
-		m.view = createOptionsView
-		return m, nil
-	}
-
-	if cmd := UpdateConfirmation(msg); cmd != nil {
-		return m, cmd
-	}
-
-	return m, nil
 }
 
 func (m Model) viewCreateConfirm() string {

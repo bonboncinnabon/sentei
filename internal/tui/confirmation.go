@@ -46,6 +46,21 @@ func UpdateConfirmation(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+// updateLaunchConfirm handles the confirmation screen that a launch with flags
+// opens (sentei cleanup, create, clone): enter starts the operation. Nothing
+// is behind the screen, so esc quits like q.
+func (m Model) updateLaunchConfirm(msg tea.Msg, start func(Model) (tea.Model, tea.Cmd)) (tea.Model, tea.Cmd) {
+	if msg, ok := msg.(tea.KeyPressMsg); ok {
+		switch {
+		case key.Matches(msg, keys.Confirm):
+			return start(m)
+		case key.Matches(msg, keys.Back), key.Matches(msg, keys.Quit):
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
 // View renders the confirmation view using the standard chrome: a
 // confirmation is a full-screen step in a flow, not a floating modal.
 func (c ConfirmationViewModel) View() string {

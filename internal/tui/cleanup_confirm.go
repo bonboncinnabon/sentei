@@ -64,27 +64,6 @@ func (m Model) cleanupConfirmationVM() ConfirmationViewModel {
 	}
 }
 
-func (m Model) updateCleanupConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
-	case ConfirmProceedMsg:
-		return m.startCleanupRun(m.resolvedCleanupOpts())
-
-	case ConfirmBackMsg:
-		if m.cleanupOpts != nil {
-			// Launched directly into cleanup confirmation — quit on back.
-			return m, tea.Quit
-		}
-		m.view = menuView
-		return m, nil
-	}
-
-	if cmd := UpdateConfirmation(msg); cmd != nil {
-		return m, cmd
-	}
-
-	return m, nil
-}
-
 func (m Model) viewCleanupConfirm() string {
 	return m.cleanupConfirmationVM().View()
 }

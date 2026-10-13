@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -77,11 +76,7 @@ func (m Model) updateCreateBranch(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.prepareCreateOptions()
-			m.startCreation()
-			m.progressStartedAt = time.Now()
-			m.progressToken++
-			m.view = createProgressView
-			return m, m.waitForCreateEvent()
+			return m.beginCreation()
 
 		case key.Matches(msg, keys.Confirm):
 			if !m.validateCreateBranch() {

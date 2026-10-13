@@ -112,7 +112,7 @@ func TestCloneConfirmationVM_URLOnly(t *testing.T) {
 }
 
 func TestUpdateCloneConfirm_ProceedSetsStateBeforeClone(t *testing.T) {
-	// ConfirmProceedMsg transitions to repoProgressView and spawns a clone
+	// Enter transitions to repoProgressView and spawns a clone
 	// goroutine. Since startRepoPipeline requires a real runner, we verify
 	// the state setup by checking the model fields that are set before the
 	// pipeline starts. We use a model with view set directly (no opts) and
@@ -128,25 +128,10 @@ func TestUpdateCloneConfirm_ProceedSetsStateBeforeClone(t *testing.T) {
 	}
 }
 
-func TestUpdateCloneConfirm_BackReturnsToInput(t *testing.T) {
-	m := makeCloneConfirmModel(nil)
-	// Not launched directly (cloneOpts is nil), so back goes to input.
-
-	updated, cmd := m.updateCloneConfirm(ConfirmBackMsg{})
-	result := updated.(Model)
-
-	if result.view != cloneInputView {
-		t.Errorf("expected cloneInputView, got %d", result.view)
-	}
-	if cmd != nil {
-		t.Error("expected nil cmd when going back to input")
-	}
-}
-
 func TestUpdateCloneConfirm_BackQuitsWhenLaunchedDirectly(t *testing.T) {
 	m := makeCloneConfirmModel(&CloneOpts{URL: "git@github.com:user/repo.git"})
 
-	_, c := m.updateCloneConfirm(ConfirmBackMsg{})
+	_, c := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if c == nil {
 		t.Fatal("expected quit cmd when launched directly with opts")
 	}
@@ -170,7 +155,7 @@ func TestUpdateCloneConfirm_WindowSizeMsg(t *testing.T) {
 func TestUpdateCloneConfirm_QuitKey(t *testing.T) {
 	m := makeCloneConfirmModel(nil)
 
-	_, c := m.updateCloneConfirm(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	_, c := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if c == nil {
 		t.Fatal("expected quit cmd for q key")
 	}
@@ -230,7 +215,7 @@ func TestCloneConfirm_URLOnlyClonesIntoTheDerivedName(t *testing.T) {
 		t.Errorf("confirm screen does not show the directory the clone lands in:\n%s", confirm)
 	}
 
-	updated, _ := m.updateCloneConfirm(ConfirmProceedMsg{})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	drainRepoPipeline(t, updated.(Model))
 
 	want := location + ":[clone --bare --single-branch -- git@github.com:user/myrepo.git " + filepath.Join(location, "myrepo", ".bare") + "]"

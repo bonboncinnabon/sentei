@@ -808,15 +808,17 @@ func (m Model) dispatchByView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case migrateSummaryView:
 		return m.updateMigrateSummary(msg)
 	case cleanupConfirmView:
-		return m.updateCleanupConfirm(msg)
+		return m.updateLaunchConfirm(msg, func(m Model) (tea.Model, tea.Cmd) {
+			return m.startCleanupRun(m.resolvedCleanupOpts())
+		})
 	case cleanupPreviewView:
 		return m.updateCleanupPreview(msg)
 	case cleanupResultView:
 		return m.updateCleanupResult(msg)
 	case createConfirmView:
-		return m.updateCreateConfirm(msg)
+		return m.updateLaunchConfirm(msg, Model.beginCreation)
 	case cloneConfirmView:
-		return m.updateCloneConfirm(msg)
+		return m.updateLaunchConfirm(msg, Model.startClone)
 	}
 	return m, nil
 }
