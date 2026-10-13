@@ -171,6 +171,23 @@ func TestRepoRoot(t *testing.T) {
 	run(brokenParent, "init", "--quiet", "--bare", besideBrokenPointer)
 	writePointer(brokenParent, "./gone.git")
 
+	// A bare directory moved into one of its own worktrees. The .git beside
+	// it leads into the same repository, but it is that worktree's pointer:
+	// the worktree is not a container, and commands run in it would answer
+	// for its branch.
+	insideOwnWorktree := func() string {
+		dir := tempDir()
+		bare, worktree := filepath.Join(dir, "store.git"), filepath.Join(dir, "checkout")
+		run(dir, "init", "--quiet", "--bare", bare)
+		run(bare, "worktree", "add", "--quiet", "--orphan", "-b", "main", worktree)
+		moved := filepath.Join(worktree, "store.git")
+		if err := os.Rename(bare, moved); err != nil {
+			t.Fatal(err)
+		}
+		run(moved, "worktree", "repair", worktree)
+		return moved
+	}()
+
 	outside := tempDir()
 
 	tests := []struct {
@@ -185,6 +202,7 @@ func TestRepoRoot(t *testing.T) {
 		{"container of a named bare directory", container, container},
 		{"bare directory beside a pointer to another repository", besideForeignPointer, besideForeignPointer},
 		{"bare directory beside a broken pointer", besideBrokenPointer, besideBrokenPointer},
+		{"bare directory inside one of its own worktrees", insideOwnWorktree, insideOwnWorktree},
 		{"outside a repository", outside, outside},
 	}
 	for _, tt := range tests {

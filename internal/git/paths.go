@@ -40,9 +40,9 @@ func CommonDir(runner CommandRunner, repoPath string) (string, error) {
 // regular working tree, or the container of a bare layout. A common dir under
 // any other name is a plain bare repository and is its own root, reached from
 // itself or from any of its worktrees, because its parent may hold unrelated
-// repositories. The exception is a parent whose .git pointer file leads to
-// that same common dir: that parent is a container too. Outside a repository
-// the root is repoPath.
+// repositories. The exception is a parent whose .git pointer file names that
+// same common dir: that parent is a container too. Outside a repository the
+// root is repoPath.
 //
 // Callers also run git in the root. In the container of a .bare directory
 // that works only when the container has its .git pointer file.
@@ -56,10 +56,12 @@ func RepoRoot(runner CommandRunner, repoPath string) string {
 	case ".git", ".bare":
 		return parent
 	}
-	// The pointer is followed, not trusted: one that leads to another
-	// repository would send every command run at the root to that repository.
+	// The pointer is followed, not trusted, and has to name the common dir
+	// itself. One that leads to another repository would send every command
+	// run at the root to that repository. One that belongs to a linked
+	// worktree makes the parent a worktree, where git answers for its branch.
 	if pointer, err := os.Lstat(filepath.Join(parent, ".git")); err == nil && pointer.Mode().IsRegular() {
-		if pointed, err := CommonDir(runner, parent); err == nil && sameDir(pointed, commonDir) {
+		if gitDir, err := runner.Run(parent, "rev-parse", "--absolute-git-dir"); err == nil && sameDir(gitDir, commonDir) {
 			return parent
 		}
 	}
