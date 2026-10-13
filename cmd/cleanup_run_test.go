@@ -81,6 +81,29 @@ func TestRunCleanup_DryRunMarksNothingDone(t *testing.T) {
 	}
 }
 
+// Agents run from inside a worktree, where git judges "merged" against that
+// worktree's branch. Cleanup acts on the whole repository, so the default
+// branch is the reference whichever path names the repository.
+func TestRunCleanup_WorktreePathJudgesMergedAgainstTheDefaultBranch(t *testing.T) {
+	root := setupSenteiLayout(t)
+	feature := filepath.Join(root, "feature")
+	mustGit(t, root, "worktree", "add", "-b", "feature", feature, "main")
+	mustGit(t, feature, "commit", "--allow-empty", "-m", "feature work")
+	// In no worktree; merged into feature but not into main.
+	mustGit(t, root, "branch", "wip", "feature")
+
+	var err error
+	captureStdout(t, func() {
+		err = RunCleanup([]string{"--mode", "aggressive", feature})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !git.BranchExists(&git.GitRunner{}, root, "wip") {
+		t.Error("wip is not merged into the default branch, but cleanup given a worktree path deleted it")
+	}
+}
+
 func TestRunCleanupWithOpts_ReportsStepErrors(t *testing.T) {
 	notARepo := t.TempDir()
 
