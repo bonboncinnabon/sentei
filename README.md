@@ -280,12 +280,20 @@ What a caller can rely on:
 - **`migrate` converts in place and never copies or deletes.** `.git` becomes
   `.bare` and the working tree moves, with its index, into a worktree named
   after the current branch, so staged, unstaged, untracked and ignored files,
-  stashes, remotes, config and hooks all stay. It refuses before touching
+  stashes, remotes, config and hooks all stay. Linked worktrees stay where
+  they are and are relinked, submodules keep their commits and local changes,
+  a sparse checkout stays sparse, and a remote given as a relative path is
+  rewritten to the absolute path it meant. It refuses before touching
   anything when the conversion cannot be done safely (detached or unborn
-  `HEAD`, a merge or rebase in progress, submodules, linked worktrees, sparse
-  checkout, `core.worktree`, a config include that points into the working
-  tree, a directory already named like the worktree), and a step that fails
-  midway is rolled back to the original layout.
+  `HEAD`, a merge or rebase in progress, `core.worktree`, a config include
+  that points into the working tree, a directory already named like the
+  worktree, a linked worktree whose directory is missing, a submodule that
+  has linked worktrees of its own), and a step that fails midway is rolled
+  back to the original layout. Two things follow from the tree sitting one
+  directory further down, and need fixing by hand: a relative symlink that
+  points outside the repository now points somewhere else, and files that
+  record absolute paths into the tree, such as a Python virtual environment,
+  have to be recreated.
 - **`--copy-env` is independent of `--ecosystems`.** The files come from the
   ecosystems detected in the source worktree; `--ecosystems` only selects
   which installs run.
@@ -297,8 +305,12 @@ What a caller can rely on:
   removes code indexes; existing `.code-review-graph/` and `.cocoindex_code/`
   folders are left where they are.
 - **`migrate` converts in place.** It makes no backup because it copies and
-  deletes nothing, so `--delete-backup` is removed. It refuses repositories
-  with submodules, linked worktrees or sparse checkout.
+  deletes nothing, so `--delete-backup` is removed. Submodules, linked
+  worktrees and sparse checkouts are converted with the rest; "Scripts and
+  agents" lists what is still refused. The working tree ends up one directory
+  further down, so a relative symlink that points outside the repository, or
+  a Python virtual environment and other files that record absolute paths,
+  need fixing afterwards.
 - **Config is strict.** An unknown key is an error, and a config file that
   fails to load stops the run. Installs run once at the root of the new
   worktree; the per-workspace install keys are accepted and ignored.

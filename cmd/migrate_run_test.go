@@ -53,11 +53,15 @@ func TestRunMigrate_RefusalNamesTheReasonAndLeavesTheRepository(t *testing.T) {
 	mustGit(t, repoDir, "checkout", "--detach")
 
 	var err error
-	captureStdout(t, func() {
+	out := captureStdout(t, func() {
 		err = RunMigrate([]string{repoDir})
 	})
 	if err == nil {
 		t.Fatal("expected error for detached HEAD")
+	}
+	// The refusal is the news. The steps it kept from running are not listed.
+	if !strings.Contains(out, "Check repository") || strings.Contains(out, "Move .git to .bare") {
+		t.Errorf("output should show the failed check and no step after it:\n%s", out)
 	}
 	for _, want := range []string{"migration failed", "HEAD is detached", "the repository is unchanged"} {
 		if !strings.Contains(err.Error(), want) {
@@ -83,6 +87,18 @@ func TestRunMigrate_Success(t *testing.T) {
 	for _, want := range []string{"Migration complete", worktree} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+	// Steps are named by their labels, as create names them, not by the
+	// identities the progress events carry.
+	for _, want := range []string{"Validate: Check repository", "Convert: Move .git to .bare", "Move working tree"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing the step %q:\n%s", want, out)
+		}
+	}
+	for _, identity := range []string{"migrate:convert", "move-git", "preflight"} {
+		if strings.Contains(out, identity) {
+			t.Errorf("output leaks the identity %q:\n%s", identity, out)
 		}
 	}
 	if strings.Contains(strings.ToLower(out), "backup") {

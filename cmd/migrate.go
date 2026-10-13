@@ -45,21 +45,10 @@ func RunMigrate(args []string) error {
 	return nil
 }
 
+// printMigrateEvent prints the steps as create does, by their labels. Skipped
+// steps are left out: after a refusal that is every step but the first.
 func printMigrateEvent(e progress.Event) {
-	switch e.Status {
-	case progress.StepRunning:
-		msg := ""
-		if e.Message != "" {
-			msg = fmt.Sprintf(" — %s", e.Message)
-		}
-		fmt.Printf("%s→%s [%s] %s%s\n", blue, nc, e.Phase, e.Step, msg)
-	case progress.StepDone:
-		msg := ""
-		if e.Message != "" {
-			msg = fmt.Sprintf(" (%s)", e.Message)
-		}
-		fmt.Printf("%s✓%s [%s] %s%s\n", green, nc, e.Phase, e.Step, msg)
-	case progress.StepFailed:
-		fmt.Printf("%s✗%s [%s] %s: %v\n", yellow, nc, e.Phase, e.Step, e.Error)
+	if e.Status != progress.StepSkipped {
+		printCreateEvent(e)
 	}
 }
