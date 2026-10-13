@@ -7,6 +7,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/ecosystem"
@@ -144,10 +145,21 @@ func branchOrigin(branch, base, existing string) string {
 }
 
 // createSubtitle is the line under the title of the options and progress
-// screens: the branch and where it comes from.
+// screens: the branch and where it comes from. Where it comes from is what
+// the line is for, so a branch name that leaves no room for it gives up its
+// head, and all of itself when even that does not fit. Both screens indent
+// the line by two cells. Width 0 means unknown.
 func (m Model) createSubtitle() string {
+	const arrow = " \u2192 "
 	branch := m.create.branchInput.Value()
-	return fmt.Sprintf("%s \u2192 %s", branch, branchOrigin(branch, m.create.baseInput.Value(), m.create.existingBranch))
+	origin := branchOrigin(branch, m.create.baseInput.Value(), m.create.existingBranch)
+	if m.width > 0 {
+		branch = fitPathTail(branch, m.width-4-ansi.StringWidth(arrow+origin))
+	}
+	if branch == "" {
+		return origin
+	}
+	return branch + arrow + origin
 }
 
 // prepareCreateOptions sets the options for the branch in the form. It offers

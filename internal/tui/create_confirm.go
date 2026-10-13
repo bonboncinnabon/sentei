@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
@@ -73,15 +72,20 @@ func (m Model) createConfirmationVM() ConfirmationViewModel {
 	branch := m.create.branchInput.Value()
 	base := m.create.baseInput.Value()
 
-	// A branch that already exists is checked out as it is; the row says so,
-	// because the base below it is then not used.
-	branchValue := branch
-	if existing := m.create.existingBranch; existing != "" {
-		branchValue = fmt.Sprintf("%s (%s)", branch, branchOrigin(branch, base, existing))
+	// A branch that already exists is checked out as it is, so the base is
+	// not used. Its own row says so: that row is short enough to stay on
+	// screen whatever the branch is called.
+	baseValue := base
+	switch m.create.existingBranch {
+	case "":
+	case branch:
+		baseValue += " (not used: the branch already exists)"
+	default:
+		baseValue += " (not used: the branch exists on origin)"
 	}
 	items := []ConfirmationItem{
-		{Label: "Branch:", Value: branchValue},
-		{Label: "Base:", Value: base},
+		{Label: "Branch:", Value: branch},
+		{Label: "Base:", Value: baseValue},
 	}
 
 	var enabledEcos []string

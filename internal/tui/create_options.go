@@ -194,7 +194,7 @@ func (m Model) viewCreateOptions() string {
 
 	b.WriteString(viewTitle(titleCreateWorktree))
 	b.WriteString("\n\n")
-	b.WriteString(styleAccent.Render("  " + m.createSubtitle()))
+	b.WriteString(truncateWithEllipsis(styleAccent.Render("  "+m.createSubtitle()), max(m.width, 40)))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
