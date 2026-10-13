@@ -90,3 +90,67 @@ func TestCreateView_HeaderTruncates(t *testing.T) {
 		}
 	}
 }
+
+// overflowingLines returns the lines of view wider than width, as text.
+func overflowingLines(view string, width int) []string {
+	var over []string
+	for _, line := range strings.Split(view, "\n") {
+		if lipgloss.Width(line) > width {
+			over = append(over, stripAnsi(line))
+		}
+	}
+	return over
+}
+
+func narrowRemovalModel(width int) Model {
+	m := NewModel([]git.Worktree{
+		{Path: "/work/a", Branch: "refs/heads/feature/extremely-long-branch-name-for-testing", HasUncommittedChanges: true},
+		{Path: "/work/b", Branch: "refs/heads/chore/old-dependencies-cleanup", HasUntrackedFiles: true},
+		{Path: "/work/c", Branch: "refs/heads/fix/c", IsLocked: true},
+		{Path: "/work/d", Branch: "refs/heads/fix/d", HasUnpushedCommits: true},
+		{Path: "/work/e", Branch: "refs/heads/fix/e", EnrichmentError: "git status: fatal: bad object HEAD"},
+		{Path: "/work/f", Branch: "refs/heads/fix/f"},
+	}, nil, "/repo")
+	m.width = width
+	for _, wt := range m.remove.worktrees {
+		m.remove.selected[wt.Path] = true
+	}
+	return m
+}
+
+func TestList_FitsNarrowTerminals(t *testing.T) {
+	for _, width := range []int{24, 32, 40, 48, 56, 60} {
+		plain := narrowRemovalModel(width)
+
+		labelled := narrowRemovalModel(width)
+		labelled.remove.filterLabel = "stale > 30d"
+		labelled.remove.filterText = "feature"
+		labelled.reindex()
+
+		filtering := narrowRemovalModel(width)
+		filtering.remove.filterActive = true
+		filtering.remove.filterInput.SetValue("a-long-filter-term-typed-by-the-user")
+
+		for name, m := range map[string]Model{"plain": plain, "with filter labels": labelled, "filter input": filtering} {
+			if over := overflowingLines(m.viewList(), width); len(over) > 0 {
+				t.Errorf("list (%s) at %d columns has %d rows wider than the terminal:\n%s", name, width, len(over), strings.Join(over, "\n"))
+			}
+		}
+	}
+}
+
+func TestConfirm_FitsNarrowTerminals(t *testing.T) {
+	for _, width := range []int{24, 32, 40, 48, 56, 60} {
+		m := narrowRemovalModel(width)
+		view := m.viewConfirm()
+		if over := overflowingLines(view, width); len(over) > 0 {
+			t.Errorf("confirm at %d columns has %d rows wider than the terminal:\n%s", width, len(over), strings.Join(over, "\n"))
+		}
+		// Narrowing may shorten the rows, never drop what they warn about.
+		for _, badge := range []string{"[~]", "[!]", "[L]", "[^]", "[?]", "[ok]"} {
+			if !strings.Contains(stripAnsi(view), badge) {
+				t.Errorf("confirm at %d columns lost the %s row", width, badge)
+			}
+		}
+	}
+}

@@ -102,9 +102,7 @@ func parseDecision(name string, args []string) (decisionOpts, error) {
 	var err error
 	switch name {
 	case "cleanup":
-		if parsed.cleanup, err = cmd.ParseCleanupFlags(args); err == nil {
-			parsed.repoPath = cmd.ParseCleanupRepoPath(args)
-		}
+		parsed.cleanup, parsed.repoPath, err = cmd.ParseCleanupFlags(args)
 	case "create":
 		if parsed.create, err = cmd.ParseCreateFlags(args); err == nil && parsed.create.RepoPath != "" {
 			parsed.repoPath = parsed.create.RepoPath
@@ -312,7 +310,7 @@ func runRoot(args []string) error {
 			return nil
 		}
 
-		return dryrun.Print(filtered, os.Stdout)
+		return dryrun.Print(filtered, git.DetectDefaultBranch(runner, repoPath), os.Stdout)
 	}
 
 	var menuOpts []tui.ModelOption

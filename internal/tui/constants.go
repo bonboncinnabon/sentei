@@ -20,11 +20,6 @@ const (
 	// for the elapsed readout ("  elapsed 9999s"). A fixed reserve keeps the
 	// bar from shrinking a cell every time the elapsed digits grow.
 	progressBarElapsedReserve = 15
-
-	// progressBarPercentReserve is the budget for the static fallback bar's
-	// trailing percentage ("  100%"); the animated bar renders its own
-	// percentage inside its width.
-	progressBarPercentReserve = 6
 )
 
 // overallBarWidth is the single sizing rule for the overall bar: fill the
@@ -37,6 +32,11 @@ func overallBarWidth(viewWidth int) int {
 // height when sizing scrollable view bodies: title block, separators, and
 // the footer area.
 const viewChromeRows = 6
+
+// listExtraChromeRows is what the worktree list draws beyond viewChromeRows:
+// the repo line and its blank line, the column header, the status bar's top
+// padding and the legend.
+const listExtraChromeRows = 5
 
 // progressSettleBeat is how long a flow's final progress frame stays visibly
 // settled (displayed fill at its spring target) before advancing to the
@@ -52,6 +52,14 @@ const progressSettleTimeout = 3 * time.Second
 // confirmNameWidthCap bounds the confirm screen's name column so one long
 // branch cannot push the risk notes off to the right.
 const confirmNameWidthCap = 28
+
+// confirmRowLead is what a confirm row draws before its name: the indent,
+// the badge gutter and the gap after it.
+const confirmRowLead = 10
+
+// confirmNameWidthMin is the narrowest name column that may still sit beside
+// the risk notes. Below it the notes are dropped and the names get the row.
+const confirmNameWidthMin = 12
 
 // formInputWidth is the shared cell width of text-input fields: wide enough
 // for real URLs, and required because the v2 textinput renders only the

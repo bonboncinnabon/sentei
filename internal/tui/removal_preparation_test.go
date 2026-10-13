@@ -26,9 +26,6 @@ func TestPrepareRemoval_SemanticIDsSurviveSelectionReordering(t *testing.T) {
 		t.Fatalf("IDs changed after reorder:\nfirst=%v\nsecond=%v", stepIDsByLabel(first.plan), stepIDsByLabel(second.plan))
 	}
 	for _, phase := range first.plan.Phases {
-		if phase.ID == cleanupPhaseID {
-			continue
-		}
 		for _, step := range phase.Steps {
 			if !strings.Contains(string(step.ID), ":") || strings.HasSuffix(string(step.ID), "-0") || strings.HasSuffix(string(step.ID), "-1") {
 				t.Fatalf("step ID %q is not semantic", step.ID)

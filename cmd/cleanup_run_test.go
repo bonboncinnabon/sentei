@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -8,26 +9,6 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
-
-func TestParseCleanupRepoPath(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{"no args", nil, "."},
-		{"flags only", []string{"--mode", "safe", "--dry-run"}, "."},
-		{"positional only", []string{"/some/repo"}, "/some/repo"},
-		{"flags then positional", []string{"--mode", "safe", "/some/repo"}, "/some/repo"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := ParseCleanupRepoPath(tt.args); got != tt.want {
-				t.Errorf("ParseCleanupRepoPath(%v) = %q, want %q", tt.args, got, tt.want)
-			}
-		})
-	}
-}
 
 func TestRunCleanup_InvalidMode(t *testing.T) {
 	err := RunCleanup([]string{"--mode", "bogus"})
@@ -71,6 +52,58 @@ func TestRunCleanup_SafeDryRun(t *testing.T) {
 	}
 }
 
+// A dry run changes nothing, so none of its lines may carry the done mark.
+func TestRunCleanup_DryRunMarksNothingDone(t *testing.T) {
+	bareRepo := setupBareRepo(t)
+	stale := filepath.Join(bareRepo, "stale")
+	mustGit(t, bareRepo, "worktree", "add", "-b", "feature/stale", stale, "main")
+	if err := os.RemoveAll(stale); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	out := captureStdout(t, func() {
+		err = RunCleanup([]string{"--mode", "safe", "--dry-run", bareRepo})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "Would prune 1 stale worktree") {
+		t.Fatalf("expected the stale worktree to be announced, got:\n%s", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "✓") && strings.Contains(line, "Would") {
+			t.Errorf("a would-be action is marked done: %q", line)
+		}
+	}
+	if _, statErr := os.Stat(filepath.Join(bareRepo, "worktrees", "stale")); statErr != nil {
+		t.Errorf("the dry run pruned the worktree metadata: %v", statErr)
+	}
+}
+
+// Agents run from inside a worktree, where git judges "merged" against that
+// worktree's branch. Cleanup acts on the whole repository, so the default
+// branch is the reference whichever path names the repository.
+func TestRunCleanup_WorktreePathJudgesMergedAgainstTheDefaultBranch(t *testing.T) {
+	root := setupSenteiLayout(t)
+	feature := filepath.Join(root, "feature")
+	mustGit(t, root, "worktree", "add", "-b", "feature", feature, "main")
+	mustGit(t, feature, "commit", "--allow-empty", "-m", "feature work")
+	// In no worktree; merged into feature but not into main.
+	mustGit(t, root, "branch", "wip", "feature")
+
+	var err error
+	captureStdout(t, func() {
+		err = RunCleanup([]string{"--mode", "aggressive", feature})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !git.BranchExists(&git.GitRunner{}, root, "wip") {
+		t.Error("wip is not merged into the default branch, but cleanup given a worktree path deleted it")
+	}
+}
+
 func TestRunCleanupWithOpts_ReportsStepErrors(t *testing.T) {
 	notARepo := t.TempDir()
 
@@ -81,7 +114,7 @@ func TestRunCleanupWithOpts_ReportsStepErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("a failed step must return an error so the exit status is non-zero")
 	}
-	if !strings.Contains(out, "⚠") || !strings.Contains(out, "resolve-config") {
+	if !strings.Contains(out, "⚠") || !strings.Contains(out, "repository") {
 		t.Errorf("expected step error report, got:\n%s", out)
 	}
 }

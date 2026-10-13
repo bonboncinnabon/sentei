@@ -1,34 +1,75 @@
 package config
 
 import (
+	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
+	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
+	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/worktreefile"
 	"gopkg.in/yaml.v3"
 )
 
-// RepoRootResolver resolves the git common dir for a repository path.
-// This mirrors git.CommandRunner but is defined here to avoid a circular
-// dependency between config and git packages.
-type RepoRootResolver interface {
-	Run(dir string, args ...string) (string, error)
-}
-
 //go:embed defaults/ecosystems.yaml
 var defaultEcosystemsYAML []byte
 
-func loadEmbeddedDefaults() (*Config, error) {
+// retiredKeys were read by earlier versions and no longer do anything. A file
+// that still carries them loads; every other unknown key is an error, so a
+// misspelled key cannot silently leave a default in place.
+// ponytail: matched by name at any depth; match on position too if a retired
+// name is ever reused for a live key.
+var retiredKeys = []string{
+	"protected_branches", "integrations_enabled", "post_install",
+	"workspace_detect", "workspace_install", "parallel",
+}
+
+// unknownKey matches the message yaml.v3 produces for a key with no field.
+var unknownKey = regexp.MustCompile(`^(line \d+): field (\S+) not found in type \S+$`)
+
+// parse decodes one YAML config document, rejecting keys sentei does not know.
+func parse(data []byte) (*Config, error) {
 	var cfg Config
-	if err := yaml.Unmarshal(defaultEcosystemsYAML, &cfg); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	err := decoder.Decode(&cfg)
+
+	// A type error lists every problem; the rest of the document is decoded.
+	var typeErr *yaml.TypeError
+	switch {
+	case err == nil, errors.Is(err, io.EOF): // io.EOF: nothing but comments
+		return &cfg, nil
+	case !errors.As(err, &typeErr):
+		return nil, err
+	}
+	var problems []string
+	for _, problem := range typeErr.Errors {
+		match := unknownKey.FindStringSubmatch(problem)
+		switch {
+		case match == nil:
+			problems = append(problems, problem)
+		case !slices.Contains(retiredKeys, match[2]):
+			problems = append(problems, fmt.Sprintf("%s: unknown key %q (check the spelling or remove it)", match[1], match[2]))
+		}
+	}
+	if len(problems) == 0 {
+		return &cfg, nil
+	}
+	return nil, errors.New(strings.Join(problems, "; "))
+}
+
+func loadEmbeddedDefaults() (*Config, error) {
+	cfg, err := parse(defaultEcosystemsYAML)
+	if err != nil {
 		return nil, fmt.Errorf("parsing embedded defaults: %w", err)
 	}
-	return &cfg, nil
+	return cfg, nil
 }
 
 // loadFile reads and parses a YAML config file. Returns (nil, nil) if the file
@@ -41,17 +82,20 @@ func loadFile(path string) (*Config, error) {
 		}
 		return nil, fmt.Errorf("reading config file %s: %w", path, err)
 	}
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	cfg, err := parse(data)
+	if err != nil {
 		return nil, fmt.Errorf("parsing config file %s: %w", path, err)
 	}
-	return &cfg, nil
+	return cfg, nil
 }
 
 // mergeEcosystems performs a keyed merge of overlay into base, using name as
-// the key. Existing entries are updated field-by-field (only non-zero overlay
-// fields replace base values). New entries are appended. Source is set on all
-// changed or new entries.
+// the key. Existing entries are updated field by field with the keys the
+// overlay names: a list the overlay sets replaces the base list, and an
+// explicit empty list (`env_files: []`) clears it, while an absent key leaves
+// the base value alone. install.command has no such form: an empty string is
+// indistinguishable from an absent key, so it keeps the base command. New
+// entries are appended. Source is set on all changed or new entries.
 func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []EcosystemConfig {
 	if len(overlay) == 0 {
 		return base
@@ -78,13 +122,13 @@ func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []Ec
 		if over.Enabled != nil {
 			e.Enabled = over.Enabled
 		}
-		if len(over.Detect.Files) > 0 {
+		if over.Detect.Files != nil {
 			e.Detect.Files = over.Detect.Files
 		}
 		if over.Install.Command != "" {
 			e.Install.Command = over.Install.Command
 		}
-		if len(over.EnvFiles) > 0 {
+		if over.EnvFiles != nil {
 			e.EnvFiles = over.EnvFiles
 		}
 		e.Source = overlaySource
@@ -95,14 +139,14 @@ func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []Ec
 }
 
 // mergeConfigs merges overlay on top of base, returning a new Config. The
-// worktree_files list is replaced entirely when the overlay provides one; an
-// empty overlay list does not clear the base list.
+// worktree_files list is replaced entirely when the overlay names the key, so
+// `worktree_files: []` clears the base list.
 func mergeConfigs(base, overlay *Config, overlaySource string) *Config {
 	result := &Config{
 		Ecosystems:    mergeEcosystems(base.Ecosystems, overlay.Ecosystems, overlaySource),
 		WorktreeFiles: base.WorktreeFiles,
 	}
-	if len(overlay.WorktreeFiles) > 0 {
+	if overlay.WorktreeFiles != nil {
 		result.WorktreeFiles = overlay.WorktreeFiles
 	}
 	return result
@@ -121,57 +165,61 @@ func validate(cfg *Config) error {
 			return fmt.Errorf("ecosystems[%d]: name is required", i)
 		}
 		if len(e.Detect.Files) == 0 {
-			return fmt.Errorf("ecosystem %q: detect.files must not be empty", e.Name)
+			return fmt.Errorf("ecosystem %q: detect.files must not be empty; list at least one file, or set enabled: false to turn the ecosystem off", e.Name)
 		}
 	}
 	return nil
 }
 
-// globalConfigPath returns the path to the global sentei config file, honouring
-// XDG_CONFIG_HOME and defaulting to ~/.config.
+// globalConfigPath returns the path to the global sentei config file:
+// $XDG_CONFIG_HOME/sentei/config.yaml, defaulting to ~/.config. It returns ""
+// when neither variable names an absolute directory (the XDG specification
+// says to ignore a relative value), so the path is never resolved against the
+// working directory.
 func globalConfigPath() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
+	if !filepath.IsAbs(base) {
 		home, _ := os.UserHomeDir()
+		if !filepath.IsAbs(home) {
+			return ""
+		}
 		base = filepath.Join(home, ".config")
 	}
 	return filepath.Join(base, "sentei", "config.yaml")
 }
 
-// resolveRepoRoot resolves a git working directory to the root of the bare
-// repository (the directory containing the worktrees). It falls back to
-// repoPath on any error. When runner is nil, it falls back to exec.Command
-// directly (for use in contexts where a runner is not yet available).
-func resolveRepoRoot(repoPath string, runner RepoRootResolver) string {
-	var commonDir string
-	if runner != nil {
-		out, err := runner.Run(repoPath, "rev-parse", "--git-common-dir")
-		if err != nil {
-			return repoPath
-		}
-		commonDir = strings.TrimSpace(out)
-	} else {
-		out, err := exec.Command("git", "-C", repoPath, "rev-parse", "--git-common-dir").Output()
-		if err != nil {
-			return repoPath
-		}
-		commonDir = strings.TrimSpace(string(out))
+// repoRoot returns the directory whose .sentei.yaml belongs to the repository
+// at repoPath. For a common dir named .git or .bare, or one a .git pointer
+// file sits beside, that is its parent: the top of a regular working tree, or
+// the container of a bare layout. Any other common dir is a plain bare
+// repository and is its own root, reached from itself or from one of its
+// worktrees, because its parent may hold unrelated repositories. Outside a
+// repository the root is repoPath.
+func repoRoot(runner git.CommandRunner, repoPath string) string {
+	commonDir, err := git.CommonDir(runner, repoPath)
+	if err != nil {
+		return repoPath
 	}
-	if filepath.IsAbs(commonDir) {
-		return filepath.Dir(commonDir)
+	parent := filepath.Dir(commonDir)
+	switch filepath.Base(commonDir) {
+	case ".git", ".bare":
+		return parent
 	}
-	return filepath.Dir(filepath.Join(repoPath, commonDir))
+	if pointer, err := os.Lstat(filepath.Join(parent, ".git")); err == nil && pointer.Mode().IsRegular() {
+		return parent
+	}
+	return commonDir
 }
 
 // LoadOption configures optional behaviour of LoadConfig.
 type LoadOption func(*loadOptions)
 
 type loadOptions struct {
-	runner RepoRootResolver
+	runner git.CommandRunner
 }
 
-// WithRunner supplies a git command runner for resolving the repo root.
-func WithRunner(r RepoRootResolver) LoadOption {
+// WithRunner supplies the git command runner used to find the repo root.
+func WithRunner(r git.CommandRunner) LoadOption {
 	return func(o *loadOptions) { o.runner = r }
 }
 
@@ -181,7 +229,7 @@ func WithRunner(r RepoRootResolver) LoadOption {
 //  3. Resolves the repo root and merges .sentei.yaml from it.
 //  4. Validates the result.
 func LoadConfig(repoPath string, opts ...LoadOption) (*Config, error) {
-	var lo loadOptions
+	lo := loadOptions{runner: &git.GitRunner{}}
 	for _, opt := range opts {
 		opt(&lo)
 	}
@@ -194,17 +242,17 @@ func LoadConfig(repoPath string, opts ...LoadOption) (*Config, error) {
 		cfg.Ecosystems[i].Source = "embedded"
 	}
 
-	globalPath := globalConfigPath()
-	globalCfg, err := loadFile(globalPath)
-	if err != nil {
-		return nil, fmt.Errorf("loading global config: %w", err)
-	}
-	if globalCfg != nil {
-		cfg = mergeConfigs(cfg, globalCfg, "global")
+	if globalPath := globalConfigPath(); globalPath != "" {
+		globalCfg, err := loadFile(globalPath)
+		if err != nil {
+			return nil, fmt.Errorf("loading global config: %w", err)
+		}
+		if globalCfg != nil {
+			cfg = mergeConfigs(cfg, globalCfg, "global")
+		}
 	}
 
-	repoRoot := resolveRepoRoot(repoPath, lo.runner)
-	repoCfg, err := loadFile(filepath.Join(repoRoot, ".sentei.yaml"))
+	repoCfg, err := loadFile(filepath.Join(repoRoot(lo.runner, repoPath), ".sentei.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("loading repo config: %w", err)
 	}

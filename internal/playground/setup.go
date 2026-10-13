@@ -1,35 +1,25 @@
 package playground
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/bonboncinnabon/sentei/internal/fileutil"
+	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
+// gitRun goes through git.GitRunner so the playground can only ever touch
+// the repository it creates, whatever GIT_DIR the caller exported.
 func gitRun(dir string, args ...string) error {
 	return gitRunEnv(dir, nil, args...)
 }
 
 func gitRunEnv(dir string, env []string, args ...string) error {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	if len(env) > 0 {
-		cmd.Env = append(os.Environ(), env...)
-	}
-
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(stderr.String()))
-	}
-	return nil
+	_, err := (&git.GitRunner{Env: env}).Run(dir, args...)
+	return err
 }
 
 func Setup() (repoPath string, cleanup func(), err error) {

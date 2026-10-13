@@ -25,7 +25,7 @@ func TestParseFlags_RejectArgumentsAfterRepoPath(t *testing.T) {
 		},
 		{
 			name:  "cleanup",
-			parse: func(args []string) error { _, err := ParseCleanupFlags(args); return err },
+			parse: func(args []string) error { _, _, err := ParseCleanupFlags(args); return err },
 			args:  []string{"--mode", "aggressive", "/repo", "--dry-run"},
 			stray: "--dry-run",
 		},

@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/repo"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
@@ -169,5 +170,25 @@ func TestUpdateSummary_OtherKeysIgnored(t *testing.T) {
 
 	if updated.(Model).view != summaryView || cmd != nil {
 		t.Error("unhandled keys should leave the model untouched")
+	}
+}
+
+// A run that ended before its prune must not claim one: a removal that could
+// not even be prepared goes straight to the summary.
+func TestViewSummary_ClaimsNoPruneWhenNoneRan(t *testing.T) {
+	m := NewModel([]git.Worktree{
+		{Path: "/repo/a", Branch: "refs/heads/feature/a"},
+		{Path: "/repo/x/../a", Branch: "refs/heads/feature/a"},
+	}, nil, "/repo")
+	m.remove.selected = map[string]bool{"/repo/a": true, "/repo/x/../a": true}
+	m.view = confirmView
+
+	updated, _ := m.Update(keyRune('y'))
+	m = updated.(Model)
+	if m.view != summaryView || m.remove.run.pruned {
+		t.Fatalf("view=%d pruned=%v, want a summary for a run that never pruned", m.view, m.remove.run.pruned)
+	}
+	if summary := stripAnsi(m.viewSummary()); strings.Contains(summary, "Pruned") {
+		t.Errorf("summary claims a prune that never ran:\n%s", summary)
 	}
 }

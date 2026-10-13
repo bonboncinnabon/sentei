@@ -5,18 +5,18 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
 // RunCleanup executes the cleanup command in non-interactive mode.
 func RunCleanup(args []string) error {
-	opts, err := ParseCleanupFlags(args)
+	opts, repoPath, err := ParseCleanupFlags(args)
 	if err != nil {
 		return err
 	}
 	if err := ValidateCleanupForNonInteractive(opts); err != nil {
 		return err
 	}
-	repoPath := ParseCleanupRepoPath(args)
 	return RunCleanupWithOpts(opts, repoPath)
 }
 
@@ -28,6 +28,12 @@ func RunCleanupWithOpts(opts *cleanup.Options, repoPath string) error {
 	fmt.Println()
 
 	runner := &git.GitRunner{}
+	// Cleanup acts on the whole repository, so it runs from the repository
+	// root like the TUI does. Inside a worktree git judges "merged" against
+	// that worktree's branch instead of the default branch.
+	if repo.DetectContext(runner, repoPath) == repo.ContextBareRepo {
+		repoPath = repo.ResolveBareRoot(runner, repoPath)
+	}
 	result := cleanup.Run(runner, repoPath, *opts, printEvent)
 
 	fmt.Println()

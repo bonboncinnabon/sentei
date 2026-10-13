@@ -1,6 +1,7 @@
 package cleanup
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -13,15 +14,17 @@ import (
 // so the TUI never runs the repository inspection twice.
 type DryRunResult struct {
 	StaleRefs         int
-	ConfigDuplicates  int
-	GoneBranches      []string // safe mode deletes these (gone upstream, not in a worktree)
+	GoneBranches      []string // safe mode deletes these (gone upstream, fully merged, not in a worktree)
 	OrphanedConfigs   int
+	ConfigDuplicates  int // duplicate config lines safe mode removes
 	PrunableWorktrees int
 
-	// AggressiveBranches are local branches in no worktree and not protected:
-	// the additional set only aggressive mode deletes.
+	// AggressiveBranches are local branches in no worktree and not protected,
+	// less GoneBranches: the additional set only aggressive mode deletes.
 	AggressiveBranches []BranchInfo
 
+	// Errors holds the checks that could not be made. A count of zero next to
+	// an error for the same step means "unknown", not "nothing to do".
 	Errors []OperationError
 }
 
@@ -38,8 +41,8 @@ type BranchInfo struct {
 
 // SafeHasWork reports whether a safe-mode cleanup would change anything.
 func (r DryRunResult) SafeHasWork() bool {
-	return r.StaleRefs > 0 || r.ConfigDuplicates > 0 || len(r.GoneBranches) > 0 ||
-		r.OrphanedConfigs > 0 || r.PrunableWorktrees > 0
+	return r.StaleRefs > 0 || len(r.GoneBranches) > 0 ||
+		r.OrphanedConfigs > 0 || r.ConfigDuplicates > 0 || r.PrunableWorktrees > 0
 }
 
 // AggressiveHasWork reports whether aggressive mode would delete branches
@@ -61,63 +64,54 @@ func (r DryRunResult) UnmergedAggressiveCount() int {
 }
 
 // DryRun inspects the repository without mutating it and returns what both
-// cleanup modes would do. Individual probe failures are collected in
-// Errors; only an unresolvable repository aborts the scan.
+// cleanup modes would do. It runs the same steps as Run in dry-run mode, so
+// the preview and the run cannot disagree about what a step finds. Individual
+// probe failures are collected in Errors; only a path that is not a
+// repository aborts the scan.
 func DryRun(runner git.CommandRunner, repoPath string) (DryRunResult, error) {
-	configPath, err := resolveConfigPath(runner, repoPath)
-	if err != nil {
+	if err := git.ValidateRepository(runner, repoPath); err != nil {
 		return DryRunResult{}, err
 	}
 
 	noop := func(Event) {}
 	probe := Options{Mode: ModeSafe, DryRun: true}
 	var result DryRunResult
-
-	if n, err := PruneRemoteRefs(runner, repoPath, probe, noop); err != nil {
-		result.Errors = append(result.Errors, OperationError{Step: "prune-refs", Err: err})
-	} else {
-		result.StaleRefs = n
-	}
-
-	if r, err := DedupConfig(configPath, probe, noop); err != nil {
-		result.Errors = append(result.Errors, OperationError{Step: "dedup-config", Err: err})
-	} else {
-		result.ConfigDuplicates = r.Removed
-	}
-
-	if output, err := runner.Run(repoPath, "branch", "-vv"); err != nil {
-		result.Errors = append(result.Errors, OperationError{Step: "gone-branches", Err: err})
-	} else {
-		gone, _ := parseGoneBranches(output)
-		result.GoneBranches = gone
-	}
-
-	if r, err := PurgeOrphanedBranchConfigs(runner, repoPath, configPath, probe, noop); err != nil {
-		result.Errors = append(result.Errors, OperationError{Step: "orphaned-configs", Err: err})
-	} else {
-		result.OrphanedConfigs = r.Removed
-	}
-
-	if output, err := runner.Run(repoPath, "worktree", "list", "--porcelain"); err != nil {
-		result.Errors = append(result.Errors, OperationError{Step: "worktree-prune", Err: err})
-	} else {
-		result.PrunableWorktrees = countPrunable(output)
-	}
-
-	if candidates, err := listNonWorktreeCandidates(runner, repoPath); err != nil {
-		result.Errors = append(result.Errors, OperationError{Step: "non-wt-branches", Err: err})
-	} else if len(candidates) > 0 {
-		meta, err := branchMetadata(runner, repoPath)
+	record := func(step string, err error) {
 		if err != nil {
-			result.Errors = append(result.Errors, OperationError{Step: "branch-metadata", Err: err})
-			meta = nil
+			result.Errors = append(result.Errors, OperationError{Step: step, Err: err})
 		}
+	}
+
+	stale, err := PruneRemoteRefs(runner, repoPath, probe, noop)
+	record("prune-refs", err)
+	result.StaleRefs = len(stale)
+
+	gone, err := DeleteGoneBranches(runner, repoPath, stale, probe, noop)
+	record("gone-branches", err)
+	result.GoneBranches = gone.Deleted
+
+	orphans, err := PurgeOrphanedBranchConfigs(runner, repoPath, probe, noop)
+	record("orphaned-configs", err)
+	result.OrphanedConfigs = orphans.Removed
+
+	duplicates, err := DedupConfig(runner, repoPath, gone.Deleted, probe, noop)
+	record("dedup-config", err)
+	result.ConfigDuplicates = duplicates.Removed
+
+	result.PrunableWorktrees, err = pruneWorktrees(runner, repoPath, probe, noop)
+	record("worktree-prune", err)
+
+	candidates, err := listNonWorktreeCandidates(runner, repoPath, gone.Deleted)
+	record("non-wt-branches", err)
+	if len(candidates) > 0 {
+		meta, err := branchMetadata(runner, repoPath)
+		record("branch-metadata", err)
 		for _, name := range candidates {
 			result.AggressiveBranches = append(result.AggressiveBranches, BranchInfo{
 				Name:              name,
 				LastCommitDate:    meta[name].LastCommitDate,
 				LastCommitSubject: meta[name].LastCommitSubject,
-				Merged:            branchDeletableByGit(runner, repoPath, name),
+				Merged:            branchDeletableByGit(runner, repoPath, name, stale),
 			})
 		}
 	}
@@ -125,17 +119,18 @@ func DryRun(runner git.CommandRunner, repoPath string) (DryRunResult, error) {
 	return result, nil
 }
 
-// branchDeletableByGit predicts whether `git branch -d` would delete branch.
-// git refuses unless the branch is fully merged into its upstream (when one is
-// configured) or into HEAD (when it is not) — notably it checks the upstream,
-// not HEAD, when both exist. Replicating that here keeps the preview's
-// "M will be skipped" count in step with what aggressive cleanup actually does;
-// the old `branch --merged HEAD` probe diverged whenever a branch was merged
-// into HEAD but not into its upstream (or vice versa, when local HEAD lagged).
-func branchDeletableByGit(runner git.CommandRunner, repoPath, branch string) bool {
+// branchDeletableByGit reports whether `git branch -d` accepts branch. git
+// refuses unless the branch is fully merged into its upstream when that ref
+// exists, and into HEAD otherwise. It checks the upstream, not HEAD, when both
+// exist. An upstream listed in stale (as PruneRemoteRefs returns it) counts as
+// missing: the prune removes it before any branch is deleted.
+//
+// The preview uses this to announce only what an unforced run deletes, and
+// deleteBranches uses it to tell an unmerged branch from a failed deletion.
+func branchDeletableByGit(runner git.CommandRunner, repoPath, branch string, stale []string) bool {
 	base := "HEAD"
 	if upstream, err := runner.Run(repoPath, "rev-parse", "--abbrev-ref", branch+"@{upstream}"); err == nil {
-		if u := strings.TrimSpace(upstream); u != "" {
+		if u := strings.TrimSpace(upstream); u != "" && !slices.Contains(stale, u) {
 			base = u
 		}
 	}
@@ -149,8 +144,9 @@ func branchDeletableByGit(runner git.CommandRunner, repoPath, branch string) boo
 // branchMetadata fetches commit date and subject for every local branch in
 // one git call.
 func branchMetadata(runner git.CommandRunner, repoPath string) (map[string]BranchInfo, error) {
+	// lstrip=2, not short: see localBranches, whose names key the map.
 	output, err := runner.Run(repoPath, "for-each-ref",
-		"--format=%(refname:short)\x1f%(committerdate:iso8601-strict)\x1f%(subject)", "refs/heads/")
+		"--format=%(refname:lstrip=2)\x1f%(committerdate:iso8601-strict)\x1f%(subject)", "refs/heads/")
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
@@ -78,5 +80,29 @@ func TestViewConfirm_ShowsEveryRowWhenItFits(t *testing.T) {
 	}
 	if strings.Contains(out, "more") {
 		t.Errorf("nothing should be summarised when every row fits:\n%s", out)
+	}
+}
+
+// The name column is measured in display cells, so a branch named in wide
+// runes neither loses half its name nor pushes its risk note out of line.
+func TestViewConfirm_WideRuneNamesKeepTheColumnsAligned(t *testing.T) {
+	m := NewModel([]git.Worktree{
+		{Path: "/work/a", Branch: "refs/heads/機能/検索", HasUntrackedFiles: true},
+		{Path: "/work/b", Branch: "refs/heads/feature/b", HasUntrackedFiles: true},
+	}, nil, "/repo")
+	m.width = 80
+	m.remove.selected = map[string]bool{"/work/a": true, "/work/b": true}
+
+	var noteColumns []int
+	for _, line := range strings.Split(stripAnsi(m.viewConfirm()), "\n") {
+		if before, _, found := strings.Cut(line, "untracked files — will be lost"); found && strings.Contains(line, "[!]") {
+			noteColumns = append(noteColumns, lipgloss.Width(before))
+		}
+	}
+	if len(noteColumns) != 2 || noteColumns[0] != noteColumns[1] {
+		t.Errorf("risk notes start at columns %v, want both rows aligned:\n%s", noteColumns, stripAnsi(m.viewConfirm()))
+	}
+	if !strings.Contains(stripAnsi(m.viewConfirm()), "機能/検索") {
+		t.Errorf("a wide-rune name that fits was truncated:\n%s", stripAnsi(m.viewConfirm()))
 	}
 }
