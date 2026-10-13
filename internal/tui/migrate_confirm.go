@@ -130,6 +130,13 @@ func (m Model) viewMigrateConfirm() string {
 		b.WriteString("\n")
 	}
 
+	if m.migrateOpts != nil {
+		// Reached by a command: it is echoed, as on every such confirmation.
+		b.WriteString("\n")
+		b.WriteString(styleDim.Render("  " + BuildCLICommand("migrate", nil)))
+		b.WriteString("\n")
+	}
+
 	b.WriteString("\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")

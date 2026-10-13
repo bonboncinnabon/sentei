@@ -136,6 +136,31 @@ func TestDirectMigrateLaunch_RunsAndShowsThePreflight(t *testing.T) {
 	})
 }
 
+// A direct launch came from the command line, and the screen echoes the
+// command the way every confirmation reached by a command does. The menu
+// entry has no command to echo.
+func TestMigrateConfirmView_DirectLaunchEchoesTheCommand(t *testing.T) {
+	for name, info := range map[string]MigrateInfo{
+		"still checking": {},
+		"ready":          readyMigrateInfo(),
+		"refused":        {Loaded: true, Err: errors.New("HEAD is detached")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			direct := makeMigrateConfirmModel(&MigrateOpts{RepoPath: "/some/repo"})
+			direct.repo.migrateInfo = info
+			if output := stripAnsi(direct.viewMigrateConfirm()); !strings.Contains(output, "sentei migrate") {
+				t.Errorf("direct launch does not echo the command:\n%s", output)
+			}
+
+			menu := makeMigrateConfirmModel(nil)
+			menu.repo.migrateInfo = info
+			if output := stripAnsi(menu.viewMigrateConfirm()); strings.Contains(output, "sentei migrate") {
+				t.Errorf("menu launch echoes a command nobody typed:\n%s", output)
+			}
+		})
+	}
+}
+
 func TestMigrateConfirmView_WaitsForThePreflight(t *testing.T) {
 	m := makeMigrateConfirmModel(nil)
 
