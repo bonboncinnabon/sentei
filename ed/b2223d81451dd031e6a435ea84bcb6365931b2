@@ -1,0 +1,24 @@
+openspec/specs/filter-flags/spec.md
+  s_b5d41ab2ae0f4c::t_512e0092325d07 49,52-54
+  s_b5d41ab2ae0f4c::t_58721b298a0d13 55
+cmd/remove_filter_test.go
+  s_b5d41ab2ae0f4c::t_15a4c6df126d47 57-65
+README.md
+  s_b5d41ab2ae0f4c::t_98fbc4c0820be7 106-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "edb2223d81451dd031e6a435ea84bcb6365931b2",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
