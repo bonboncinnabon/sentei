@@ -33,17 +33,24 @@ func TestPrintEvent(t *testing.T) {
 }
 
 func TestPrintCloneEvent(t *testing.T) {
+	event := func(status progress.StepStatus, message string, err error) progress.Event {
+		return progress.Event{
+			Phase: "clone:bare", PhaseLabel: "Clone",
+			Step: "bare-repository", StepLabel: "Clone bare repository",
+			Status: status, Message: message, Error: err,
+		}
+	}
 	tests := []struct {
 		name  string
 		event progress.Event
 		want  []string
 	}{
-		{"running", progress.Event{Phase: "clone", Step: "fetch", Status: progress.StepRunning}, []string{"→", "[clone]", "fetch"}},
-		{"done", progress.Event{Phase: "clone", Step: "fetch", Status: progress.StepDone}, []string{"✓", "[clone]", "fetch"}},
-		{"done with message", progress.Event{Phase: "clone", Step: "fetch", Status: progress.StepDone, Message: "fast"}, []string{"✓", "(fast)"}},
-		{"failed", progress.Event{Phase: "clone", Step: "fetch", Status: progress.StepFailed, Error: errors.New("boom")}, []string{"✗", "boom"}},
-		{"skipped", progress.Event{Phase: "clone", Step: "fetch", Status: progress.StepSkipped}, []string{"⊘", "fetch"}},
-		{"skipped with message", progress.Event{Phase: "clone", Step: "fetch", Status: progress.StepSkipped, Message: "no-op"}, []string{"⊘", "(no-op)"}},
+		{"running", event(progress.StepRunning, "", nil), []string{"→", "[Clone]", "Clone bare repository"}},
+		{"done", event(progress.StepDone, "", nil), []string{"✓", "[Clone]", "Clone bare repository"}},
+		{"done with message", event(progress.StepDone, "fast", nil), []string{"✓", "(fast)"}},
+		{"failed", event(progress.StepFailed, "", errors.New("boom")), []string{"✗", "Clone bare repository: boom"}},
+		{"skipped", event(progress.StepSkipped, "", nil), []string{"⊘", "Clone bare repository"}},
+		{"skipped with message", event(progress.StepSkipped, "no-op", nil), []string{"⊘", "(no-op)"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -51,6 +58,12 @@ func TestPrintCloneEvent(t *testing.T) {
 			for _, want := range tt.want {
 				if !strings.Contains(out, want) {
 					t.Errorf("output %q missing %q", out, want)
+				}
+			}
+			// Identities are for matching events; only labels are for people.
+			for _, id := range []string{"clone:bare", "bare-repository"} {
+				if strings.Contains(out, id) {
+					t.Errorf("output %q leaks the identity %q", out, id)
 				}
 			}
 		})
