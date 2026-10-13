@@ -186,13 +186,18 @@ ecosystems:
     detect:
       files: [mkdocs.yml]
     env_files: []              # an explicit empty list clears the inherited one
+  - name: go
+    install:
+      command: ""              # an explicit empty command clears the inherited one
   - name: cargo
     enabled: false
 ```
 
-An install command runs once, at the root of the new worktree. A key sentei
-does not know is an error that names the file, the line and the key, so a
-typo cannot silently switch a setting off.
+An install command runs once, at the root of the new worktree. `command: ""`
+turns an inherited install off and keeps the rest of the ecosystem, such as
+its env files; leaving the key out inherits the command. A key sentei does
+not know is an error that names the file, the line and the key, so a typo
+cannot silently switch a setting off.
 
 ### Git behaviour
 

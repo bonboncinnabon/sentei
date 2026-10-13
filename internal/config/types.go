@@ -35,4 +35,9 @@ type DetectConfig struct {
 // command runs once, at the root of the new worktree.
 type InstallConfig struct {
 	Command string `yaml:"command"`
+
+	// cleared marks a file that writes `command: ""`, which turns an inherited
+	// install off. Command alone cannot tell that from a file without the key,
+	// which inherits.
+	cleared bool
 }
