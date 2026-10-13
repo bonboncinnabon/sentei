@@ -12,41 +12,44 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
+// MigrateInfo is the pre-flight answer shown on the migrate confirm screen.
+type MigrateInfo struct {
+	Plan   repo.MigratePlan
+	Err    error // why the repository cannot be migrated
+	Loaded bool  // false until the pre-flight has answered
+}
+
 type migrateInfoMsg struct {
-	branch  string
-	isDirty bool
-	err     error
+	plan repo.MigratePlan
+	err  error
 }
 
 func loadMigrateInfo(runner git.CommandRunner, repoPath string) tea.Cmd {
 	return func() tea.Msg {
-		branch, err := runner.Run(repoPath, "branch", "--show-current")
-		if err != nil {
-			return migrateInfoMsg{err: err}
-		}
-		status, err := runner.Run(repoPath, "status", "--porcelain")
-		if err != nil {
-			return migrateInfoMsg{err: err}
-		}
-		isDirty := strings.TrimSpace(status) != ""
-		return migrateInfoMsg{branch: branch, isDirty: isDirty}
+		plan, err := repo.PlanMigrate(runner, repoPath)
+		return migrateInfoMsg{plan: plan, err: err}
 	}
+}
+
+// migrateBlocked reports whether the confirm screen must not start the
+// migration yet: the menu path waits for its pre-flight and stops on a
+// refusal. A direct launch has no pre-flight on screen; the migration runs
+// the same checks as its first step.
+func (m Model) migrateBlocked() bool {
+	info := m.repo.migrateInfo
+	return m.migrateOpts == nil && (!info.Loaded || info.Err != nil)
 }
 
 func (m Model) updateMigrateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case migrateInfoMsg:
-		if msg.err != nil {
-			m.repo.validationErr = fmt.Sprintf("failed to load repo info: %v", msg.err)
-		} else {
-			m.repo.migrateInfo = MigrateInfo{
-				Branch:  msg.branch,
-				IsDirty: msg.isDirty,
-			}
-		}
+		m.repo.migrateInfo = MigrateInfo{Plan: msg.plan, Err: msg.err, Loaded: true}
 		return m, nil
 
 	case ConfirmProceedMsg:
+		if m.migrateBlocked() {
+			return m, nil
+		}
 		opts := repo.MigrateOptions{
 			RepoPath: m.repoPath,
 		}
@@ -62,6 +65,7 @@ func (m Model) updateMigrateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.migrateOpts != nil {
 			return m, tea.Quit
 		}
+		m.repo.migrateInfo = MigrateInfo{}
 		m.view = menuView
 		return m, nil
 	}
@@ -75,24 +79,13 @@ func (m Model) updateMigrateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // migrateConfirmationVM builds a ConfirmationViewModel for the migrate flow.
 func (m Model) migrateConfirmationVM() ConfirmationViewModel {
-	deleteBackup := "no"
-	if m.migrateOpts != nil && m.migrateOpts.DeleteBackup {
-		deleteBackup = "yes"
-	}
-
-	flags := make(map[string]string)
-	if m.migrateOpts != nil && m.migrateOpts.DeleteBackup {
-		flags["delete-backup"] = "true"
-	}
-
 	return ConfirmationViewModel{
 		Width: m.width,
 		Title: titleConfirmMigration,
 		Items: []ConfirmationItem{
 			{Label: "Repo path:", Value: m.repoPath},
-			{Label: "Delete backup:", Value: deleteBackup},
 		},
-		CLICommand: BuildCLICommand("migrate", flags),
+		CLICommand: BuildCLICommand("migrate", nil),
 	}
 }
 
@@ -110,44 +103,42 @@ func (m Model) viewMigrateConfirm() string {
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 
-	if m.repo.validationErr != "" {
-		b.WriteString(styleError.Render("  " + m.repo.validationErr))
-		b.WriteString("\n\n")
-	}
-
-	branch := m.repo.migrateInfo.Branch
-	if branch == "" {
-		branch = styleDim.Render("detecting\u2026")
-	}
-
-	fmt.Fprintf(&b, "  %-18s %s\n", styleDim.Render("Current branch"), branch)
-
-	if m.repo.migrateInfo.IsDirty {
-		fmt.Fprintf(&b, "  %-18s %s\n", styleDim.Render("Status"),
-			styleIndicatorWarning.Render(indicatorWarning+" uncommitted changes"))
-	} else {
-		fmt.Fprintf(&b, "  %-18s %s\n", styleDim.Render("Status"), styleSuccess.Render("clean"))
-	}
-
-	b.WriteString("\n")
-	b.WriteString("  This will:\n")
-	fmt.Fprintf(&b, "    %s Back up current repo\n", styleDim.Render("\u25cf"))
-	fmt.Fprintf(&b, "    %s Convert to bare repository structure\n", styleDim.Render("\u25cf"))
-	fmt.Fprintf(&b, "    %s Create worktree for %s\n", styleDim.Render("\u25cf"),
-		filepath.Base(m.repoPath)+"/"+branch)
-
-	if m.repo.migrateInfo.IsDirty {
+	info := m.repo.migrateInfo
+	footer := confirmationFooter
+	switch {
+	case !info.Loaded:
+		b.WriteString(styleDim.Render("  Checking repository…"))
 		b.WriteString("\n")
-		b.WriteString(styleIndicatorWarning.Render(fmt.Sprintf("  %s Uncommitted changes will be preserved in the backup", indicatorWarning)))
+		footer = migrateBlockedFooter
+
+	case info.Err != nil:
+		fmt.Fprintf(&b, "  %s This repository cannot be migrated yet\n\n",
+			styleIndicatorFailed.Render(indicatorFailed))
+		b.WriteString(styleError.Width(max(m.width-8, 30)).MarginLeft(4).Render(info.Err.Error()))
 		b.WriteString("\n")
-		b.WriteString(styleDim.Render("    but not in the new worktree"))
+		footer = migrateBlockedFooter
+
+	default:
+		worktree := filepath.Join(filepath.Base(info.Plan.RepoPath), filepath.Base(info.Plan.WorktreePath))
+		// The label is padded before it is styled: escape codes would
+		// otherwise count toward the column width.
+		fmt.Fprintf(&b, "  %s %s\n", styleDim.Render(fmt.Sprintf("%-16s", "Current branch")), info.Plan.Branch)
+		fmt.Fprintf(&b, "  %s %s\n", styleDim.Render(fmt.Sprintf("%-16s", "Default branch")), info.Plan.DefaultBranch)
+		b.WriteString("\n")
+		b.WriteString("  This will:\n")
+		fmt.Fprintf(&b, "    %s Move .git to .bare\n", styleDim.Render("●"))
+		fmt.Fprintf(&b, "    %s Move the working tree into %s\n", styleDim.Render("●"), worktree)
+		b.WriteString("\n")
+		b.WriteString(styleDim.Render("  Nothing is copied or deleted. Uncommitted, untracked and"))
+		b.WriteString("\n")
+		b.WriteString(styleDim.Render("  ignored files move as they are; a failed step is undone."))
 		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	b.WriteString(viewFooter(m.width, confirmationFooter))
+	b.WriteString(viewFooter(m.width, footer))
 	b.WriteString("\n")
 
 	return b.String()

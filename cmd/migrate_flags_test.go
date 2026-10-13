@@ -5,26 +5,13 @@ import (
 	"testing"
 )
 
-func TestParseMigrateFlags_NoFlags(t *testing.T) {
+func TestParseMigrateFlags_NoArgs(t *testing.T) {
 	opts, err := ParseMigrateFlags([]string{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if opts.DeleteBackup {
-		t.Error("expected DeleteBackup=false")
-	}
 	if opts.RepoPath != "" {
 		t.Errorf("expected empty RepoPath, got %q", opts.RepoPath)
-	}
-}
-
-func TestParseMigrateFlags_WithDeleteBackup(t *testing.T) {
-	opts, err := ParseMigrateFlags([]string{"--delete-backup"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !opts.DeleteBackup {
-		t.Error("expected DeleteBackup=true")
 	}
 }
 
@@ -38,16 +25,12 @@ func TestParseMigrateFlags_WithRepoPath(t *testing.T) {
 	}
 }
 
-func TestParseMigrateFlags_WithDeleteBackupAndRepoPath(t *testing.T) {
-	opts, err := ParseMigrateFlags([]string{"--delete-backup", "/some/repo/path"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !opts.DeleteBackup {
-		t.Error("expected DeleteBackup=true")
-	}
-	if opts.RepoPath != "/some/repo/path" {
-		t.Errorf("RepoPath = %q, want %q", opts.RepoPath, "/some/repo/path")
+// Migrate no longer makes a backup, so there is none to delete. The flag is
+// rejected rather than accepted and ignored.
+func TestParseMigrateFlags_RejectsDeleteBackup(t *testing.T) {
+	_, err := ParseMigrateFlags([]string{"--delete-backup", "/some/repo/path"})
+	if err == nil || !strings.Contains(err.Error(), "delete-backup") {
+		t.Fatalf("err = %v, want the removed flag rejected by name", err)
 	}
 }
 

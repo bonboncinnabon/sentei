@@ -44,7 +44,7 @@ func TestClone_Successful(t *testing.T) {
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		// Clone phase
-		fmt.Sprintf("%s:[clone --bare git@github.com:user/repo.git %s]", dir, barePath): {Output: ""},
+		fmt.Sprintf("%s:[clone --bare --single-branch -- git@github.com:user/repo.git %s]", dir, barePath): {Output: ""},
 		// Structure phase
 		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
 		fmt.Sprintf("%s:[fetch origin]", barePath):                                                   {Output: ""},
@@ -85,9 +85,9 @@ func TestClone_DefaultBranchFallback(t *testing.T) {
 	barePath := filepath.Join(repoPath, ".bare")
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[clone --bare git@github.com:user/repo.git %s]", dir, barePath):              {Output: ""},
-		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
-		fmt.Sprintf("%s:[fetch origin]", barePath):                                                   {Output: ""},
+		fmt.Sprintf("%s:[clone --bare --single-branch -- git@github.com:user/repo.git %s]", dir, barePath): {Output: ""},
+		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath):       {Output: ""},
+		fmt.Sprintf("%s:[fetch origin]", barePath):                                                         {Output: ""},
 		// symbolic-ref fails — fallback to main
 		fmt.Sprintf("%s:[symbolic-ref --short HEAD]", barePath):                 {Output: "", Err: fmt.Errorf("not found")},
 		fmt.Sprintf("%s:[show-ref --verify refs/heads/main]", barePath):         {Output: "abc123"},
@@ -111,9 +111,9 @@ func TestClone_NonStandardDefaultBranch(t *testing.T) {
 	barePath := filepath.Join(repoPath, ".bare")
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[clone --bare git@github.com:user/repo.git %s]", dir, barePath):              {Output: ""},
-		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
-		fmt.Sprintf("%s:[fetch origin]", barePath):                                                   {Output: ""},
+		fmt.Sprintf("%s:[clone --bare --single-branch -- git@github.com:user/repo.git %s]", dir, barePath): {Output: ""},
+		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath):       {Output: ""},
+		fmt.Sprintf("%s:[fetch origin]", barePath):                                                         {Output: ""},
 		// Default branch is neither main nor master; a bare clone records it in HEAD.
 		fmt.Sprintf("%s:[symbolic-ref --short HEAD]", barePath):                             {Output: "production"},
 		fmt.Sprintf("%s:[show-ref --verify refs/heads/production]", barePath):               {Output: "abc123"},
@@ -142,7 +142,7 @@ func TestClone_NetworkError(t *testing.T) {
 	barePath := filepath.Join(dir, "repo", ".bare")
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[clone --bare git@github.com:user/repo.git %s]", dir, barePath): {
+		fmt.Sprintf("%s:[clone --bare --single-branch -- git@github.com:user/repo.git %s]", dir, barePath): {
 			Output: "", Err: fmt.Errorf("fatal: Could not read from remote repository"),
 		},
 	}}
@@ -165,7 +165,7 @@ func TestClone_FetchFailure_StillSucceedsWithoutTracking(t *testing.T) {
 	// Everything succeeds except the tracking fetch (simulating a network blip
 	// after the bare clone already succeeded). The worktree must still be created.
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[clone --bare git@h:u/repo.git %s]", dir, barePath):                          {Output: ""},
+		fmt.Sprintf("%s:[clone --bare --single-branch -- git@h:u/repo.git %s]", dir, barePath):       {Output: ""},
 		fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
 		fmt.Sprintf("%s:[symbolic-ref --short HEAD]", barePath):                                      {Output: "main"},
 		fmt.Sprintf("%s:[show-ref --verify refs/heads/main]", barePath):                              {Output: "abc"},
@@ -248,7 +248,7 @@ func TestClone_WorktreeFailure_RollsBackPartialDir(t *testing.T) {
 	// All phases succeed until worktree add fails (empty remote: show-ref fails).
 	runner := &mock.Runner{
 		Responses: map[string]mock.Response{
-			fmt.Sprintf("%s:[clone --bare u %s]", dir, barePath):                                         {Output: ""},
+			fmt.Sprintf("%s:[clone --bare --single-branch -- u %s]", dir, barePath):                      {Output: ""},
 			fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
 			fmt.Sprintf("%s:[fetch origin]", barePath):                                                   {Output: ""},
 			fmt.Sprintf("%s:[symbolic-ref --short HEAD]", barePath):                                      {Output: "main"},
@@ -286,7 +286,7 @@ func TestClone_TrackingSkip_PreservesRepoDir(t *testing.T) {
 	// succeed (tracking is progress.StepSkipped) and must NOT roll back the repo dir.
 	runner := &mock.Runner{
 		Responses: map[string]mock.Response{
-			fmt.Sprintf("%s:[clone --bare u %s]", dir, barePath):                                         {Output: ""},
+			fmt.Sprintf("%s:[clone --bare --single-branch -- u %s]", dir, barePath):                      {Output: ""},
 			fmt.Sprintf("%s:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", barePath): {Output: ""},
 			fmt.Sprintf("%s:[symbolic-ref --short HEAD]", barePath):                                      {Output: "main"},
 			fmt.Sprintf("%s:[show-ref --verify refs/heads/main]", barePath):                              {Output: "abc"},
@@ -311,5 +311,86 @@ func TestClone_TrackingSkip_PreservesRepoDir(t *testing.T) {
 	}
 	if _, err := os.Stat(repoPath); err != nil {
 		t.Errorf("repo dir must be preserved on a tracking skip (not rolled back): %v", err)
+	}
+}
+
+func findPhase(phases []progress.Phase, name string) *progress.Phase {
+	for i := range phases {
+		if phases[i].Name == name {
+			return &phases[i]
+		}
+	}
+	return nil
+}
+
+// cloneSource builds a repository whose default branch is trunk, with two
+// more branches and a tag, to clone from.
+func cloneSource(t *testing.T) string {
+	t.Helper()
+	source := filepath.Join(t.TempDir(), "source")
+	mustGit(t, filepath.Dir(source), "init", "-q", "-b", "trunk", source)
+	mustWrite(t, filepath.Join(source, "a.txt"), "a\n")
+	mustGit(t, source, "add", ".")
+	mustGit(t, source, "commit", "-qm", "init")
+	mustGit(t, source, "tag", "v1")
+	mustGit(t, source, "branch", "feat-a")
+	mustGit(t, source, "branch", "feat-b")
+	return source
+}
+
+// A bare clone copies every remote branch into refs/heads. Those copies have
+// no upstream and never move again, so a worktree created for one of them
+// later starts from wherever the branch was on the day of the clone.
+func TestClone_KeepsOnlyTheDefaultBranchAsALocalHead(t *testing.T) {
+	source := cloneSource(t)
+
+	result := Clone(realGit, CloneOptions{URL: source, Location: t.TempDir(), Name: "cloned"}, nil)
+
+	if result.HasFailures() {
+		t.Fatalf("clone failed: %+v", result)
+	}
+	repoPath := result.RepoPath
+	if heads := mustGit(t, repoPath, "for-each-ref", "--format=%(refname)", "refs/heads"); heads != "refs/heads/trunk" {
+		t.Errorf("local heads = %q, want only the default branch", heads)
+	}
+	for _, ref := range []string{"refs/remotes/origin/trunk", "refs/remotes/origin/feat-a", "refs/remotes/origin/feat-b", "refs/tags/v1"} {
+		mustGit(t, repoPath, "show-ref", "--verify", ref)
+	}
+	if upstream := mustGit(t, result.WorktreePath, "rev-parse", "--abbrev-ref", "trunk@{upstream}"); upstream != "origin/trunk" {
+		t.Errorf("upstream of trunk = %q, want origin/trunk", upstream)
+	}
+
+	// The remote branch moves on. A worktree made for it after a fetch has
+	// to start from the new tip and track the remote.
+	mustGit(t, source, "checkout", "-q", "feat-a")
+	mustWrite(t, filepath.Join(source, "later.txt"), "later\n")
+	mustGit(t, source, "add", ".")
+	mustGit(t, source, "commit", "-qm", "later work")
+	mustGit(t, repoPath, "fetch", "-q", "origin")
+	worktree := filepath.Join(repoPath, "feat-a")
+	mustGit(t, repoPath, "worktree", "add", "-q", worktree, "feat-a")
+	if got, want := mustGit(t, worktree, "rev-parse", "HEAD"), mustGit(t, source, "rev-parse", "feat-a"); got != want {
+		t.Errorf("the feat-a worktree is at %s, want the remote tip %s", got, want)
+	}
+	if upstream := mustGit(t, worktree, "rev-parse", "--abbrev-ref", "feat-a@{upstream}"); upstream != "origin/feat-a" {
+		t.Errorf("upstream of feat-a = %q, want origin/feat-a", upstream)
+	}
+}
+
+// The URL is user input. Without the option terminator, one that starts with
+// a dash is read by git as an option.
+func TestClone_URLStartingWithADashIsNotAnOption(t *testing.T) {
+	source := cloneSource(t)
+	location := t.TempDir()
+	mustGit(t, location, "clone", "-q", "--bare", source, "./-source.git")
+
+	result := Clone(realGit, CloneOptions{URL: "-source.git", Location: location, Name: "cloned"}, nil)
+
+	if result.HasFailures() {
+		_, failed, _ := progress.FirstFailure(result.Phases)
+		t.Fatalf("clone failed at %q: %v (Err %v)", failed.Name, failed.Error, result.Err)
+	}
+	if _, err := os.Stat(filepath.Join(result.WorktreePath, "a.txt")); err != nil {
+		t.Errorf("the default branch was not checked out: %v", err)
 	}
 }

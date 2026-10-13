@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
@@ -30,7 +32,7 @@ func TestCreate_LocalOnly(t *testing.T) {
 	repoPath := filepath.Join(dir, repoName)
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                    {Output: ""},
+		fmt.Sprintf("%s/.bare:[init --bare --initial-branch=main]", repoPath):                              {Output: ""},
 		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath): {Output: ""},
 		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                               {Output: ""},
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                          {Output: ""},
@@ -43,7 +45,7 @@ func TestCreate_LocalOnly(t *testing.T) {
 		Location:      dir,
 		PublishGitHub: false,
 	}
-	result := Create(runner, runner, opts, ec.Emit)
+	result := Create(runner, opts, ec.Emit)
 
 	if result.RepoPath != repoPath {
 		t.Errorf("RepoPath = %q, want %q", result.RepoPath, repoPath)
@@ -70,7 +72,7 @@ func TestCreate_WithGitHub(t *testing.T) {
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		// Setup phase
-		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                    {Output: ""},
+		fmt.Sprintf("%s/.bare:[init --bare --initial-branch=main]", repoPath):                              {Output: ""},
 		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath): {Output: ""},
 		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                               {Output: ""},
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                          {Output: ""},
@@ -94,7 +96,7 @@ func TestCreate_WithGitHub(t *testing.T) {
 		Visibility:    "private",
 		Description:   "",
 	}
-	result := CreateWithGh(runner, runner, ghRunner, opts, ec.Emit)
+	result := CreateWithGh(runner, ghRunner, opts, ec.Emit)
 
 	if len(result.Phases) != 2 {
 		t.Errorf("want 2 phases (setup + github), got %d", len(result.Phases))
@@ -141,7 +143,7 @@ func TestCreate_DirAlreadyExists(t *testing.T) {
 		Name:     repoName,
 		Location: dir,
 	}
-	result := Create(runner, runner, opts, ec.Emit)
+	result := Create(runner, opts, ec.Emit)
 
 	if len(result.Phases) == 0 {
 		t.Fatal("expected at least one phase")
@@ -158,7 +160,7 @@ func TestCreate_GitHubPhaseFailure_LocalStillUsable(t *testing.T) {
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		// Setup phase succeeds
-		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                    {Output: ""},
+		fmt.Sprintf("%s/.bare:[init --bare --initial-branch=main]", repoPath):                              {Output: ""},
 		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath): {Output: ""},
 		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                               {Output: ""},
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                          {Output: ""},
@@ -176,7 +178,7 @@ func TestCreate_GitHubPhaseFailure_LocalStillUsable(t *testing.T) {
 		PublishGitHub: true,
 		Visibility:    "private",
 	}
-	result := CreateWithGh(runner, runner, ghRunner, opts, ec.Emit)
+	result := CreateWithGh(runner, ghRunner, opts, ec.Emit)
 
 	// Local repo still usable despite GitHub failure
 	if result.RepoPath != repoPath {
@@ -200,7 +202,7 @@ func TestCreate_PushFailure_ReportsOrphanedRepo(t *testing.T) {
 	pushErr := fmt.Errorf("Permission denied (publickey)")
 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s/.bare:[init --bare]", repoPath):                                                            {Output: ""},
+		fmt.Sprintf("%s/.bare:[init --bare --initial-branch=main]", repoPath):                                      {Output: ""},
 		fmt.Sprintf("%s/.bare:[config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*]", repoPath):         {Output: ""},
 		fmt.Sprintf("%s:[worktree add %s/main -b main]", repoPath, repoPath):                                       {Output: ""},
 		fmt.Sprintf("%s/main:[add -A]", repoPath):                                                                  {Output: ""},
@@ -216,7 +218,7 @@ func TestCreate_PushFailure_ReportsOrphanedRepo(t *testing.T) {
 
 	ec := &mock.EventCollector[progress.Event]{}
 	opts := CreateOptions{Name: repoName, Location: dir, PublishGitHub: true, Visibility: "private"}
-	result := CreateWithGh(runner, runner, ghRunner, opts, ec.Emit)
+	result := CreateWithGh(runner, ghRunner, opts, ec.Emit)
 
 	var pushStep *progress.StepResult
 	for i := range result.Phases {
@@ -263,5 +265,61 @@ func TestCreateResult_SetupFailed(t *testing.T) {
 	clean := CreateResult{Phases: []progress.Phase{{Name: "Setup", Steps: []progress.StepResult{{Status: progress.StepDone}}}}}
 	if failed, _ := clean.SetupFailed(); failed {
 		t.Error("a clean result must not report a setup failure")
+	}
+}
+
+// Without init.defaultBranch, `git init --bare` points HEAD at master while
+// the only branch sentei creates is main. HEAD is what names the default
+// branch for protection and for "merged".
+func TestCreate_BareHEADNamesMainWithoutInitDefaultBranch(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	for _, name := range []string{"GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"} {
+		t.Setenv(name, "sentei-test")
+	}
+	for _, name := range []string{"GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(name, "test@sentei.invalid")
+	}
+	dir := t.TempDir()
+
+	result := CreateWithGh(&git.GitRunner{}, &mockGhRunner{}, CreateOptions{Name: "proj", Location: dir}, nil)
+
+	if failed, err := result.SetupFailed(); failed {
+		t.Fatalf("create failed: %v", err)
+	}
+	if got := git.DetectDefaultBranch(&git.GitRunner{}, result.RepoPath); got != "main" {
+		t.Errorf("default branch = %q, want main", got)
+	}
+}
+
+// When gh cannot be started there is no stderr to report. The reason it
+// failed must not be dropped with it.
+func TestDefaultGhRunner_ReportsWhyGhDidNotRun(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	_, err := (&DefaultGhRunner{}).RunGh(t.TempDir(), "api", "user")
+
+	if err == nil {
+		t.Fatal("expected an error with no gh on PATH")
+	}
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Errorf("err = %q, want it to carry the reason gh did not run", err)
+	}
+	if !strings.HasPrefix(err.Error(), "gh api user: ") {
+		t.Errorf("err = %q, want it to name the command", err)
+	}
+}
+
+func TestDefaultGhRunner_PrefersStderr(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\necho 'HTTP 401: Bad credentials' >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	_, err := (&DefaultGhRunner{}).RunGh(t.TempDir(), "api", "user")
+
+	if err == nil || err.Error() != "gh api user: HTTP 401: Bad credentials" {
+		t.Errorf("err = %v, want gh's own message", err)
 	}
 }

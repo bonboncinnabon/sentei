@@ -12,99 +12,75 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
-func TestMigrateSummaryShowsContractError(t *testing.T) {
-	m := makeMigrateSummaryModel(repo.MigrateResult{Err: errors.New("delivery failed")})
-	view := stripANSI(m.viewMigrateSummary())
-	if !strings.Contains(view, "delivery failed") {
-		t.Fatalf("view = %s", view)
-	}
-}
-
 func makeMigrateSummaryModel(result repo.MigrateResult) Model {
 	m := NewMenuModel(nil, nil, "/repo", &config.Config{}, repo.ContextNoRepo)
 	m.repo.result = result
+	m.view = migrateSummaryView
 	m.width = 80
 	m.height = 24
 	return m
 }
 
-func TestViewMigrateSummary_BackupFailure_NoDestructiveRestore(t *testing.T) {
-	// Backup failed -> BackupPath empty (the data-loss fix). The destructive
-	// restore command must NOT render against the still-intact repo.
-	result := repo.MigrateResult{
+func failedMigrateResult() repo.MigrateResult {
+	return repo.MigrateResult{
 		BareRoot: "/repo/proj",
 		Phases: []progress.Phase{
-			{Name: "Validate", Steps: []progress.StepResult{{Name: "Detect current branch", Status: progress.StepDone}}},
-			{Name: "Backup", Steps: []progress.StepResult{{Name: "Copy repository to backup", Status: progress.StepFailed, Error: errors.New("no space left")}}},
+			{Name: "Convert", Steps: []progress.StepResult{{Name: "Move working tree", Status: progress.StepFailed, Error: errors.New("permission denied")}}},
 		},
-		// BackupPath intentionally empty
 	}
+}
+
+func TestMigrateSummaryShowsContractError(t *testing.T) {
+	m := makeMigrateSummaryModel(repo.MigrateResult{Err: errors.New("delivery failed")})
+	view := stripANSI(m.viewMigrateSummary())
+	if !strings.Contains(view, "Migration failed") || !strings.Contains(view, "delivery failed") {
+		t.Fatalf("view = %s", view)
+	}
+}
+
+func TestViewMigrateSummary_FailureSaysWhatHappenedToTheRepository(t *testing.T) {
+	out := stripAnsi(makeMigrateSummaryModel(failedMigrateResult()).viewMigrateSummary())
+
+	for _, want := range []string{"Migration failed", "permission denied", "the repository is unchanged"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("failure view missing %q:\n%s", want, out)
+		}
+	}
+	for _, gone := range []string{"rm -rf", "backup", "open in sentei"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("failure view must not mention %q:\n%s", gone, out)
+		}
+	}
+}
+
+func TestViewMigrateSummary_SuccessShowsWhereTheWorktreeIs(t *testing.T) {
+	result := repo.MigrateResult{BareRoot: "/repo/proj", WorktreePath: "/repo/proj/feature-x", Branch: "feature/x"}
+
 	out := stripAnsi(makeMigrateSummaryModel(result).viewMigrateSummary())
-	if !strings.Contains(out, "Migration failed") {
-		t.Errorf("expected a failure header:\n%s", out)
+
+	for _, want := range []string{"Migration complete", "proj migrated", "feature/x", "cd /repo/proj/feature-x", "enter open in sentei", "q exit"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("success view missing %q:\n%s", want, out)
+		}
 	}
-	if strings.Contains(out, "rm -rf") {
-		t.Errorf("a backup failure must NOT show a destructive restore command:\n%s", out)
+	if strings.Contains(strings.ToLower(out), "backup") {
+		t.Errorf("there is no backup to offer for deletion:\n%s", out)
 	}
 }
 
-func TestViewMigrateSummary_MigrateFailure_ShowsRestore(t *testing.T) {
-	result := repo.MigrateResult{
-		BareRoot:   "/repo/proj",
-		BackupPath: "/repo/proj_backup_1",
-		Phases: []progress.Phase{
-			{Name: "Backup", Steps: []progress.StepResult{{Name: "Copy repository to backup", Status: progress.StepDone}}},
-			{Name: "Migrate", Steps: []progress.StepResult{{Name: "Create bare repository", Status: progress.StepFailed, Error: errors.New("boom")}}},
-		},
-	}
-	out := stripAnsi(makeMigrateSummaryModel(result).viewMigrateSummary())
-	if !strings.Contains(out, "Migration failed") {
-		t.Errorf("expected a failure header:\n%s", out)
-	}
-	if !strings.Contains(out, "rm -rf") || !strings.Contains(out, "/repo/proj_backup_1") {
-		t.Errorf("a real backup should yield a restore command:\n%s", out)
-	}
-}
-
-func TestViewMigrateSummary_Success_OffersDeleteBackup(t *testing.T) {
-	result := repo.MigrateResult{
-		BareRoot:   "/repo/proj",
-		BackupPath: "/repo/proj_backup_1",
-		Branch:     "main",
-		Phases: []progress.Phase{
-			{Name: "Migrate", Steps: []progress.StepResult{{Name: "Create worktree", Status: progress.StepDone}}},
-		},
-	}
-	out := stripAnsi(makeMigrateSummaryModel(result).viewMigrateSummary())
-	if !strings.Contains(out, "migrated") {
-		t.Errorf("expected a success header:\n%s", out)
-	}
-	if !strings.Contains(out, "Delete backup?") {
-		t.Errorf("expected the delete-backup prompt:\n%s", out)
-	}
-}
-
-func TestUpdateMigrateSummary_Failure_YIsInert(t *testing.T) {
-	result := repo.MigrateResult{
-		BareRoot: "/repo/proj",
-		Phases: []progress.Phase{
-			{Name: "Backup", Steps: []progress.StepResult{{Name: "x", Status: progress.StepFailed, Error: errors.New("no space")}}},
-		},
-	}
-	m := makeMigrateSummaryModel(result)
-	// On a failed migration, 'y' (delete backup) must be inert — never delete a
-	// backup / advance. Only quit responds.
-	_, cmd := m.updateMigrateSummary(tea.KeyPressMsg{Code: 'y', Text: "y"})
-	if cmd != nil {
-		t.Error("'y' on a failed migration must not delete backup or advance")
-	}
-}
-
-func TestUpdateMigrateNext_NoResultQuits(t *testing.T) {
+func TestViewMigrateSummary_NoResult(t *testing.T) {
 	m := NewMenuModel(nil, nil, "/repo", &config.Config{}, repo.ContextNonBareRepo)
-	m.view = migrateNextView
 
-	_, cmd := m.updateMigrateNext(keyMsg("x"))
+	if view := m.viewMigrateSummary(); !strings.Contains(view, "Migration result unavailable") {
+		t.Errorf("view = %q, want unavailable notice", view)
+	}
+}
+
+func TestUpdateMigrateSummary_NoResultQuits(t *testing.T) {
+	m := NewMenuModel(nil, nil, "/repo", &config.Config{}, repo.ContextNonBareRepo)
+	m.view = migrateSummaryView
+
+	_, cmd := m.updateMigrateSummary(keyMsg("x"))
 
 	if cmd == nil {
 		t.Fatal("expected a quit command without a migrate result")
@@ -114,25 +90,28 @@ func TestUpdateMigrateNext_NoResultQuits(t *testing.T) {
 	}
 }
 
-func TestUpdateMigrateNext_QuitKey(t *testing.T) {
-	m := makeMigrateSummaryModel(repo.MigrateResult{BareRoot: "/bare", Branch: "main"})
-	m.view = migrateNextView
+func TestUpdateMigrateSummary_QuitKey(t *testing.T) {
+	for name, result := range map[string]repo.MigrateResult{
+		"success": {BareRoot: "/bare", Branch: "main"},
+		"failure": failedMigrateResult(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, cmd := makeMigrateSummaryModel(result).updateMigrateSummary(keyMsg("q"))
 
-	_, cmd := m.updateMigrateNext(keyMsg("q"))
-
-	if cmd == nil {
-		t.Fatal("expected a quit command")
-	}
-	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Errorf("expected tea.QuitMsg, got %T", cmd())
+			if cmd == nil {
+				t.Fatal("expected a quit command")
+			}
+			if _, ok := cmd().(tea.QuitMsg); !ok {
+				t.Errorf("expected tea.QuitMsg, got %T", cmd())
+			}
+		})
 	}
 }
 
-func TestUpdateMigrateNext_EnterRelaunches(t *testing.T) {
+func TestUpdateMigrateSummary_EnterRelaunchesAfterSuccess(t *testing.T) {
 	m := makeMigrateSummaryModel(repo.MigrateResult{BareRoot: "/bare", Branch: "main"})
-	m.view = migrateNextView
 
-	_, cmd := m.updateMigrateNext(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, cmd := m.updateMigrateSummary(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// relaunchSentei execs a process; assert only that a command was issued.
 	if cmd == nil {
@@ -140,9 +119,18 @@ func TestUpdateMigrateNext_EnterRelaunches(t *testing.T) {
 	}
 }
 
-func TestUpdateMigrateNext_WindowSize(t *testing.T) {
+func TestUpdateMigrateSummary_EnterIsInertAfterFailure(t *testing.T) {
+	m := makeMigrateSummaryModel(failedMigrateResult())
+
+	_, cmd := m.updateMigrateSummary(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if cmd != nil {
+		t.Error("a failed migration must not relaunch sentei as if the bare layout existed")
+	}
+}
+
+func TestUpdateMigrateSummary_WindowSize(t *testing.T) {
 	m := makeMigrateSummaryModel(repo.MigrateResult{BareRoot: "/bare", Branch: "main"})
-	m.view = migrateNextView
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	model := updated.(Model)
@@ -152,24 +140,19 @@ func TestUpdateMigrateNext_WindowSize(t *testing.T) {
 	}
 }
 
-func TestViewMigrateNext_NoResult(t *testing.T) {
-	m := NewMenuModel(nil, nil, "/repo", &config.Config{}, repo.ContextNonBareRepo)
+func TestViewMigrateSummary_ValuesShareAColumn(t *testing.T) {
+	result := repo.MigrateResult{BareRoot: "/repo/proj", WorktreePath: "/repo/proj/feature-x", Branch: "feature/x"}
 
-	view := m.viewMigrateNext()
+	out := stripAnsi(makeMigrateSummaryModel(result).viewMigrateSummary())
 
-	if !strings.Contains(view, "Migration result unavailable") {
-		t.Errorf("view = %q, want unavailable notice", view)
+	if path, branch := columnOf(t, out, "/repo/proj"), columnOf(t, out, "feature/x"); path != branch {
+		t.Errorf("values start at columns %d and %d, want one column:\n%s", path, branch, out)
 	}
 }
 
-func TestViewMigrateNext_SuccessShowsWorktreePath(t *testing.T) {
-	m := makeMigrateSummaryModel(repo.MigrateResult{BareRoot: "/bare/myrepo", Branch: "main"})
+func TestViewMigrateSummary_WrappedFailureKeepsItsIndent(t *testing.T) {
+	result := failedMigrateResult()
+	result.Phases[0].Steps[0].Error = errors.New(strings.Repeat("blocked ", 30))
 
-	view := stripANSI(m.viewMigrateNext())
-
-	for _, want := range []string{"Migration complete", "myrepo ready", "cd ", "enter open in sentei", "q exit"} {
-		if !strings.Contains(view, want) {
-			t.Errorf("view missing %q:\n%s", want, view)
-		}
-	}
+	assertWrappedIndent(t, stripAnsi(makeMigrateSummaryModel(result).viewMigrateSummary()), "blocked")
 }

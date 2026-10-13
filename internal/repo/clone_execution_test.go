@@ -8,73 +8,77 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
-func TestPreparedClone_FailureAndRollbackPolicy(t *testing.T) {
-	base := prepareClone(&mock.Runner{}, CloneOptions{URL: "url", Location: "/tmp", Name: "project"})
-	if len(base.operations) != 8 {
-		t.Fatalf("operations = %d, want validation, clone, structure, worktree, tracking, rollback", len(base.operations))
+// stubbedClone is the declared clone flow with every step and undo replaced
+// by a no-op, so a test can fail one step and observe the policy around it.
+func stubbedClone() (flow, func([]progress.Phase, error) CloneResult) {
+	clone, finish := prepareClone(&mock.Runner{}, CloneOptions{URL: "url", Location: "/tmp", Name: "project"})
+	for i := range clone.steps {
+		clone.steps[i].run = func() (string, error) { return "", nil }
+		if clone.steps[i].undo != nil {
+			clone.steps[i].undo = func() error { return nil }
+		}
 	}
-	for failedAt := 0; failedAt < 7; failedAt++ {
-		t.Run(base.operations[failedAt].label, func(t *testing.T) {
-			prepared := base
-			prepared.operations = append([]cloneOperation(nil), base.operations...)
-			for i := range prepared.operations {
-				prepared.operations[i].run = func() (string, error) { return "", nil }
-			}
-			prepared.operations[failedAt].run = func() (string, error) { return "", errors.New("injected") }
-			result := prepared.run(func(progress.Event) {})
+	return clone, finish
+}
+
+func TestPrepareClone_FailureAndRollbackPolicy(t *testing.T) {
+	declared, _ := stubbedClone()
+	if len(declared.steps) != 7 || declared.rollback == nil {
+		t.Fatalf("steps = %d, want validation, clone, two structure steps, three worktree steps, plus a rollback", len(declared.steps))
+	}
+	for failedAt, failing := range declared.steps {
+		t.Run(failing.label, func(t *testing.T) {
+			clone, finish := stubbedClone()
+			clone.steps[failedAt].run = func() (string, error) { return "", errors.New("injected") }
+
+			result := finish(clone.run(nil))
+
 			if result.Err != nil {
 				t.Fatalf("Err = %v", result.Err)
 			}
-			failed := resultStepByID(t, result.Phases, prepared.operations[failedAt].phaseID, prepared.operations[failedAt].stepID)
-			if failedAt == 6 {
-				if failed.Status != progress.StepSkipped || result.WorktreePath == "" {
-					t.Fatalf("tracking result=%#v worktree=%q", failed, result.WorktreePath)
+			failed := stepResult(result.Phases, failing.phaseID, failing.id)
+			// Everything from the bare clone on leaves a partial checkout to
+			// remove, except the tracking step: without tracking the clone
+			// is still usable.
+			wantFailed, wantRollback := progress.StepFailed, progress.StepSkipped
+			switch {
+			case failing.id == "tracking":
+				wantFailed = progress.StepSkipped
+				if result.WorktreePath == "" {
+					t.Error("a clone without tracking still has its worktree")
 				}
-			} else if failed.Status != progress.StepFailed {
-				t.Fatalf("failed operation = %#v", failed)
-			}
-			rollback := resultStepByID(t, result.Phases, cloneRollbackPhaseID, "remove-partial-checkout")
-			wantRollback := progress.StepSkipped
-			if failedAt >= 1 && failedAt <= 5 {
+			case failedAt >= 1:
 				wantRollback = progress.StepDone
 			}
-			if rollback.Status != wantRollback {
-				t.Fatalf("rollback = %#v, want status %v", rollback, wantRollback)
+			if failed.Status != wantFailed {
+				t.Errorf("failed step = %#v, want status %v", failed, wantFailed)
+			}
+			if rollback := stepResult(result.Phases, cloneRollbackPhaseID, "remove-partial-checkout"); rollback.Status != wantRollback {
+				t.Errorf("rollback = %#v, want status %v", rollback, wantRollback)
 			}
 		})
 	}
 }
 
-func TestPreparedClone_RollbackFailureIsSurfaced(t *testing.T) {
-	prepared := prepareClone(&mock.Runner{}, CloneOptions{URL: "url", Location: "/tmp", Name: "project"})
-	for i := range prepared.operations {
-		prepared.operations[i].run = func() (string, error) { return "", nil }
-	}
-	prepared.operations[1].run = func() (string, error) { return "", errors.New("clone") }
-	prepared.operations[7].run = func() (string, error) { return "", errors.New("rollback") }
-	result := prepared.run(func(progress.Event) {})
-	rollback := resultStepByID(t, result.Phases, cloneRollbackPhaseID, "remove-partial-checkout")
-	if rollback.Status != progress.StepFailed || rollback.Error == nil {
+func TestPrepareClone_RollbackFailureIsSurfaced(t *testing.T) {
+	clone, finish := stubbedClone()
+	clone.steps[1].run = func() (string, error) { return "", errors.New("clone") }
+	clone.steps[1].undo = func() error { return errors.New("rollback") }
+
+	result := finish(clone.run(nil))
+
+	rollback := stepResult(result.Phases, cloneRollbackPhaseID, "remove-partial-checkout")
+	if rollback.Status != progress.StepFailed || rollback.Error == nil || !result.HasFailures() {
 		t.Fatalf("rollback = %#v", rollback)
 	}
 }
 
-func TestPreparedClone_CallbackPanicPopulatesErr(t *testing.T) {
+func TestClone_CallbackPanicPopulatesErr(t *testing.T) {
 	want := errors.New("delivery")
-	result := prepareClone(&mock.Runner{}, CloneOptions{URL: "url", Location: "/tmp", Name: "project"}).run(func(progress.Event) { panic(want) })
+	result := Clone(&mock.Runner{}, CloneOptions{URL: "url", Location: "/tmp", Name: "project"}, func(progress.Event) { panic(want) })
 	if !errors.Is(result.Err, want) || len(result.Phases) != 0 {
 		t.Fatalf("result = %#v", result)
 	}
-}
-
-func TestPreparedClone_ResultMatchesCompletedStream(t *testing.T) {
-	prepared := prepareClone(&mock.Runner{}, CloneOptions{URL: "url", Location: "/tmp", Name: "project"})
-	for i := range prepared.operations {
-		prepared.operations[i].run = func() (string, error) { return "", nil }
-	}
-	var events []progress.Event
-	result := prepared.run(func(event progress.Event) { events = append(events, event) })
-	assertRepoStreamParity(t, events, result.Phases)
 }
 
 func assertRepoStreamParity(t *testing.T, events []progress.Event, phases []progress.Phase) {

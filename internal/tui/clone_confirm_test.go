@@ -216,7 +216,7 @@ func TestCloneConfirm_URLOnlyClonesIntoTheDerivedName(t *testing.T) {
 	updated, _ := m.updateCloneConfirm(ConfirmProceedMsg{})
 	drainRepoPipeline(t, updated.(Model))
 
-	want := location + ":[clone --bare git@github.com:user/myrepo.git " + filepath.Join(location, "myrepo", ".bare") + "]"
+	want := location + ":[clone --bare --single-branch -- git@github.com:user/myrepo.git " + filepath.Join(location, "myrepo", ".bare") + "]"
 	if !slices.Contains(runner.Calls, want) {
 		t.Errorf("git calls = %v, want the clone into the derived directory:\n%s", runner.Calls, want)
 	}

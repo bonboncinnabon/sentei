@@ -196,10 +196,7 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 		}
 
 	case "migrate":
-		model.SetMigrateOpts(&tui.MigrateOpts{
-			DeleteBackup: parsed.migrate.DeleteBackup,
-			RepoPath:     repoPath,
-		})
+		model.SetMigrateOpts(&tui.MigrateOpts{RepoPath: repoPath})
 	}
 
 	return runTUI(model)

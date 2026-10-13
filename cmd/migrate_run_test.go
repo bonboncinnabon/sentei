@@ -1,21 +1,11 @@
 package cmd
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/bonboncinnabon/sentei/internal/repo"
 )
-
-func TestMigrateResultErrorPropagatesContractError(t *testing.T) {
-	want := errors.New("delivery")
-	if got := migrateResultError(repo.MigrateResult{Err: want}); !errors.Is(got, want) {
-		t.Fatalf("error = %v", got)
-	}
-}
 
 func TestRunMigrate_ParseError(t *testing.T) {
 	err := RunMigrate([]string{"--no-such-flag"})
@@ -58,44 +48,53 @@ func TestRunMigrate_NotARepo(t *testing.T) {
 	}
 }
 
-func TestRunMigrate_FailsOnDetachedHead(t *testing.T) {
+func TestRunMigrate_RefusalNamesTheReasonAndLeavesTheRepository(t *testing.T) {
 	repoDir := setupNonBareRepo(t)
 	mustGit(t, repoDir, "checkout", "--detach")
 
 	var err error
-	stderr := captureStderr(t, func() {
-		captureStdout(t, func() {
-			err = RunMigrate([]string{repoDir})
-		})
+	captureStdout(t, func() {
+		err = RunMigrate([]string{repoDir})
 	})
 	if err == nil {
 		t.Fatal("expected error for detached HEAD")
 	}
-	if !strings.Contains(err.Error(), "migration failed during Validate phase") {
-		t.Errorf("unexpected error: %v", err)
+	for _, want := range []string{"migration failed", "HEAD is detached", "the repository is unchanged"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q missing %q", err, want)
+		}
 	}
-	if !strings.Contains(stderr, "detached HEAD") {
-		t.Errorf("expected detached HEAD step failure on stderr, got:\n%s", stderr)
+	if info, statErr := os.Stat(filepath.Join(repoDir, ".git")); statErr != nil || !info.IsDir() {
+		t.Errorf("the refused repository must keep its .git directory (err=%v)", statErr)
 	}
 }
 
-func TestRunMigrate_SuccessWithDeleteBackup(t *testing.T) {
+func TestRunMigrate_Success(t *testing.T) {
 	repoDir := setupNonBareRepo(t)
 
 	var err error
 	out := captureStdout(t, func() {
-		err = RunMigrate([]string{"--delete-backup", repoDir})
+		err = RunMigrate([]string{repoDir})
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(out, "Migration complete") {
-		t.Errorf("expected 'Migration complete', got:\n%s", out)
+	worktree := filepath.Join(repoDir, "main")
+	for _, want := range []string{"Migration complete", worktree} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
 	}
-	if !strings.Contains(out, "Backup deleted") {
-		t.Errorf("expected 'Backup deleted', got:\n%s", out)
+	if strings.Contains(strings.ToLower(out), "backup") {
+		t.Errorf("migrate makes no backup and must not mention one:\n%s", out)
 	}
 	if _, statErr := os.Stat(filepath.Join(repoDir, ".bare")); statErr != nil {
 		t.Errorf("expected .bare directory after migration: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(worktree, "README.md")); statErr != nil {
+		t.Errorf("expected the working tree inside the worktree: %v", statErr)
+	}
+	if siblings, _ := filepath.Glob(repoDir + "_backup_*"); len(siblings) != 0 {
+		t.Errorf("no backup directory may be left beside the repository: %v", siblings)
 	}
 }

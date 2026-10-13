@@ -248,7 +248,7 @@ func TestHelp_AllViewsProduceContent(t *testing.T) {
 		createBranchView, createOptionsView, createProgressView, createSummaryView,
 		repoNameView, repoOptionsView, repoProgressView, repoSummaryView,
 		cloneInputView, migrateConfirmView, migrateProgressView, migrateSummaryView,
-		migrateNextView, cleanupConfirmView,
+		cleanupConfirmView,
 		cleanupResultView, createConfirmView, cloneConfirmView,
 	}
 	for _, v := range views {
