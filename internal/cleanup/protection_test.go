@@ -16,7 +16,7 @@ func TestListNonWorktreeCandidates_ProtectsDetectedDefaultBranch(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		"/repo:[worktree list --porcelain]":                            {Output: "worktree /repo/.bare\nbare\n\nworktree /repo/feature\nHEAD abc123\nbranch refs/heads/feature"},
 		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "feature\ntrunk\nstale"},
-		"/repo:[symbolic-ref --short HEAD]":                            {Output: "trunk"},
+		"/repo:[symbolic-ref HEAD]":                                    {Output: "refs/heads/trunk"},
 	}}
 
 	got, err := listNonWorktreeCandidates(runner, "/repo", nil)

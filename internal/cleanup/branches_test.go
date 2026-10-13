@@ -32,8 +32,8 @@ func TestListGoneBranches(t *testing.T) {
 		refLine("trunk", "refs/remotes/origin/trunk", "[gone]", "/repo/.bare"),
 	}, "\n")
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		goneBranchCall:                      {Output: refs},
-		"/repo:[symbolic-ref --short HEAD]": {Output: "trunk"},
+		goneBranchCall:              {Output: refs},
+		"/repo:[symbolic-ref HEAD]": {Output: "refs/heads/trunk"},
 	}}
 
 	gone, kept, err := listGoneBranches(runner, "/repo", []string{"origin/pending"})
@@ -119,8 +119,8 @@ func TestDeleteGoneBranches(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			responses := map[string]mock.Response{
-				goneBranchCall:                      {Output: tt.refs},
-				"/repo:[symbolic-ref --short HEAD]": {Output: "main"},
+				goneBranchCall:              {Output: tt.refs},
+				"/repo:[symbolic-ref HEAD]": {Output: "refs/heads/main"},
 			}
 			for k, v := range tt.extraResponses {
 				responses[k] = v
@@ -149,7 +149,7 @@ func TestDeleteGoneBranches(t *testing.T) {
 func TestDeleteGoneBranches_FailureKeepsPartialResult(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		goneBranchCall:                                     {Output: goneRef("locked") + "\n" + goneRef("fine")},
-		"/repo:[symbolic-ref --short HEAD]":                {Output: "main"},
+		"/repo:[symbolic-ref HEAD]":                        {Output: "refs/heads/main"},
 		"/repo:[branch -d locked]":                         {Err: fmt.Errorf("cannot lock ref 'refs/heads/locked'")},
 		"/repo:[rev-parse --abbrev-ref locked@{upstream}]": {Err: fmt.Errorf("no upstream")},
 		"/repo:[merge-base --is-ancestor locked HEAD]":     {Output: ""},
@@ -213,7 +213,7 @@ func TestCleanNonWorktreeBranches(t *testing.T) {
 			runner := &mock.Runner{Responses: map[string]mock.Response{
 				"/repo:[worktree list --porcelain]":                            {Output: worktreeList},
 				"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: branchList},
-				"/repo:[symbolic-ref --short HEAD]":                            {Output: "main"},
+				"/repo:[symbolic-ref HEAD]":                                    {Output: "refs/heads/main"},
 				"/repo:[branch -d feature/old]":                                {Output: ""},
 				"/repo:[branch -d fix/stale]":                                  {Output: ""},
 				"/repo:[branch -D feature/old]":                                {Output: ""},
@@ -245,7 +245,7 @@ func TestCleanNonWorktreeBranches_UnmergedIsSkippedAndRemains(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		"/repo:[worktree list --porcelain]":                            {Output: "worktree /repo\nbare"},
 		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "main\nwip\ndone"},
-		"/repo:[symbolic-ref --short HEAD]":                            {Output: "main"},
+		"/repo:[symbolic-ref HEAD]":                                    {Output: "refs/heads/main"},
 		"/repo:[branch -d wip]":                                        {Err: fmt.Errorf("error: the branch 'wip' is not fully merged")},
 		"/repo:[rev-parse --abbrev-ref wip@{upstream}]":                {Err: fmt.Errorf("no upstream")},
 		"/repo:[merge-base --is-ancestor wip HEAD]":                    {Err: fmt.Errorf("exit status 1")},
@@ -273,9 +273,9 @@ func TestDeleteGoneBranches_ForceGatedByMode(t *testing.T) {
 
 	t.Run("safe+force keeps unmerged (uses -d, never -D)", func(t *testing.T) {
 		runner := &mock.Runner{Responses: map[string]mock.Response{
-			goneBranchCall:                                               {Output: refs},
-			"/repo:[symbolic-ref --short HEAD]":                          {Output: "main"},
-			"/repo:[branch -d feature/unmerged]":                         {Err: fmt.Errorf("error: branch not fully merged")},
+			goneBranchCall:                       {Output: refs},
+			"/repo:[symbolic-ref HEAD]":          {Output: "refs/heads/main"},
+			"/repo:[branch -d feature/unmerged]": {Err: fmt.Errorf("error: branch not fully merged")},
 			"/repo:[rev-parse --abbrev-ref feature/unmerged@{upstream}]": {Err: fmt.Errorf("no upstream")},
 			"/repo:[merge-base --is-ancestor feature/unmerged HEAD]":     {Err: fmt.Errorf("exit status 1")},
 			// -D is mocked to SUCCEED: if the code wrongly used it in safe mode,
@@ -295,7 +295,7 @@ func TestDeleteGoneBranches_ForceGatedByMode(t *testing.T) {
 	t.Run("aggressive+force force-deletes unmerged (uses -D)", func(t *testing.T) {
 		runner := &mock.Runner{Responses: map[string]mock.Response{
 			goneBranchCall:                       {Output: refs},
-			"/repo:[symbolic-ref --short HEAD]":  {Output: "main"},
+			"/repo:[symbolic-ref HEAD]":          {Output: "refs/heads/main"},
 			"/repo:[branch -D feature/unmerged]": {Output: "Deleted branch feature/unmerged"},
 		}}
 		events := collectEvents(t)
@@ -332,7 +332,7 @@ func TestCleanNonWorktreeBranches_LeavesOutWhatTheGoneStepDeleted(t *testing.T) 
 	runner := &mock.Runner{Responses: map[string]mock.Response{
 		"/repo:[worktree list --porcelain]":                            {Output: "worktree /repo\nbare"},
 		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "main\ngone/merged\nextra"},
-		"/repo:[symbolic-ref --short HEAD]":                            {Output: "main"},
+		"/repo:[symbolic-ref HEAD]":                                    {Output: "refs/heads/main"},
 	}}
 
 	result, err := CleanNonWorktreeBranches(runner, "/repo", nil, []string{"gone/merged"}, Options{Mode: ModeSafe, DryRun: true}, collectEvents(t).Emit)

@@ -12,9 +12,9 @@ import (
 // branch with a live upstream (feature/extra) and no origin remote.
 func dryRunMock() *mock.Runner {
 	return &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[rev-parse --git-dir]":       {Output: "/repo/.bare"},
-		"/repo:[remote]":                    {Output: ""},
-		"/repo:[symbolic-ref --short HEAD]": {Output: "main"},
+		"/repo:[rev-parse --git-dir]": {Output: "/repo/.bare"},
+		"/repo:[remote]":              {Output: ""},
+		"/repo:[symbolic-ref HEAD]":   {Output: "refs/heads/main"},
 		goneBranchCall: {Output: goneRef("feature/gone") + "\n" +
 			refLine("main", "refs/remotes/origin/main", "", "/repo/main") + "\n" +
 			refLine("feature/extra", "refs/remotes/origin/feature/extra", "", "")},
