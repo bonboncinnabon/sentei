@@ -23,7 +23,7 @@ func TestBuildRemovalPhases_StartCheckpointsMoveTheBar(t *testing.T) {
 	}
 	m.remove.run.events = append(m.remove.run.events, progress.Event{Phase: worktree.RemovalPhaseID, PhaseLabel: worktree.RemovalPhaseName, Close: true})
 
-	phases := m.buildRemovalPhases()
+	phases := progress.Snapshot(m.remove.run.events)
 	var removing progress.PhaseState
 	for _, p := range phases {
 		if p.Name == "Removing worktrees" {

@@ -342,3 +342,26 @@ func TestPortal_ScrollHintsOnlyWhenScrollable(t *testing.T) {
 		t.Errorf("scrollable content must offer scroll keys:\n%s", view)
 	}
 }
+
+// The help portal describes the view it was opened on. When a progress view
+// advances to its summary, the progress help must not stay over it.
+func TestPortal_HelpOpenedDuringProgressClosesWithTheProgressView(t *testing.T) {
+	m := NewModel(nil, nil, "/repo")
+	m.view = progressView
+	m.portal = m.portal.SetSize(80, 24)
+
+	updated, _ := m.Update(keyF1())
+	m = updated.(Model)
+	if !m.portal.Visible() {
+		t.Fatal("F1 did not open the help portal on the progress view")
+	}
+
+	updated, _ = m.Update(removalEventsCompleteMsg{})
+	m = settleNow(t, updated.(Model))
+	if m.view != summaryView {
+		t.Fatalf("view = %d, want the summary", m.view)
+	}
+	if m.portal.Visible() {
+		t.Errorf("the progress help is still open over the summary:\n%s", stripAnsi(m.View().Content))
+	}
+}

@@ -7,9 +7,9 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	progressbar "charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/stopwatch"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
@@ -30,8 +30,8 @@ type ProgressLayout struct {
 
 	// Bar, Elapsed, and ActiveGlyph are injected by the model's render path
 	// (animated spring bar, stopwatch readout, spinner frame). Left empty,
-	// View falls back to the static bar, no elapsed line, and the static
-	// active-indicator fallback: direct constructions stay pure.
+	// View falls back to the same bar drawn at rest, no elapsed line, and
+	// the static active-indicator fallback: direct constructions stay pure.
 	Bar         string
 	Elapsed     string
 	ActiveGlyph string
@@ -43,6 +43,9 @@ type ProgressLayout struct {
 	// Completed marks a flow whose result has arrived: phases that never
 	// discovered work render as skipped and stop counting as outstanding.
 	Completed bool
+
+	// QuitPrompt replaces the hint footer with the quit confirmation.
+	QuitPrompt bool
 }
 
 func (m Model) withProgressDetails(layout ProgressLayout) ProgressLayout {
@@ -89,9 +92,12 @@ func (l ProgressLayout) View() string {
 	}
 	width := max(l.Width, 1)
 	viewport := BuildProgressViewport(l.Phases, height, l.Completed)
-	bar := fitProgressLine(l.barLine(), width)
-	footer := fitProgressLine(viewFooter(width, l.Hints), width)
-	title := fitProgressLine(viewTitle(l.Title), width)
+	bar := truncateWithEllipsis(l.barLine(), width)
+	footer := truncateWithEllipsis(viewFooter(width, l.Hints), width)
+	if l.QuitPrompt {
+		footer = truncateWithEllipsis(viewFooterDanger(width, quitPromptFooter), width)
+	}
+	title := truncateWithEllipsis(viewTitle(l.Title), width)
 
 	if viewport.Tier == progressViewportEmergency {
 		switch height {
@@ -110,11 +116,11 @@ func (l ProgressLayout) View() string {
 	case progressViewportNormal:
 		lines = append(lines, title)
 		if l.Subtitle != "" {
-			lines = append(lines, fitProgressLine(styleAccent.Render("  "+l.Subtitle), width))
+			lines = append(lines, truncateWithEllipsis(styleAccent.Render("  "+l.Subtitle), width))
 		} else {
 			lines = append(lines, "")
 		}
-		lines = append(lines, fitProgressLine(viewSeparator(width), width), "")
+		lines = append(lines, truncateWithEllipsis(viewSeparator(width), width), "")
 		liveRows := viewport.DetailRows + len(viewport.History)
 		if viewport.HistoryOmitted > 0 {
 			liveRows++
@@ -123,9 +129,9 @@ func (l ProgressLayout) View() string {
 			liveRows++
 		}
 		lines = append(lines, padProgressLines(live, liveRows)...)
-		lines = append(lines, fitProgressLine(viewSeparator(width), width), "", bar, "", footer)
+		lines = append(lines, truncateWithEllipsis(viewSeparator(width), width), "", bar, "", footer)
 	case progressViewportCompact:
-		lines = append(lines, title, fitProgressLine(viewSeparator(width), width))
+		lines = append(lines, title, truncateWithEllipsis(viewSeparator(width), width))
 		lines = append(lines, padProgressLines(live, liveRegionRows(height, viewport.Tier))...)
 		lines = append(lines, bar, footer)
 	case progressViewportMinimal:
@@ -145,16 +151,16 @@ func (l ProgressLayout) View() string {
 func (l ProgressLayout) liveRegionLines(viewport ProgressViewport, width int) []string {
 	var lines []string
 	if viewport.HistoryOmitted > 0 {
-		lines = append(lines, fitProgressLine(styleDim.Render(fmt.Sprintf("  … %d earlier phases", viewport.HistoryOmitted)), width))
+		lines = append(lines, truncateWithEllipsis(styleDim.Render(fmt.Sprintf("  … %d earlier phases", viewport.HistoryOmitted)), width))
 	}
 	for _, phase := range viewport.History {
-		lines = append(lines, fitProgressLine(l.phaseHeadline(phase), width))
+		lines = append(lines, truncateWithEllipsis(l.phaseHeadline(phase), width))
 	}
 	if viewport.Focus != nil && viewport.DetailRows > 0 {
 		lines = append(lines, l.focusLines(*viewport.Focus, viewport.DetailRows, width)...)
 	}
 	if viewport.Queued > 0 {
-		lines = append(lines, fitProgressLine(styleDim.Render(fmt.Sprintf("  · %d %s waiting", viewport.Queued, pluralize(viewport.Queued, "phase", "phases"))), width))
+		lines = append(lines, truncateWithEllipsis(styleDim.Render(fmt.Sprintf("  · %d %s waiting", viewport.Queued, pluralize(viewport.Queued, "phase", "phases"))), width))
 	}
 	return lines
 }
@@ -163,13 +169,13 @@ func (l ProgressLayout) focusLines(phase progress.PhaseState, rows, width int) [
 	if rows <= 0 {
 		return nil
 	}
-	lines := []string{fitProgressLine(l.phaseHeadline(phase), width)}
+	lines := []string{truncateWithEllipsis(l.phaseHeadline(phase), width)}
 	window := WindowSteps(phase.Steps, rows-1)
 	for _, step := range window.Steps {
-		lines = append(lines, fitProgressLine(l.stepLine(step), width))
+		lines = append(lines, truncateWithEllipsis(l.stepLine(step), width))
 	}
 	if window.Windowed && len(lines) < rows {
-		lines = append(lines, fitProgressLine(viewStatLine(window.Stats, l.activeGlyph()), width))
+		lines = append(lines, truncateWithEllipsis(viewStatLine(window.Stats, l.activeGlyph()), width))
 	}
 	return lines[:min(len(lines), rows)]
 }
@@ -204,7 +210,9 @@ func (l ProgressLayout) stepLine(step progress.StepState) string {
 		return "    " + styleIndicatorDone.Render(indicatorDone) + " " + label
 	case progress.StepFailed:
 		if step.Error != nil {
-			label += ": " + step.Error.Error()
+			// One row per step: the error's last line says what went wrong,
+			// and the details portal carries the full text.
+			label += ": " + errorPeekLast(step.Error.Error(), max(l.Width, 1))
 		}
 		return "    " + styleIndicatorFailed.Render(indicatorFailed) + " " + label
 	case progress.StepSkipped:
@@ -238,20 +246,13 @@ func (l ProgressLayout) barLine() string {
 	} else if l.Completed {
 		pct = 100
 	}
-	if l.Width < minProgressBarWidth+progressBarPercentReserve+2 {
+	if l.Width < minProgressBarWidth+2 {
 		return fmt.Sprintf("  %d%%", pct)
 	}
-	return renderProgressBar(done, total, l.Width-2-progressBarPercentReserve)
-}
-
-func fitProgressLine(line string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if lipgloss.Width(line) <= width {
-		return line
-	}
-	return ansi.Truncate(line, width, "…")
+	bar := newOverallBar()
+	bar.EmptyColor = colorDim
+	bar.SetWidth(l.Width - 2)
+	return "  " + bar.ViewAs(float64(pct)/100)
 }
 
 func padProgressLines(lines []string, rows int) []string {
@@ -279,6 +280,13 @@ func newOverallBar() progressbar.Model {
 		// the bar retreating.
 		progressbar.WithSpringOptions(6, 1),
 	)
+}
+
+// newElapsedTicker constructs the repaint ticker behind the elapsed readout.
+// The interval is explicit because stopwatch.New leaves it at zero, and a
+// zero interval reschedules every tick immediately.
+func newElapsedTicker() stopwatch.Model {
+	return stopwatch.New(stopwatch.WithInterval(time.Second))
 }
 
 // determinateProgressActive reports whether a ProgressLayout-rendered flow
@@ -371,5 +379,6 @@ func (m Model) renderProgressLayout(l ProgressLayout) string {
 	if m.motionPreference == MotionFull {
 		l.Motion = m.motion()
 	}
+	l.QuitPrompt = m.quitPrompt && !l.Completed
 	return l.View()
 }

@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
-func Print(worktrees []git.Worktree, w io.Writer) error {
+// Print writes the worktree summary to w. defaultBranch is the repository's
+// detected default branch: its worktree is marked [P] like the built-in
+// protected names, because removal protects it the same way.
+func Print(worktrees []git.Worktree, defaultBranch string, w io.Writer) error {
 	sorted := make([]git.Worktree, len(worktrees))
 	copy(sorted, worktrees)
 	sort.SliceStable(sorted, func(a, b int) bool {
@@ -31,95 +33,22 @@ func Print(worktrees []git.Worktree, w io.Writer) error {
 		return err
 	}
 	for _, wt := range sorted {
-		branch := stripBranchPrefix(wt.Branch)
-		if branch == "" {
-			switch {
-			case wt.IsDetached:
-				branch = wt.HEAD
-				if len(branch) >= 7 {
-					branch = branch[:7]
-				}
-			case wt.IsPrunable:
-				branch = "(prunable)"
-			}
-		}
+		branch := worktree.Label(wt)
 
-		age := relativeTime(wt.LastCommitDate)
+		age := worktree.RelativeTime(wt.LastCommitDate)
 		subject := wt.LastCommitSubject
 		if wt.EnrichmentError != "" {
 			age = "error"
 			subject = wt.EnrichmentError
 		}
 
-		if git.IsProtectedBranch(wt.Branch) {
+		if git.IsProtectedBranchWith(wt.Branch, defaultBranch) {
 			branch += " [P]"
 		}
 
-		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", statusIndicator(wt), branch, age, subject); err != nil {
+		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", worktree.StatusBadge(wt), branch, age, subject); err != nil {
 			return err
 		}
 	}
 	return tw.Flush()
-}
-
-func statusIndicator(wt git.Worktree) string {
-	switch {
-	case wt.IsLocked:
-		return "[L]"
-	case wt.EnrichmentError != "":
-		// Unknown is not clean: the row must not read as [ok].
-		return "[?]"
-	case wt.HasUncommittedChanges:
-		return "[~]"
-	case wt.HasUntrackedFiles:
-		return "[!]"
-	default:
-		return "[ok]"
-	}
-}
-
-func stripBranchPrefix(ref string) string {
-	return strings.TrimPrefix(ref, "refs/heads/")
-}
-
-func relativeTime(t time.Time) string {
-	if t.IsZero() {
-		return "unknown"
-	}
-
-	d := time.Since(t)
-	switch {
-	case d < time.Minute:
-		return "just now"
-	case d < time.Hour:
-		m := int(d.Minutes())
-		if m == 1 {
-			return "1 minute ago"
-		}
-		return fmt.Sprintf("%d minutes ago", m)
-	case d < 24*time.Hour:
-		h := int(d.Hours())
-		if h == 1 {
-			return "1 hour ago"
-		}
-		return fmt.Sprintf("%d hours ago", h)
-	case d < 30*24*time.Hour:
-		days := int(d.Hours() / 24)
-		if days == 1 {
-			return "1 day ago"
-		}
-		return fmt.Sprintf("%d days ago", days)
-	case d < 365*24*time.Hour:
-		months := int(d.Hours() / 24 / 30)
-		if months == 1 {
-			return "1 month ago"
-		}
-		return fmt.Sprintf("%d months ago", months)
-	default:
-		years := int(d.Hours() / 24 / 365)
-		if years == 1 {
-			return "1 year ago"
-		}
-		return fmt.Sprintf("%d years ago", years)
-	}
 }

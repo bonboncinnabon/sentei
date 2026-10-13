@@ -9,38 +9,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/repo"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
-
-func TestUpdateProgress_CleanupErrorsFailResultAndAppearInSummary(t *testing.T) {
-	cleanupErr := errors.New("config cleanup failed")
-	m := NewModel(nil, nil, "/repo")
-	m.view = progressView
-	m.remove.run.progressCh = make(chan progress.Event, 8)
-	execution, err := progress.Start(progress.Plan{Phases: []progress.PlannedPhase{{
-		ID: cleanupPhaseID, Label: "Prune & cleanup",
-		Steps: []progress.PlannedStep{{ID: cleanupStepID, Label: "Repository cleanup"}},
-	}}}, func(event progress.Event) { m.remove.run.progressCh <- event })
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.remove.run.execution = execution
-
-	updated, _ := m.updateProgress(cleanupCompleteMsg{Result: cleanup.Result{Errors: []cleanup.OperationError{{Step: "config", Err: cleanupErr}}}})
-	m = updated.(Model)
-	if !errors.Is(m.remove.run.result.Err, cleanupErr) || !m.remove.run.result.HasFailures() {
-		t.Fatalf("cleanup failure classification = %+v", m.remove.run.result)
-	}
-	m.view = summaryView
-	view := stripANSI(m.viewSummary())
-	if !strings.Contains(view, "Cleanup failures") || !strings.Contains(view, "config cleanup failed") {
-		t.Fatalf("summary omitted cleanup error:\n%s", view)
-	}
-}
 
 func TestViewSummary_ExecutionFailureOverridesSuccessfulDeletionCopy(t *testing.T) {
 	m := NewModel(nil, nil, "/repo")
@@ -136,62 +109,49 @@ func TestUpdateProgress_DeletionsComplete_TriggersPrune(t *testing.T) {
 	}
 }
 
-func TestUpdateProgress_PruneComplete_ChainsCleanup(t *testing.T) {
+func TestUpdateProgress_PruneComplete_EndsTheRun(t *testing.T) {
 	m := NewModel([]git.Worktree{}, nil, "/repo")
 	m.view = progressView
 
-	updated, cmd := m.updateProgress(pruneCompleteMsg{Err: nil})
+	updated, _ := m.updateProgress(pruneCompleteMsg{Err: nil})
 	model := updated.(Model)
 
+	if !model.remove.run.pruned || model.remove.run.pruneErr != nil {
+		t.Errorf("run after a clean prune: pruned=%v pruneErr=%v, want true and nil", model.remove.run.pruned, model.remove.run.pruneErr)
+	}
+	if !model.removalLayout().Completed {
+		t.Error("the prune is the run's last work: the layout must read as completed")
+	}
 	if model.view == summaryView {
-		t.Error("should not transition to summaryView yet — cleanup should run first")
-	}
-	if cmd == nil {
-		t.Fatal("expected a Cmd from pruneCompleteMsg, got nil")
-	}
-	if model.remove.run.pruneErr == nil {
-		t.Fatal("expected pruneErr to be set (non-nil pointer)")
-	}
-	if *model.remove.run.pruneErr != nil {
-		t.Errorf("expected nil prune error, got %v", *model.remove.run.pruneErr)
+		t.Error("the summary must wait for the event stream to drain")
 	}
 }
 
-func TestUpdateProgress_CleanupComplete_TransitionsToSummary(t *testing.T) {
+func TestUpdateProgress_EventsComplete_TransitionsToSummary(t *testing.T) {
 	m := NewModel([]git.Worktree{}, nil, "/repo")
 	m.view = progressView
 
-	updated, _ := m.updateProgress(cleanupCompleteMsg{})
-	model := updated.(Model)
+	updated, _ := m.updateProgress(removalEventsCompleteMsg{})
+	model := settleNow(t, updated.(Model))
 
-	model = settleNow(t, model)
 	if model.view != summaryView {
 		t.Errorf("expected summaryView, got %d", model.view)
 	}
-	if model.remove.run.cleanupResult == nil {
-		t.Fatal("expected cleanupResult to be set")
-	}
 }
 
-func TestUpdateProgress_PruneFailed_ChainsCleanup(t *testing.T) {
+func TestUpdateProgress_PruneFailed_StaysOutOfTheResult(t *testing.T) {
 	m := NewModel([]git.Worktree{}, nil, "/repo")
 	m.view = progressView
 
 	pruneError := fmt.Errorf("permission denied")
-	updated, cmd := m.updateProgress(pruneCompleteMsg{Err: pruneError})
+	updated, _ := m.updateProgress(pruneCompleteMsg{Err: pruneError})
 	model := updated.(Model)
 
-	if model.view == summaryView {
-		t.Error("should not transition to summaryView yet — cleanup should run first")
+	if !errors.Is(model.remove.run.pruneErr, pruneError) {
+		t.Errorf("pruneErr = %v, want the prune error", model.remove.run.pruneErr)
 	}
-	if cmd == nil {
-		t.Fatal("expected a Cmd from pruneCompleteMsg, got nil")
-	}
-	if model.remove.run.pruneErr == nil {
-		t.Fatal("expected pruneErr to be set")
-	}
-	if *model.remove.run.pruneErr == nil {
-		t.Error("expected non-nil prune error")
+	if model.remove.run.result.HasFailures() {
+		t.Errorf("a failed prune marked the removal result as failed: %+v", model.remove.run.result)
 	}
 }
 
@@ -206,8 +166,7 @@ func TestViewSummary_PruneSuccess(t *testing.T) {
 			{Path: "/b", Success: true},
 		},
 	}
-	noErr := error(nil)
-	m.remove.run.pruneErr = &noErr
+	m.remove.run.pruned = true
 
 	output := stripAnsi(m.viewSummary())
 
@@ -229,8 +188,8 @@ func TestViewSummary_PruneFailure(t *testing.T) {
 			{Path: "/a", Success: true},
 		},
 	}
-	pruneError := fmt.Errorf("permission denied")
-	m.remove.run.pruneErr = &pruneError
+	m.remove.run.pruned = true
+	m.remove.run.pruneErr = fmt.Errorf("permission denied")
 
 	output := stripAnsi(m.viewSummary())
 
@@ -239,6 +198,12 @@ func TestViewSummary_PruneFailure(t *testing.T) {
 	}
 	if !strings.Contains(output, "permission denied") {
 		t.Error("should include the prune error message")
+	}
+	if !strings.Contains(output, "Run `git worktree prune`") {
+		t.Error("should say how to retry the prune")
+	}
+	if !strings.Contains(output, "1 worktree removed successfully") {
+		t.Errorf("a failed prune must not change the removal verdict:\n%s", output)
 	}
 }
 
