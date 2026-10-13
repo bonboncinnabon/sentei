@@ -127,6 +127,35 @@ func TestLoadConfig_EmptyCommandClearsInheritedInstall(t *testing.T) {
 	}
 }
 
+// The empty command is found in a second decode of the file and matched to
+// the first by position. An entry the decoder drops, or one that carries
+// other keys, must not shift the match.
+func TestLoadConfig_EmptyCommandClearsOnlyTheEntryThatWritesIt(t *testing.T) {
+	cfg, err := loadWithOverlays(t, "", `ecosystems:
+  -
+  - name: yarn
+    install:
+      parallel: true
+  - name: pnpm
+    install:
+      command: ""
+  - name: npm
+    env_files: []
+`)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if got := ecosystemNamed(t, cfg, "pnpm").Install.Command; got != "" {
+		t.Errorf("pnpm install = %q, want none: the repo config wrote an empty command", got)
+	}
+	for _, name := range []string{"yarn", "npm"} {
+		if ecosystemNamed(t, cfg, name).Install.Command == "" {
+			t.Errorf("%s install was cleared by the empty command written for pnpm", name)
+		}
+	}
+}
+
 func TestLoadConfig_AbsentOrNullCommandKeepsInheritedInstall(t *testing.T) {
 	for _, overlay := range []string{
 		"ecosystems:\n  - name: pnpm\n    env_files: []\n",
