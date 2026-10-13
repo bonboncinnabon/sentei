@@ -66,8 +66,8 @@ func TestRunCopiesConfiguredWorktreeFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/files]", repoRoot):          {Err: errors.New("missing")},
-		fmt.Sprintf("%s:[worktree add %s -b feature/files main]", repoRoot, worktreePath): {},
+		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/files]", repoRoot):             {Err: errors.New("missing")},
+		fmt.Sprintf("%s:[worktree add -b feature/files -- %s main]", repoRoot, worktreePath): {},
 	}}
 
 	result := Run(runner, runner, Options{
@@ -103,9 +103,9 @@ func TestRunWorktreeFileFailureDoesNotBlockIndependentSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/files]", repoRoot):          {Err: errors.New("missing")},
-		fmt.Sprintf("%s:[worktree add %s -b feature/files main]", repoRoot, worktreePath): {},
-		fmt.Sprintf("%s:shell[go mod download]", worktreePath):                            {},
+		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/files]", repoRoot):             {Err: errors.New("missing")},
+		fmt.Sprintf("%s:[worktree add -b feature/files -- %s main]", repoRoot, worktreePath): {},
+		fmt.Sprintf("%s:shell[go mod download]", worktreePath):                               {},
 	}}
 
 	result := Run(runner, runner, Options{

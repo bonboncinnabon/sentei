@@ -1,9 +1,6 @@
 package tui
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,7 +8,6 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/playground"
-	"github.com/bonboncinnabon/sentei/internal/testtmp"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
@@ -91,70 +87,6 @@ func TestViewConfirm_UntrackedFiles(t *testing.T) {
 	}
 }
 
-func TestConfirmDeletion_UnlocksLockedWorktrees(t *testing.T) {
-	tmp := testtmp.RobustTempDir(t)
-
-	run := func(dir string, args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Env = testtmp.HermeticGitEnv()
-		cmd.Dir = dir
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("git %v: %s", args, out)
-		}
-	}
-
-	repoPath := filepath.Join(tmp, "repo")
-	run(tmp, "init", "--bare", "--initial-branch=main", repoPath)
-	seed := filepath.Join(tmp, "_seed")
-	run(tmp, "clone", repoPath, seed)
-	run(seed, "config", "user.email", "test@test.com")
-	run(seed, "config", "user.name", "Test")
-	run(seed, "commit", "--allow-empty", "-m", "init")
-	run(seed, "push", "origin", "main")
-
-	wtPath := filepath.Join(tmp, "locked-wt")
-	run(repoPath, "worktree", "add", "-b", "locked-branch", wtPath)
-	run(repoPath, "worktree", "lock", wtPath)
-
-	runner := &git.GitRunner{}
-	worktrees, err := git.ListWorktrees(runner, repoPath)
-	if err != nil {
-		t.Fatalf("ListWorktrees: %v", err)
-	}
-	worktrees = worktree.EnrichWorktrees(runner, worktrees, 1)
-
-	m := NewModel(worktrees, runner, repoPath)
-	// Select only the locked worktree
-	for _, wt := range worktrees {
-		if wt.IsLocked {
-			m.remove.selected[wt.Path] = true
-		}
-	}
-	m.view = confirmView
-
-	// Send 'y' to confirm
-	model, cmd := m.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
-
-	model = pumpCmds(model, cmd)
-
-	// Verify: directory should be gone
-	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
-		t.Error("locked worktree directory should have been removed")
-	}
-
-	// Verify: git worktree list should not show the locked worktree
-	wtList := exec.Command("git", "-C", repoPath, "worktree", "list", "--porcelain")
-	wtList.Env = testtmp.HermeticGitEnv()
-	out, _ := wtList.CombinedOutput()
-	if strings.Contains(string(out), "locked-branch") {
-		t.Error("locked worktree should not appear in git worktree list after deletion and prune")
-	}
-
-	_ = model // silence unused variable warning
-}
-
 func TestPlayground_DeleteAll_IncludesLockedWorktree(t *testing.T) {
 	repoPath, cleanup, err := playground.Setup()
 	if err != nil {
@@ -189,11 +121,7 @@ func TestPlayground_DeleteAll_IncludesLockedWorktree(t *testing.T) {
 			m.remove.selected[wt.Path] = true
 		}
 	}
-	m.view = confirmView
-
-	// Confirm deletion
-	model, cmd := m.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
-	model = pumpCmds(model, cmd)
+	runRemoval(t, m)
 
 	// After deletion + prune, re-list worktrees
 	remaining, err := git.ListWorktrees(runner, repoPath)
@@ -209,8 +137,6 @@ func TestPlayground_DeleteAll_IncludesLockedWorktree(t *testing.T) {
 			t.Errorf("no locked worktrees should remain, found: %s", wt.Path)
 		}
 	}
-
-	_ = model // silence unused variable warning
 }
 
 func gateModel(wts []git.Worktree) Model {

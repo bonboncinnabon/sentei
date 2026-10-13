@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,6 +21,7 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/repo"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 // progressSettleProbeMsg is the completion settle's hard-timeout wake-up:
@@ -102,9 +104,13 @@ type removeState struct {
 	defaultBranch string // repo default branch; always protected from removal
 	// launchedFrom holds the paths of the worktrees containing the directory
 	// sentei was started in; they are protected from removal like a default branch.
-	launchedFrom   map[string]bool
-	selected       map[string]bool
-	milestone      int // power of ten crossed by the last run, 0 if none
+	launchedFrom map[string]bool
+	selected     map[string]bool
+	// preSelect holds the paths a `sentei remove` filter chose. They are
+	// selected when the worktree load lands, then the set is dropped.
+	preSelect map[string]bool
+	// loadErr is why the last worktree load failed, nil once one succeeds.
+	loadErr        error
 	visibleIndices []int
 	cursor         int
 	offset         int
@@ -137,11 +143,13 @@ type createState struct {
 	focusedField  int // 0 = branch, 1 = base
 	validationErr string
 
-	ecosystems    []config.EcosystemConfig
-	ecoEnabled    map[string]bool
-	mergeBase     bool
-	copyEnvFiles  bool
-	optionsCursor int
+	ecosystems   []config.EcosystemConfig
+	ecoEnabled   map[string]bool
+	mergeBase    bool
+	copyEnvFiles bool
+	// mergeDefaultFor is the branch name mergeBase was last defaulted for.
+	mergeDefaultFor string
+	optionsCursor   int
 
 	eventCh  chan progress.Event
 	resultCh chan creator.Result
@@ -158,12 +166,11 @@ type repoState struct {
 	validationErr string
 
 	// Options
-	createWorktree bool
-	publishGitHub  bool
-	visibility     string // "private" or "public"
-	descInput      textinput.Model
-	ghStatus       string // "authenticated", "not authenticated", "gh not found"
-	optionsCursor  int
+	publishGitHub bool
+	visibility    string // "private" or "public"
+	descInput     textinput.Model
+	ghStatus      string // "authenticated", "not authenticated", "gh not found"
+	optionsCursor int
 
 	// Clone fields
 	urlInput           textinput.Model
@@ -198,6 +205,7 @@ type Model struct {
 	menuItems          []menuItem
 	menuCursor         int
 	worktreeGeneration uint64 // Monotonic token passed to loadWorktreeContext; global handler discards mismatched responses.
+	loadedGeneration   uint64 // Generation of the last load that landed; behind worktreeGeneration while one is in flight.
 
 	cleanupOpts   *cleanup.Options
 	cleanupResult *cleanup.Result // standalone cleanup flow ("Cleanup & exit" / sentei cleanup)
@@ -218,10 +226,15 @@ type Model struct {
 	repo   repoState
 	portal DetailPortal
 
+	// quitPrompt is set by the first quit key during a running operation:
+	// the footer asks for a second one. Any key answers and clears it.
+	quitPrompt bool
+
 	// motionTick is the one animation clock: star frames and shimmer band
 	// positions derive from it as pure functions. The tick chain runs only
 	// while a working surface is visible (motionActive).
 	motionTick       int
+	motionChain      int // current tick chain; bumped whenever a new one starts
 	motionPreference MotionPreference
 
 	// bar springs the overall progress toward each completion target and
@@ -277,7 +290,7 @@ func NewModel(worktrees []git.Worktree, runner git.CommandRunner, repoPath strin
 		width:            80,
 		height:           20,
 		bar:              newOverallBar(),
-		watch:            stopwatch.New(),
+		watch:            newElapsedTicker(),
 		motionPreference: motionPreference(os.Getenv),
 	}
 	m.reindex()
@@ -357,7 +370,7 @@ func NewMenuModel(runner git.CommandRunner, shell git.ShellRunner, repoPath stri
 		menuItems:          items,
 		worktreeGeneration: initGeneration,
 		bar:                newOverallBar(),
-		watch:              stopwatch.New(),
+		watch:              newElapsedTicker(),
 		motionPreference:   motionPreference(os.Getenv),
 		remove: removeState{
 			selected:      make(map[string]bool),
@@ -460,12 +473,10 @@ func settledProgressTransitionCmd(token int) tea.Cmd {
 }
 
 func (m Model) completeProgressTransition() Model {
-	leavingProgress := m.determinateProgressActive()
 	m.progressTransitionPending = false
 	m.view = m.progressTargetView
-	if leavingProgress && m.portal.trigger == portalDetails {
-		m.portal = m.portal.Close()
-	}
+	// Details and help both describe the progress view that just ended.
+	m.portal = m.portal.Close()
 	// Leaving the progress view: discard the spring state so the next
 	// flow starts from zero, not easing down from 100%.
 	m.bar = newOverallBar()
@@ -483,18 +494,40 @@ func (m *Model) SetCleanupOpts(opts *cleanup.Options) {
 // list view. The filterLabel is displayed in the status bar to indicate what
 // filter produced the selection (e.g. "merged", "stale > 30d").
 func (m *Model) SetRemoveOpts(preSelection RemovePreSelection) {
-	pathSet := make(map[string]bool, len(preSelection.Paths))
+	m.remove.preSelect = make(map[string]bool, len(preSelection.Paths))
 	for _, p := range preSelection.Paths {
-		pathSet[p] = true
+		m.remove.preSelect[p] = true
 	}
-	for _, wt := range m.remove.worktrees {
-		if pathSet[wt.Path] {
-			m.remove.selected[wt.Path] = true
-		}
-	}
+	m.applyPreSelection()
 	m.remove.filterLabel = preSelection.FilterLabel
 	m.remove.cliCommand = preSelection.CLICommand
 	m.view = listView
+}
+
+// applyPreSelection selects the pre-selected worktrees that are loaded and
+// may be removed. Protection is decided here as everywhere else, whatever the
+// caller's filter let through.
+func (m *Model) applyPreSelection() {
+	for _, wt := range m.remove.worktrees {
+		if m.remove.preSelect[wt.Path] && !m.removalProtected(wt) {
+			m.remove.selected[wt.Path] = true
+		}
+	}
+}
+
+// dropStaleSelections deselects every path that is no longer listed or may
+// no longer be removed, so the selection never counts rows that are not there.
+func (m *Model) dropStaleSelections() {
+	selectable := make(map[string]bool, len(m.remove.worktrees))
+	for _, wt := range m.remove.worktrees {
+		selectable[wt.Path] = !m.removalProtected(wt)
+	}
+	maps.DeleteFunc(m.remove.selected, func(path string, _ bool) bool { return !selectable[path] })
+}
+
+// worktreesLoading reports whether a worktree-context load is in flight.
+func (m Model) worktreesLoading() bool {
+	return m.loadedGeneration != m.worktreeGeneration
 }
 
 // SetMigrateOpts sets the migrate options and starts at the migrate confirmation view.
@@ -507,19 +540,27 @@ func (m *Model) SetMigrateOpts(opts *MigrateOpts) {
 }
 
 func (m Model) Init() tea.Cmd {
-	if m.view == menuView && m.context == repo.ContextBareRepo {
-		if m.motionPreference == MotionOff {
-			return tea.Batch(tea.RequestBackgroundColor, loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration))
-		}
-		return tea.Batch(tea.RequestBackgroundColor, motionTickCmd(), loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration))
+	cmds := []tea.Cmd{tea.RequestBackgroundColor}
+	if m.motionActive() {
+		cmds = append(cmds, motionTickCmd(m.motionChain))
 	}
-	return tea.RequestBackgroundColor
+	// Every bare-repo entry point needs the worktrees, not only the menu: a
+	// direct `sentei remove` lists them, and any direct flow can end up on
+	// the menu.
+	if m.context == repo.ContextBareRepo {
+		cmds = append(cmds, loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration))
+	}
+	return tea.Batch(cmds...)
 }
 
 // indeterminateWaitActive reports whether a spinner-bearing wait is visible:
-// the cleanup scan or the menu worktree-context load.
+// the cleanup scan, the menu worktree-context load, or the list before its
+// first rows arrive.
 func (m Model) indeterminateWaitActive() bool {
 	if m.view == cleanupPreviewView && m.cleanupScan == nil {
+		return true
+	}
+	if m.view == listView && m.listAwaitingRows() {
 		return true
 	}
 	if m.view == menuView {
@@ -551,21 +592,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if ms, ok := msg.(milestoneMsg); ok {
-		// Handled globally: the hold may have expired and advanced the view
-		// to the summary before the recording command finished.
-		m.remove.milestone = ms.Crossed
-		return m, nil
-	}
-
 	if ctx, ok := msg.(worktreeContextMsg); ok {
-		if ctx.generation == m.worktreeGeneration && ctx.err == nil {
+		if ctx.generation != m.worktreeGeneration {
+			return m, nil
+		}
+		m.loadedGeneration = ctx.generation
+		m.remove.loadErr = ctx.err
+		if ctx.err == nil {
 			m.remove.worktrees = ctx.worktrees
 			m.remove.defaultBranch = ctx.defaultBranch
 			m.remove.launchedFrom = ctx.launchedFrom
+			m.applyPreSelection()
+			m.remove.preSelect = nil
+			m.dropStaleSelections()
 			m.reindex()
-			m.updateMenuHints()
 		}
+		m.updateMenuHints()
 		return m, nil
 	}
 
@@ -576,6 +618,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = size.Width
 		m.windowHeight = max(size.Height, 0)
 		m.height = max(size.Height-viewChromeRows, 5)
+		m.clampListWindow()
 		m.bar.SetWidth(overallBarWidth(size.Width))
 		return m, nil
 	}
@@ -611,8 +654,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	if _, ok := msg.(motionTickMsg); ok {
-		if !m.motionActive() {
+	if tick, ok := msg.(motionTickMsg); ok {
+		if tick.chain != m.motionChain || !m.motionActive() {
 			return m, nil
 		}
 		previousView := m.view
@@ -625,7 +668,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.view != previousView || !m.motionActive() {
 			return m, nil
 		}
-		return m, motionTickCmd()
+		return m, motionTickCmd(m.motionChain)
 	}
 
 	if bg, ok := msg.(tea.BackgroundColorMsg); ok {
@@ -633,6 +676,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			applyPalette(lightPalette)
 		}
 		return m, nil
+	}
+
+	// Quitting is decided here, before the portal and the views see the key.
+	// Bubble Tea delivers ctrl+c as an ordinary key press, so it quits only
+	// where something handles it: this covers every view, the portal and
+	// every focused text input. While an operation runs, a quit would stop
+	// it where it stands, so the first quit key only asks.
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		inFlight := m.operationInFlight()
+		prompted := inFlight && m.quitPrompt
+		m.quitPrompt = false
+		switch {
+		case prompted:
+			if key.Matches(keyMsg, keys.Quit) {
+				return m, tea.Quit
+			}
+			return m, nil
+		case inFlight && key.Matches(keyMsg, keys.Quit):
+			m.quitPrompt = true
+			m.portal = m.portal.Close()
+			return m, nil
+		case key.Matches(keyMsg, keys.Interrupt):
+			return m, tea.Quit
+		}
 	}
 
 	if m.portal.Visible() {
@@ -677,7 +744,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if !wasMoving && model.motionActive() {
-			return model, tea.Batch(cmd, motionTickCmd())
+			model.motionChain++
+			return model, tea.Batch(cmd, motionTickCmd(model.motionChain))
 		}
 		return model, cmd
 	}
@@ -767,7 +835,20 @@ func (m Model) View() tea.View {
 	return v
 }
 
+// operationInFlight reports whether work is running that a quit would stop
+// midway: a progress flow whose result has not arrived, or a cleanup run.
+func (m Model) operationInFlight() bool {
+	if layout, ok := m.activeProgressLayout(); ok {
+		return !layout.Completed
+	}
+	return m.view == cleanupResultView && m.cleanupResult == nil
+}
+
 func (m Model) viewContent() string {
+	if m.view == cleanupResultView && m.quitPrompt && m.operationInFlight() {
+		// The running-cleanup frame has no footer of its own to replace.
+		return m.viewCleanupResult() + "\n" + truncateWithEllipsis(viewFooterDanger(m.width, quitPromptFooter), m.width) + "\n"
+	}
 	switch m.view {
 	case menuView:
 		return m.viewMenu()
@@ -831,7 +912,7 @@ func (m *Model) reindex() {
 	var indices []int
 	for i, wt := range m.remove.worktrees {
 		if filterLower != "" {
-			branch := strings.ToLower(stripBranchPrefix(wt.Branch))
+			branch := strings.ToLower(worktree.ShortBranch(wt.Branch))
 			if !strings.Contains(branch, filterLower) {
 				continue
 			}
@@ -862,8 +943,8 @@ func (m *Model) reindex() {
 			return wa.LastCommitDate.After(wb.LastCommitDate)
 
 		case SortByBranch:
-			ba := strings.ToLower(stripBranchPrefix(wa.Branch))
-			bb := strings.ToLower(stripBranchPrefix(wb.Branch))
+			ba := strings.ToLower(worktree.ShortBranch(wa.Branch))
+			bb := strings.ToLower(worktree.ShortBranch(wb.Branch))
 			if sortAsc {
 				return ba < bb
 			}
@@ -875,16 +956,24 @@ func (m *Model) reindex() {
 	})
 
 	m.remove.visibleIndices = indices
+	m.clampListWindow()
+}
 
-	if m.remove.cursor >= len(m.remove.visibleIndices) {
-		m.remove.cursor = max(len(m.remove.visibleIndices)-1, 0)
-	}
-	if m.remove.offset > m.remove.cursor {
-		m.remove.offset = m.remove.cursor
-	}
-	if m.remove.cursor >= m.remove.offset+m.height && m.height > 0 {
-		m.remove.offset = m.remove.cursor - m.height + 1
-	}
+// listRows is how many worktree rows the list can show: the shared body
+// height less the chrome only the list draws.
+func (m Model) listRows() int {
+	return max(m.height-listExtraChromeRows, 1)
+}
+
+// clampListWindow puts the cursor on a row, scrolls the window to contain it
+// and stops the window running past the end of the list. Everything that
+// moves the cursor, changes the rows or resizes the terminal ends here.
+func (m *Model) clampListWindow() {
+	rows, height := len(m.remove.visibleIndices), m.listRows()
+	m.remove.cursor = max(min(m.remove.cursor, rows-1), 0)
+	m.remove.offset = min(m.remove.offset, m.remove.cursor)
+	m.remove.offset = max(m.remove.offset, m.remove.cursor-height+1)
+	m.remove.offset = max(min(m.remove.offset, rows-height), 0)
 }
 
 // flowIdentity names the live operation in its two voices: a sentence form
@@ -909,9 +998,16 @@ func (m Model) flowIdentity() (sentence, verb string) {
 	return "", ""
 }
 
-// InterruptedFlow names the operation in flight when the model is still on a
-// progress view, used by main to leave a stderr trace after a mid-flow quit.
+// InterruptedFlow names the operation a quit stopped midway, or returns ""
+// when nothing was running. main uses it to leave a stderr trace. A flow
+// that finished and was only holding its last frame was not interrupted.
 func (m Model) InterruptedFlow() string {
+	if !m.operationInFlight() {
+		return ""
+	}
+	if m.view == cleanupResultView {
+		return "repository cleanup"
+	}
 	sentence, _ := m.flowIdentity()
 	return sentence
 }

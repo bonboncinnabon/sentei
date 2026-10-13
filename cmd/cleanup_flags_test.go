@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseCleanupFlags_ModeOnly(t *testing.T) {
-	opts, err := ParseCleanupFlags([]string{"--mode", "safe"})
+	opts, _, err := ParseCleanupFlags([]string{"--mode", "safe"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -21,7 +21,7 @@ func TestParseCleanupFlags_ModeOnly(t *testing.T) {
 }
 
 func TestParseCleanupFlags_Aggressive(t *testing.T) {
-	opts, err := ParseCleanupFlags([]string{"--mode", "aggressive"})
+	opts, _, err := ParseCleanupFlags([]string{"--mode", "aggressive"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestParseCleanupFlags_Aggressive(t *testing.T) {
 func TestParseCleanupFlags_Force(t *testing.T) {
 	// The dispatcher re-injects the global --force here ("one --force does both"),
 	// so it must reach cleanup.Options.Force.
-	opts, err := ParseCleanupFlags([]string{"--mode", "aggressive", "--force"})
+	opts, _, err := ParseCleanupFlags([]string{"--mode", "aggressive", "--force"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestParseCleanupFlags_Force(t *testing.T) {
 }
 
 func TestParseCleanupFlags_DryRun(t *testing.T) {
-	opts, err := ParseCleanupFlags([]string{"--mode", "safe", "--dry-run"})
+	opts, _, err := ParseCleanupFlags([]string{"--mode", "safe", "--dry-run"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestParseCleanupFlags_DryRun(t *testing.T) {
 }
 
 func TestParseCleanupFlags_InvalidMode(t *testing.T) {
-	_, err := ParseCleanupFlags([]string{"--mode", "invalid"})
+	_, _, err := ParseCleanupFlags([]string{"--mode", "invalid"})
 	if err == nil {
 		t.Fatal("expected error for invalid mode")
 	}
@@ -63,7 +63,7 @@ func TestParseCleanupFlags_InvalidMode(t *testing.T) {
 }
 
 func TestParseCleanupFlags_NoFlags(t *testing.T) {
-	opts, err := ParseCleanupFlags([]string{})
+	opts, _, err := ParseCleanupFlags([]string{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -88,5 +88,29 @@ func TestValidateCleanupForNonInteractive_Valid(t *testing.T) {
 	err := ValidateCleanupForNonInteractive(opts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseCleanupFlags_RepoPath(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"no args", nil, "."},
+		{"flags only", []string{"--mode", "safe", "--dry-run"}, "."},
+		{"positional only", []string{"/some/repo"}, "/some/repo"},
+		{"flags then positional", []string{"--mode", "safe", "/some/repo"}, "/some/repo"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, got, err := ParseCleanupFlags(tt.args)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("repo path for %v = %q, want %q", tt.args, got, tt.want)
+			}
+		})
 	}
 }

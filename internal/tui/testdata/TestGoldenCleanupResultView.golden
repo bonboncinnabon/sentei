@@ -4,8 +4,8 @@
 
   [38;5;42m✦[m Pruned 2 stale remote refs
   [38;5;42m✦[m Deleted 1 branch with gone upstream
-  [38;5;241m·[m No config duplicates
   [38;5;241m·[m No orphaned config sections
+  [38;5;241m·[m No duplicate config lines
   [38;5;241m·[m No stale worktrees
 
 [38;5;241m  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄[m

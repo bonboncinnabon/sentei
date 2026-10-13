@@ -3,17 +3,15 @@ package config
 import (
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 func parseWorktreeFilesConfig(t *testing.T, input string) Config {
 	t.Helper()
-	var cfg Config
-	if err := yaml.Unmarshal([]byte(input), &cfg); err != nil {
-		t.Fatalf("yaml.Unmarshal() error: %v", err)
+	cfg, err := parse([]byte(input))
+	if err != nil {
+		t.Fatalf("parse() error: %v", err)
 	}
-	return cfg
+	return *cfg
 }
 
 func TestWorktreeFilesUnmarshal(t *testing.T) {

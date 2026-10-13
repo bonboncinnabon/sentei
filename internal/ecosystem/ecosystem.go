@@ -1,7 +1,9 @@
 package ecosystem
 
 import (
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
@@ -50,15 +52,18 @@ func (r *Registry) All() []Ecosystem {
 }
 
 // matchesAny reports whether any of the given glob patterns matches at least
-// one regular file inside dir.
+// one regular file inside dir. Patterns are matched within dir as a file
+// system root, so glob characters in dir itself ("fix[1]") are literal and a
+// pattern cannot reach outside dir.
 func matchesAny(dir string, patterns []string) bool {
+	root := os.DirFS(dir)
 	for _, pattern := range patterns {
-		matches, err := filepath.Glob(filepath.Join(dir, pattern))
+		matches, err := fs.Glob(root, path.Clean(filepath.ToSlash(pattern)))
 		if err != nil {
 			continue
 		}
 		for _, match := range matches {
-			info, err := os.Stat(match)
+			info, err := fs.Stat(root, match)
 			if err == nil && !info.IsDir() {
 				return true
 			}

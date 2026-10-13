@@ -14,10 +14,9 @@ import (
 )
 
 type optionItem struct {
-	label       string
-	description string
-	hint        string
-	key         string
+	label string
+	hint  string
+	key   string
 }
 
 const worktreeFilesLabel = "Worktree files:"
@@ -223,11 +222,6 @@ func (m Model) viewCreateOptions() string {
 			b.WriteString("  " + checkbox + " " + item.label + hint)
 		}
 		b.WriteString("\n")
-
-		if item.description != "" {
-			b.WriteString("        " + styleDim.Render(item.description))
-			b.WriteString("\n")
-		}
 	}
 
 	b.WriteString("\n")

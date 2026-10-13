@@ -84,6 +84,9 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Confirm):
 			if m.menuCursor >= 0 && m.menuCursor < len(m.menuItems) && m.menuItems[m.menuCursor].enabled {
 				label := m.menuItems[m.menuCursor].label
+				// The repo screens share this field: none may open showing
+				// an error another one left behind.
+				m.repo.validationErr = ""
 				switch label {
 				case "Create new worktree":
 					m = m.withCreateFlowReset()
@@ -92,7 +95,7 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case menuRemoveWorktrees:
 					m.view = listView
 					m.remove.selected = make(map[string]bool)
-					if len(m.remove.worktrees) == 0 {
+					if len(m.remove.worktrees) == 0 || m.remove.loadErr != nil {
 						m.worktreeGeneration++
 						return m, loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration)
 					}
@@ -102,7 +105,6 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.repo.nameInput.SetValue("")
 					m.repo.locationInput.SetValue(m.repoPath)
 					m.repo.focusedField = 0
-					m.repo.validationErr = ""
 					m.view = repoNameView
 					return m, m.repo.nameInput.Focus()
 				case "Clone repository as bare":
@@ -132,13 +134,16 @@ func (m *Model) updateMenuHints() {
 		if item.label != menuRemoveWorktrees {
 			continue
 		}
-		count := len(m.remove.worktrees)
-		item.hint = "none"
-		if count > 0 {
-			item.hint = fmt.Sprintf("%d available", count)
-		}
-		item.enabled = count > 0
 		item.loading = false
+		switch count := len(m.remove.worktrees); {
+		case m.remove.loadErr != nil:
+			// Selectable on purpose: entering the list loads again.
+			item.hint, item.enabled = "could not load, enter to retry", true
+		case count > 0:
+			item.hint, item.enabled = fmt.Sprintf("%d available", count), true
+		default:
+			item.hint, item.enabled = "none", false
+		}
 	}
 }
 

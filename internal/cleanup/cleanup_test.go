@@ -2,8 +2,7 @@ package cleanup
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -15,75 +14,42 @@ func collectEvents(t *testing.T) *mock.EventCollector[Event] {
 	return &mock.EventCollector[Event]{}
 }
 
-func TestResolveConfigPath(t *testing.T) {
-	tests := []struct {
-		name       string
-		commonDir  string
-		wantSuffix string
-	}{
-		{
-			name:       "absolute path (bare repo)",
-			commonDir:  "/repo/.bare",
-			wantSuffix: "/repo/.bare/config",
-		},
-		{
-			name:       "relative path (normal repo)",
-			commonDir:  ".git",
-			wantSuffix: ".git/config",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			runner := &mock.Runner{Responses: map[string]mock.Response{
-				"/repo:[rev-parse --git-common-dir]": {Output: tt.commonDir},
-			}}
-
-			path, err := resolveConfigPath(runner, "/repo")
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if !strings.HasSuffix(path, tt.wantSuffix) {
-				t.Errorf("path = %q, want suffix %q", path, tt.wantSuffix)
-			}
-		})
-	}
-}
-
-func setupOrchestratorTest(t *testing.T) (*mock.Runner, string) {
-	t.Helper()
-	tmpDir := t.TempDir()
-	bareDir := filepath.Join(tmpDir, ".bare")
-	os.MkdirAll(bareDir, 0755)
-
-	configData, _ := os.ReadFile(filepath.Join("testdata", "bloated.gitconfig"))
-	configPath := filepath.Join(bareDir, "config")
-	os.WriteFile(configPath, configData, 0644)
-
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		tmpDir + ":[rev-parse --git-common-dir]":          {Output: bareDir},
-		tmpDir + ":[remote]":                              {Output: "origin"},
-		tmpDir + ":[remote prune origin --dry-run]":       {Output: ""},
-		tmpDir + ":[fetch --prune origin]":                {Output: ""},
-		tmpDir + ":[branch -vv]":                          {Output: "  main abc123 [origin/main] latest"},
-		tmpDir + ":[worktree list --porcelain]":           {Output: "worktree " + tmpDir + "\nbare\n\nworktree " + tmpDir + "/main\nHEAD abc\nbranch refs/heads/main"},
-		tmpDir + ":[branch --format=%(refname:lstrip=2)]": {Output: "main\nfeature/old"},
+// orchestratorMock answers every git call a clean safe run makes: main in a
+// worktree, feature/old in none, an origin with nothing stale, one config
+// section for a branch that no longer exists and one repeated config line.
+func orchestratorMock() *mock.Runner {
+	return &mock.Runner{Responses: map[string]mock.Response{
+		"/repo:[rev-parse --git-dir]":                                  {Output: "/repo/.bare"},
+		"/repo:[remote]":                                               {Output: "origin"},
+		"/repo:[remote prune origin --dry-run]":                        {Output: ""},
+		"/repo:[fetch --prune origin]":                                 {Output: ""},
+		"/repo:[symbolic-ref --short HEAD]":                            {Output: "main"},
+		goneBranchCall:                                                 {Output: refLine("main", "refs/remotes/origin/main", "", "/repo/main") + "\n" + refLine("feature/old", "", "", "")},
+		"/repo:[worktree list --porcelain]":                            {Output: "worktree /repo/.bare\nbare\n\nworktree /repo/main\nHEAD abc\nbranch refs/heads/main"},
+		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "main\nfeature/old"},
+		"/repo:[config --local --name-only --list]":                    {Output: "core.bare\nbranch.main.remote\nbranch.ghost.remote\nbranch.ghost.merge"},
+		"/repo:[config --local --remove-section branch.ghost]":         {Output: ""},
+		"/repo:[config --local --null --list]":                         {Output: "core.bare\ntrue\x00branch.main.vscode-merge-base\norigin/main\x00branch.main.vscode-merge-base\norigin/main\x00"},
+		"/repo:[config --local --fixed-value --replace-all branch.main.vscode-merge-base origin/main origin/main]": {Output: ""},
 	}}
-
-	return runner, tmpDir
 }
 
 func TestRun_SafeMode(t *testing.T) {
-	runner, repoPath := setupOrchestratorTest(t)
-	events := collectEvents(t)
+	runner := orchestratorMock()
 
-	result := Run(runner, repoPath, Options{Mode: ModeSafe}, events.Emit)
+	result := Run(runner, "/repo", Options{Mode: ModeSafe}, collectEvents(t).Emit)
 
-	if result.NonWtBranchesDeleted != 0 {
-		t.Error("safe mode should not delete non-worktree branches")
+	if len(result.NonWtBranchesDeleted) != 0 {
+		t.Errorf("safe mode deleted non-worktree branches: %v", result.NonWtBranchesDeleted)
 	}
-	if result.NonWtBranchesRemaining == 0 {
-		t.Error("safe mode should still count remaining non-worktree branches")
+	if result.NonWtBranchesRemaining != 1 {
+		t.Errorf("NonWtBranchesRemaining = %d, want 1", result.NonWtBranchesRemaining)
+	}
+	if result.ConfigOrphanResult.Removed != 1 {
+		t.Errorf("ConfigOrphanResult.Removed = %d, want 1", result.ConfigOrphanResult.Removed)
+	}
+	if result.ConfigDedupResult.Removed != 1 {
+		t.Errorf("ConfigDedupResult.Removed = %d, want 1", result.ConfigDedupResult.Removed)
 	}
 	if len(result.Errors) > 0 {
 		t.Errorf("unexpected errors: %v", result.Errors)
@@ -91,38 +57,72 @@ func TestRun_SafeMode(t *testing.T) {
 }
 
 func TestRun_AggressiveMode(t *testing.T) {
-	runner, repoPath := setupOrchestratorTest(t)
-	runner.Responses[repoPath+":[branch -d feature/old]"] = mock.Response{Output: "Deleted"}
-	events := collectEvents(t)
+	runner := orchestratorMock()
+	runner.Responses["/repo:[branch -d feature/old]"] = mock.Response{Output: "Deleted"}
 
-	result := Run(runner, repoPath, Options{Mode: ModeAggressive}, events.Emit)
+	result := Run(runner, "/repo", Options{Mode: ModeAggressive}, collectEvents(t).Emit)
 
-	if result.NonWtBranchesDeleted == 0 {
-		t.Error("aggressive mode should delete non-worktree branches")
+	if want := []string{"feature/old"}; !slices.Equal(result.NonWtBranchesDeleted, want) {
+		t.Errorf("NonWtBranchesDeleted = %v, want %v", result.NonWtBranchesDeleted, want)
+	}
+}
+
+func TestRun_DryRunIssuesNoMutatingCall(t *testing.T) {
+	runner := orchestratorMock()
+	runner.Responses["/repo:[remote prune origin --dry-run]"] = mock.Response{Output: " * [would prune] origin/gone"}
+
+	result := Run(runner, "/repo", Options{Mode: ModeAggressive, Force: true, DryRun: true}, collectEvents(t).Emit)
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+	assertNoMutatingCall(t, runner)
+	if result.StaleRefsRemoved != 1 || len(result.NonWtBranchesDeleted) != 1 || result.ConfigOrphanResult.Removed != 1 || result.ConfigDedupResult.Removed != 1 {
+		t.Errorf("a dry run must still report what a real run would do, got %+v", result)
+	}
+}
+
+func assertNoMutatingCall(t *testing.T, runner *mock.Runner) {
+	t.Helper()
+	readOnly := []string{
+		"/repo:[rev-parse ", "/repo:[remote]", "/repo:[remote prune origin --dry-run]", "/repo:[symbolic-ref ",
+		"/repo:[for-each-ref ", "/repo:[worktree list ", "/repo:[config --local --name-only --list]",
+		"/repo:[config --local --null --list]",
+		"/repo:[merge-base ", "/repo:[show-ref ",
+	}
+	for _, call := range runner.Calls {
+		if !slices.ContainsFunc(readOnly, func(prefix string) bool { return strings.HasPrefix(call, prefix) }) {
+			t.Errorf("issued a git call that is not known to be read-only: %s", call)
+		}
 	}
 }
 
 func TestRun_ErrorContinues(t *testing.T) {
-	runner, repoPath := setupOrchestratorTest(t)
-	runner.Responses[repoPath+":[remote prune origin --dry-run]"] = mock.Response{Err: fmt.Errorf("network error")}
-	events := collectEvents(t)
+	runner := orchestratorMock()
+	runner.Responses["/repo:[remote prune origin --dry-run]"] = mock.Response{Err: fmt.Errorf("network error")}
 
-	result := Run(runner, repoPath, Options{Mode: ModeSafe}, events.Emit)
+	result := Run(runner, "/repo", Options{Mode: ModeSafe}, collectEvents(t).Emit)
 
-	if len(result.Errors) == 0 {
-		t.Error("expected errors to be recorded")
+	if stepError(result.Errors, "prune-refs") == nil {
+		t.Errorf("expected a prune-refs error, got %v", result.Errors)
 	}
-	foundPruneError := false
-	for _, e := range result.Errors {
-		if e.Step == "prune-refs" {
-			foundPruneError = true
-		}
+	if result.ConfigOrphanResult.Removed != 1 {
+		t.Error("the later steps must still run after prune-refs failed")
 	}
-	if !foundPruneError {
-		t.Error("expected prune-refs error to be recorded")
+}
+
+func TestRun_NotARepository(t *testing.T) {
+	runner := &mock.Runner{Responses: map[string]mock.Response{
+		"/repo:[rev-parse --git-dir]": {Err: fmt.Errorf("fatal: not a git repository")},
+	}}
+
+	result := Run(runner, "/repo", Options{Mode: ModeSafe}, collectEvents(t).Emit)
+
+	if len(result.Errors) != 1 || result.Errors[0].Step != "repository" {
+		t.Errorf("Errors = %v, want one repository error", result.Errors)
 	}
-	if result.ConfigDedupResult.Before == 0 {
-		t.Error("config dedup should have run despite prune failure")
+	if len(runner.Calls) != 1 {
+		t.Errorf("no step may run outside a repository, calls: %v", runner.Calls)
 	}
 }
 

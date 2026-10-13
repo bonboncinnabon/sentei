@@ -50,6 +50,32 @@ func TestParseStaleDuration_Invalid(t *testing.T) {
 	}
 }
 
+// A count whose day total does not fit a time.Duration used to wrap around:
+// 213504d became about 25 minutes, so nearly every worktree looked stale.
+func TestParseStaleDuration_RejectsOverflow(t *testing.T) {
+	for _, input := range []string{"213504d", "106752d", "15251w", "3559m", "9223372036854775807m", "99999999999999999999d"} {
+		t.Run(input, func(t *testing.T) {
+			d, err := ParseStaleDuration(input)
+			if err == nil {
+				t.Fatalf("ParseStaleDuration(%q) = %v, want an error", input, d)
+			}
+			if !strings.Contains(err.Error(), "too large") {
+				t.Errorf("error %q should say the duration is too large", err)
+			}
+		})
+	}
+}
+
+func TestParseStaleDuration_AcceptsLargestRepresentable(t *testing.T) {
+	d, err := ParseStaleDuration("106751d")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := 106751 * 24 * time.Hour; d != want {
+		t.Errorf("got %v, want %v", d, want)
+	}
+}
+
 func TestParseRemoveFlags_MergedOnly(t *testing.T) {
 	opts, err := ParseRemoveFlags([]string{"--merged"})
 	if err != nil {

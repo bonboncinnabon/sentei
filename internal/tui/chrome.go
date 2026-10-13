@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // footerHelp renders footers from key bindings; its styles are wired to the
@@ -97,22 +98,30 @@ func footerHints(budget int, bindings []key.Binding) string {
 	return out
 }
 
-// truncateWithEllipsis cuts s to fit width, replacing the overflow with a
-// trailing `…`. The only sanctioned way to fit overflowing paths, branch
-// names, and error text — chrome content must never hard-clip at the
-// terminal edge.
+// truncateWithEllipsis cuts s to fit width display cells, replacing the
+// overflow with a trailing `…`. It measures what the terminal draws: styled
+// text keeps its escape sequences whole and wide runes count as two cells.
+// The only sanctioned way to fit overflowing paths, branch names, and error
+// text. Chrome content must never hard-clip at the terminal edge.
 func truncateWithEllipsis(s string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) <= width {
-		return s
+	return ansi.Truncate(s, width, "…")
+}
+
+// fitLines truncates every line of view to width cells. Views call it last,
+// so a terminal narrower than their content shows ellipses instead of rows
+// that wrap and push the rest of the frame down. Width 0 means unknown.
+func fitLines(view string, width int) string {
+	if width <= 0 {
+		return view
 	}
-	if width == 1 {
-		return "…"
+	lines := strings.Split(view, "\n")
+	for i, line := range lines {
+		lines[i] = truncateWithEllipsis(line, width)
 	}
-	return string(runes[:width-1]) + "…"
+	return strings.Join(lines, "\n")
 }
 
 // viewStatLine renders the windowing legend: per-status counts (zero counts
@@ -135,29 +144,6 @@ func viewStatLine(stats WindowStats, activeGlyph string) string {
 	legend := strings.Join(parts, "  ")
 	showing := styleDim.Render(fmt.Sprintf("  showing %d of %d", stats.Showing, stats.Total))
 	return "    " + legend + showing
-}
-
-// renderProgressBar renders the static fallback bar at the given cell width:
-// accent-colored fill, dim track, percentage in the default foreground.
-// Inputs are clamped so done > total can never produce a negative repeat
-// count or a percentage above 100.
-func renderProgressBar(done, total, width int) string {
-	width = max(width, minProgressBarWidth)
-	pct := 0
-	if total > 0 {
-		pct = (done * 100) / total
-	}
-	if pct > 100 {
-		pct = 100
-	}
-	filled := 0
-	if total > 0 {
-		filled = (done * width) / total
-	}
-	filled = min(max(filled, 0), width)
-	fill := styleAccent.Render(strings.Repeat("█", filled))
-	track := styleDim.Render(strings.Repeat("░", width-filled))
-	return fmt.Sprintf("  %s%s %d%%", fill, track, pct)
 }
 
 // inputFieldLabel renders a form field's label line: accent while the

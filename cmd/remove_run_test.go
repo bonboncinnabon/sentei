@@ -76,13 +76,26 @@ func TestRunRemove_NoFilters(t *testing.T) {
 }
 
 func TestRunRemove_RequiresBareRepo(t *testing.T) {
-	dir := t.TempDir()
-	err := RunRemove([]string{"--all", dir})
-	if err == nil {
-		t.Fatal("expected error for non-bare path")
+	tests := []struct {
+		name     string
+		dir      string
+		detected string
+	}{
+		{"not a repository", t.TempDir(), "detected: no repository"},
+		{"regular repository", setupNonBareRepo(t), "detected: regular repository"},
 	}
-	if !strings.Contains(err.Error(), "remove requires a bare repository") {
-		t.Errorf("unexpected error: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := RunRemove([]string{"--all", tt.dir})
+			if err == nil {
+				t.Fatal("expected error for non-bare path")
+			}
+			for _, want := range []string{"remove requires a bare repository", tt.detected} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q missing %q", err, want)
+				}
+			}
+		})
 	}
 }
 
@@ -146,6 +159,45 @@ func TestRunRemove_DryRunWarnsAboutDirtyWorktrees(t *testing.T) {
 	}
 }
 
+// A script reads the preview to decide whether to pass --force, so a match
+// the real run refuses must be marked, and the preview must say that the run
+// is refused as a whole.
+func TestRunRemove_DryRunSaysWhatTheRealRunRefuses(t *testing.T) {
+	bareRepo := setupBareRepoWithMergedBranch(t)
+	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
+	mustGit(t, bareRepo, "worktree", "lock", wtPath)
+	lockFile := filepath.Join(bareRepo, "worktrees", "feature-merged-branch", "locked")
+
+	var err error
+	out := captureStdout(t, func() {
+		err = RunRemove([]string{"--all", "--dry-run", bareRepo})
+	})
+	if err != nil {
+		t.Fatalf("a dry run is never refused: %v", err)
+	}
+	for _, want := range []string{"feature/merged-branch", "(locked)", "Without --force nothing is removed", "1 worktree(s) are at risk"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("preview missing %q:\n%s", want, out)
+		}
+	}
+
+	out = captureStdout(t, func() {
+		err = RunRemove([]string{"--all", "--dry-run", "--force", bareRepo})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "(locked)") {
+		t.Errorf("preview with --force must still mark the locked worktree:\n%s", out)
+	}
+	if strings.Contains(out, "nothing is removed") {
+		t.Errorf("with --force the real run is not refused:\n%s", out)
+	}
+	if _, statErr := os.Stat(lockFile); statErr != nil {
+		t.Errorf("a dry run must leave the lock in place: %v", statErr)
+	}
+}
+
 func TestRunRemove_RemovesMergedWorktree(t *testing.T) {
 	bareRepo := setupBareRepoWithMergedBranch(t)
 
@@ -165,17 +217,35 @@ func TestRunRemove_RemovesMergedWorktree(t *testing.T) {
 	}
 }
 
-func TestRunRemove_UnlocksLockedWorktree(t *testing.T) {
+// A lock is a deliberate "keep this" marker, so a clean locked worktree is
+// held back by the at-risk gate exactly as the TUI holds it for confirmation.
+func TestRunRemove_LockedWorktreeNeedsForce(t *testing.T) {
 	bareRepo := setupBareRepoWithMergedBranch(t)
 	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
-	mustGit(t, bareRepo, "worktree", "lock", wtPath)
+	mustGit(t, bareRepo, "worktree", "lock", "--reason", "on a removable drive", wtPath)
+	lockFile := filepath.Join(bareRepo, "worktrees", "feature-merged-branch", "locked")
 
-	var err error
+	err := RunRemove([]string{"--all", bareRepo})
+	if err == nil {
+		t.Fatal("expected the at-risk gate to refuse a locked worktree without --force")
+	}
+	for _, want := range []string{"locked", "--force", "feature/merged-branch"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("gate error %q missing %q", err, want)
+		}
+	}
+	if _, statErr := os.Stat(wtPath); statErr != nil {
+		t.Errorf("the gate must leave the locked worktree in place: %v", statErr)
+	}
+	if reason, readErr := os.ReadFile(lockFile); readErr != nil || !strings.Contains(string(reason), "on a removable drive") {
+		t.Errorf("the gate must leave the lock in place: reason %q, err %v", reason, readErr)
+	}
+
 	captureStdout(t, func() {
-		err = RunRemove([]string{"--merged", bareRepo})
+		err = RunRemove([]string{"--all", "--force", bareRepo})
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("--force must unlock and remove the worktree: %v", err)
 	}
 	if _, statErr := os.Stat(wtPath); !os.IsNotExist(statErr) {
 		t.Errorf("expected locked worktree %s to be unlocked and removed", wtPath)

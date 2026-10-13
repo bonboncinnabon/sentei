@@ -24,12 +24,12 @@ jobs:
     steps:
       # Per-run installation token from the sentei-release-bot GitHub App:
       # nothing expires on a calendar, and PRs/tags it creates trigger CI.
-      - uses: actions/create-github-app-token@v3
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
         with:
           app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-      - uses: googleapis/release-please-action@v5
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release
         with:
           config-file: release-please-config.json
@@ -44,7 +44,7 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/create-github-app-token@v3
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
         with:
           app-id: ${{ vars.RELEASE_APP_ID }}
@@ -52,39 +52,18 @@ jobs:
           owner: bonboncinnabon
           repositories: sentei,homebrew-tap
 
-      - name: Probe release API with the app token
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          TOKEN: ${{ steps.app-token.outputs.token }}
-          TAG: ${{ inputs.tag }}
-        run: |
-          set -euo pipefail
-          rel=$(curl -s -H "Authorization: token $TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$TAG")
-          rel_id=$(printf '%s' "$rel" | jq -r '.id // empty')
-          test -n "$rel_id" || { echo "::error::GET release by tag failed"; printf '%s\n' "$rel"; exit 1; }
-          for scheme in token Bearer; do
-            u=$(curl -s -o /tmp/u -w '%{http_code}' -H "Authorization: $scheme $TOKEN" https://api.github.com/user)
-            i=$(curl -s -o /tmp/i -w '%{http_code}' -H "Authorization: $scheme $TOKEN" https://api.github.com/installation/repositories)
-            c=$(curl -s -o /tmp/probe -w '%{http_code}' -X PATCH \
-              -H "Authorization: $scheme $TOKEN" -H "Accept: application/vnd.github+json" \
-              -d '{"draft":false}' \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/$rel_id")
-            echo "scheme=$scheme  GET /user: $u  GET /installation/repositories: $i  PATCH release: $c"
-            if [ "$c" != "200" ]; then echo "-- PATCH body:"; cat /tmp/probe; echo "-- /installation/repositories body:"; head -c 300 /tmp/i; echo; fi
-          done
-          jq -e '.total_count >= 1' /tmp/i >/dev/null || exit 1
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.sha }}
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: sigstore/cosign-installer@v3
-      - uses: goreleaser/goreleaser-action@v7
+      - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
-          version: latest
+          # Any GoReleaser 2.x: a new major must be adopted on purpose.
+          version: "~> v2"
           args: release --clean
         env:
           # App token here too: the Actions GITHUB_TOKEN started 401-ing on

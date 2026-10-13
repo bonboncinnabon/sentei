@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"github.com/bonboncinnabon/sentei/internal/cleanup"
-	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
@@ -19,17 +17,13 @@ type removalRun struct {
 	events     []progress.Event
 	targets    []worktree.RemovalTarget
 
-	pruneErr      *error
-	cleanupResult *cleanup.Result
-}
-
-type unlockOperation struct {
-	stepID   progress.StepID
-	worktree git.Worktree
+	// pruned is set once the closing `git worktree prune` has returned,
+	// which ends the run's work. pruneErr is its error, if it had one.
+	pruned   bool
+	pruneErr error
 }
 
 type removalPreparation struct {
-	plan      progress.Plan
-	unlockOps []unlockOperation
-	targets   []worktree.RemovalTarget
+	plan    progress.Plan
+	targets []worktree.RemovalTarget
 }

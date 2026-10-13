@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"path/filepath"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -24,7 +23,7 @@ func TestModel_PasteRoutesFocusedFields(t *testing.T) {
 		}
 	})
 
-	t.Run("repository name preserves location derivation", func(t *testing.T) {
+	t.Run("repository name leaves the location field alone", func(t *testing.T) {
 		m := repoNameModel("/repo")
 
 		updated, _ := m.Update(tea.PasteMsg{Content: "project"})
@@ -33,8 +32,8 @@ func TestModel_PasteRoutesFocusedFields(t *testing.T) {
 		if got := model.repo.nameInput.Value(); got != "project" {
 			t.Errorf("name = %q, want project", got)
 		}
-		if got := model.repo.locationInput.Value(); got != filepath.Join("/repo", "project") {
-			t.Errorf("location = %q, want derived project path", got)
+		if got := model.repo.locationInput.Value(); got != "/repo" {
+			t.Errorf("location = %q, want the launch directory untouched", got)
 		}
 	})
 

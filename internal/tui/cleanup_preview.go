@@ -29,6 +29,7 @@ func (m Model) startCleanupScan() (Model, tea.Cmd) {
 	m.view = cleanupPreviewView
 	m.cleanupScan = nil
 	m.cleanupScanPending = nil
+	m.cleanupScanErr = nil
 	m.cleanupAggressiveConfirm = false
 	m.progressStartedAt = time.Now()
 	m.progressToken++
@@ -72,7 +73,7 @@ func (m Model) updateCleanupPreview(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.cleanupAggressiveConfirm {
 			switch {
 			case key.Matches(msg, keys.Yes):
-				return m.startCleanupRun(cleanup.ModeAggressive)
+				return m.startCleanupRun(cleanup.Options{Mode: cleanup.ModeAggressive})
 			case key.Matches(msg, keys.No), key.Matches(msg, keys.Back):
 				m.cleanupAggressiveConfirm = false
 				return m, nil
@@ -94,7 +95,12 @@ func (m Model) updateCleanupPreview(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cleanupScan == nil {
 				return m, nil
 			}
-			return m.startCleanupRun(cleanup.ModeSafe)
+			// With nothing to clean the footer offers enter as "back".
+			if cleanupScanIsClean(*m.cleanupScan) {
+				m.view = menuView
+				return m, nil
+			}
+			return m.startCleanupRun(cleanup.Options{Mode: cleanup.ModeSafe})
 
 		case key.Matches(msg, keys.All):
 			// The gate opens only when aggressive mode would actually delete
@@ -108,13 +114,11 @@ func (m Model) updateCleanupPreview(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// startCleanupRun executes cleanup in the given mode, reusing the standalone
-// cleanup result view for progress and outcome.
-func (m Model) startCleanupRun(mode cleanup.Mode) (tea.Model, tea.Cmd) {
-	m.view = cleanupResultView
-	m.cleanupResult = nil
-	m.cleanupRanMode = mode
-	return m, runCleanupWithOpts(m.runner, m.repoPath, cleanup.Options{Mode: mode})
+// cleanupScanIsClean reports whether the scan checked everything and found
+// nothing to do. A scan with a failed check is never clean: what that check
+// would have found is unknown.
+func cleanupScanIsClean(scan cleanup.DryRunResult) bool {
+	return !scan.SafeHasWork() && !scan.AggressiveHasWork() && len(scan.Errors) == 0
 }
 
 func (m Model) viewCleanupPreview() string {
@@ -145,15 +149,13 @@ func (m Model) viewCleanupPreview() string {
 		return b.String()
 	}
 
-	if !scan.SafeHasWork() && !scan.AggressiveHasWork() {
+	safeCounts := [...]int{scan.StaleRefs, len(scan.GoneBranches), scan.OrphanedConfigs, scan.ConfigDuplicates, scan.PrunableWorktrees}
+
+	if cleanupScanIsClean(*scan) {
 		fmt.Fprintf(&b, "  %s Repository is clean\n\n", styleIndicatorDone.Render(indicatorDone))
 		// Show what was checked: the user should learn what cleanup covers
 		// before running it, not after.
-		writePreviewLine(&b, 0, "stale remote %s would be pruned", "ref", "refs", "No stale remote refs")
-		writePreviewLine(&b, 0, "%s with gone upstream would be deleted", "branch", "branches", "No branches with gone upstream")
-		writePreviewLine(&b, 0, "config %s would be removed", "duplicate", "duplicates", "No config duplicates")
-		writePreviewLine(&b, 0, "orphaned config %s would be removed", "section", "sections", "No orphaned config sections")
-		writePreviewLine(&b, 0, "stale %s would be pruned", "worktree", "worktrees", "No stale worktrees")
+		writeSafeChecks(&b, safeCounts, false, nil)
 		b.WriteString("\n")
 		b.WriteString(viewSeparator(m.width))
 		b.WriteString("\n\n")
@@ -162,13 +164,16 @@ func (m Model) viewCleanupPreview() string {
 		return b.String()
 	}
 
+	if failed := len(scan.Errors); failed > 0 {
+		fmt.Fprintf(&b, "  %s\n", styleWarning.Render(fmt.Sprintf("%s Scan incomplete: %d %s failed",
+			indicatorWarning, failed, pluralize(failed, "check", "checks"))))
+		writeCleanupErrors(&b, scan.Errors, m.width)
+		b.WriteString("\n")
+	}
+
 	b.WriteString(styleTitle.Render("  Safe cleanup:"))
 	b.WriteString("\n")
-	writePreviewLine(&b, scan.StaleRefs, "stale remote %s would be pruned", "ref", "refs", "No stale remote refs")
-	writePreviewLine(&b, len(scan.GoneBranches), "%s with gone upstream would be deleted", "branch", "branches", "No branches with gone upstream")
-	writePreviewLine(&b, scan.ConfigDuplicates, "config %s would be removed", "duplicate", "duplicates", "No config duplicates")
-	writePreviewLine(&b, scan.OrphanedConfigs, "orphaned config %s would be removed", "section", "sections", "No orphaned config sections")
-	writePreviewLine(&b, scan.PrunableWorktrees, "stale %s would be pruned", "worktree", "worktrees", "No stale worktrees")
+	writeSafeChecks(&b, safeCounts, false, scan.Errors)
 	b.WriteString("\n")
 
 	if scan.AggressiveHasWork() {
@@ -239,15 +244,89 @@ func (m Model) viewCleanupPreview() string {
 	return b.String()
 }
 
-// writePreviewLine renders one safe-cleanup category: a done-indicator action
-// line when count > 0, a dim informational line otherwise.
-func writePreviewLine(b *strings.Builder, count int, actionFormat, singular, plural, noneText string) {
-	if count > 0 {
-		action := fmt.Sprintf(actionFormat, pluralize(count, singular, plural))
-		fmt.Fprintf(b, "  %s %d %s\n", styleAccent.Render(indicatorWouldAct), count, action)
-		return
+// cleanupCheck is one category of work cleanup looks for, worded for the two
+// vocabularies that list it: what a run would do (the preview and a dry-run
+// result) and what a run did. One table for both screens keeps their wording
+// and their order in step.
+type cleanupCheck struct {
+	step             string // the cleanup step that produces the count
+	would            string // takes the noun: "stale remote %s would be pruned"
+	did              string // takes the count and the noun: "Pruned %d stale remote %s"
+	singular, plural string
+	none             string // shown when the step ran and found nothing
+}
+
+var (
+	// safeChecks are the checks every cleanup makes, in display order.
+	safeChecks = [...]cleanupCheck{
+		{"prune-refs", "stale remote %s would be pruned", "Pruned %d stale remote %s", "ref", "refs", "No stale remote refs"},
+		{"gone-branches", "%s with gone upstream would be deleted", "Deleted %d %s with gone upstream", "branch", "branches", "No branches with gone upstream"},
+		{"orphaned-configs", "orphaned config %s would be removed", "Removed %d orphaned config %s", "section", "sections", "No orphaned config sections"},
+		{"dedup-config", "duplicate config %s would be removed", "Removed %d duplicate config %s", "line", "lines", "No duplicate config lines"},
+		{"worktree-prune", "stale %s would be pruned", "Pruned %d stale %s", "worktree", "worktrees", "No stale worktrees"},
 	}
-	fmt.Fprintf(b, "  %s %s\n", styleIndicatorPending.Render(indicatorPending), styleDim.Render(noneText))
+	// aggressiveCheck is the one check only aggressive mode acts on.
+	aggressiveCheck = cleanupCheck{"non-wt-branches", "%s not in any worktree would be deleted", "Deleted %d %s not in any worktree", "branch", "branches", ""}
+)
+
+// line renders the check for count findings: in the past tense with the done
+// indicator when did is set, as a would-act line otherwise.
+func (c cleanupCheck) line(count int, did bool) string {
+	noun := pluralize(count, c.singular, c.plural)
+	switch {
+	case count > 0 && did:
+		return fmt.Sprintf("  %s %s\n", styleIndicatorDone.Render(indicatorDone), fmt.Sprintf(c.did, count, noun))
+	case count > 0:
+		return fmt.Sprintf("  %s %d %s\n", styleAccent.Render(indicatorWouldAct), count, fmt.Sprintf(c.would, noun))
+	case did:
+		return fmt.Sprintf("  %s %s\n", styleIndicatorPending.Render(indicatorPending), c.none)
+	default:
+		return fmt.Sprintf("  %s %s\n", styleIndicatorPending.Render(indicatorPending), styleDim.Render(c.none))
+	}
+}
+
+// writeSafeChecks renders safeChecks with their counts, given in the same
+// order. A check whose step failed and reported nothing is left out: its
+// count is unknown, and the failure is listed by writeCleanupErrors.
+func writeSafeChecks(b *strings.Builder, counts [len(safeChecks)]int, did bool, errs []cleanup.OperationError) {
+	for i, check := range safeChecks {
+		if counts[i] == 0 && cleanupStepFailed(errs, check.step) {
+			continue
+		}
+		b.WriteString(check.line(counts[i], did))
+	}
+}
+
+func cleanupStepFailed(errs []cleanup.OperationError, step string) bool {
+	for _, e := range errs {
+		if e.Step == step {
+			return true
+		}
+	}
+	return false
+}
+
+// writeCleanupErrors lists the failed steps, one row per failure. The reason
+// is wrapped, not cut: its end is where git says what went wrong. Only the
+// first line of a multi-line git error is shown; it names the command and the
+// cause.
+func writeCleanupErrors(b *strings.Builder, errs []cleanup.OperationError, width int) {
+	for _, e := range errs {
+		// A step that deletes branches joins one failure per branch.
+		failures := []error{e.Err}
+		if joined, ok := e.Err.(interface{ Unwrap() []error }); ok {
+			failures = joined.Unwrap()
+		}
+		for _, failure := range failures {
+			reason := ""
+			if lines := nonEmptyLines(failure.Error()); len(lines) > 0 {
+				reason = lines[0]
+			}
+			prefix := fmt.Sprintf("  %s %s: ", styleIndicatorFailed.Render(indicatorFailed), e.Step)
+			// An unknown width (no size message yet) falls back like viewSeparator.
+			writeProgressDetailValue(b, prefix, styleError.Render(reason), max(width, 40))
+		}
+	}
 }
 
 // cleanupDetailContent renders the full aggressive branch list for the

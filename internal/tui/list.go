@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 const (
@@ -22,52 +23,6 @@ const (
 	colAge      = 4
 )
 
-func relativeTime(t time.Time) string {
-	if t.IsZero() {
-		return "unknown"
-	}
-
-	d := time.Since(t)
-	switch {
-	case d < time.Minute:
-		return "just now"
-	case d < time.Hour:
-		m := int(d.Minutes())
-		if m == 1 {
-			return "1 minute ago"
-		}
-		return fmt.Sprintf("%d minutes ago", m)
-	case d < 24*time.Hour:
-		h := int(d.Hours())
-		if h == 1 {
-			return "1 hour ago"
-		}
-		return fmt.Sprintf("%d hours ago", h)
-	case d < 30*24*time.Hour:
-		days := int(d.Hours() / 24)
-		if days == 1 {
-			return "1 day ago"
-		}
-		return fmt.Sprintf("%d days ago", days)
-	case d < 365*24*time.Hour:
-		months := int(d.Hours() / 24 / 30)
-		if months == 1 {
-			return "1 month ago"
-		}
-		return fmt.Sprintf("%d months ago", months)
-	default:
-		years := int(d.Hours() / 24 / 365)
-		if years == 1 {
-			return "1 year ago"
-		}
-		return fmt.Sprintf("%d years ago", years)
-	}
-}
-
-func stripBranchPrefix(ref string) string {
-	return strings.TrimPrefix(ref, "refs/heads/")
-}
-
 // removalProtected reports whether wt can never be selected for removal: a
 // protected branch, or a worktree holding the directory sentei was launched
 // from (removing it would leave the user's shell in a directory that no
@@ -76,20 +31,21 @@ func (m Model) removalProtected(wt git.Worktree) bool {
 	return git.IsProtectedBranchWith(wt.Branch, m.remove.defaultBranch) || m.remove.launchedFrom[wt.Path]
 }
 
+// statusIndicator renders the worktree's status badge in its status color.
 func statusIndicator(wt git.Worktree) string {
-	switch {
-	case wt.IsLocked:
-		return styleStatusLocked.Render("[L]")
-	case wt.EnrichmentError != "":
-		// Unknown is not clean: the row must not read as [ok].
-		return styleWarning.Render("[?]")
-	case wt.HasUncommittedChanges:
-		return styleStatusDirty.Render("[~]")
-	case wt.HasUntrackedFiles:
-		return styleStatusUntracked.Render("[!]")
-	default:
-		return styleStatusClean.Render("[ok]")
+	badge := worktree.StatusBadge(wt)
+	style := styleStatusClean
+	switch badge {
+	case "[L]":
+		style = styleStatusLocked
+	case "[?]":
+		style = styleWarning
+	case "[~]":
+		style = styleStatusDirty
+	case "[!]":
+		style = styleStatusUntracked
 	}
+	return style.Render(badge)
 }
 
 func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -151,25 +107,12 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.listCursorUp()
 
 		case key.Matches(msg, keys.PageDown):
-			m.remove.cursor += m.height
-			if m.remove.cursor >= len(m.remove.visibleIndices) {
-				m.remove.cursor = len(m.remove.visibleIndices) - 1
-			}
-			if m.remove.cursor < 0 {
-				m.remove.cursor = 0
-			}
-			if m.remove.cursor >= m.remove.offset+m.height {
-				m.remove.offset = m.remove.cursor - m.height + 1
-			}
+			m.remove.cursor += m.listRows()
+			m.clampListWindow()
 
 		case key.Matches(msg, keys.PageUp):
-			m.remove.cursor -= m.height
-			if m.remove.cursor < 0 {
-				m.remove.cursor = 0
-			}
-			if m.remove.cursor < m.remove.offset {
-				m.remove.offset = m.remove.cursor
-			}
+			m.remove.cursor -= m.listRows()
+			m.clampListWindow()
 
 		case key.Matches(msg, keys.Toggle):
 			if len(m.remove.visibleIndices) > 0 {
@@ -238,24 +181,16 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 // listCursorDown moves the cursor one row down, scrolling the window when it
 // passes the bottom edge. Shared by the j/down keys and the mouse wheel.
 func (m Model) listCursorDown() Model {
-	if m.remove.cursor < len(m.remove.visibleIndices)-1 {
-		m.remove.cursor++
-		if m.remove.cursor >= m.remove.offset+m.height {
-			m.remove.offset = m.remove.cursor - m.height + 1
-		}
-	}
+	m.remove.cursor++
+	m.clampListWindow()
 	return m
 }
 
 // listCursorUp moves the cursor one row up, scrolling the window when it
 // passes the top edge. Shared by the k/up keys and the mouse wheel.
 func (m Model) listCursorUp() Model {
-	if m.remove.cursor > 0 {
-		m.remove.cursor--
-		if m.remove.cursor < m.remove.offset {
-			m.remove.offset = m.remove.cursor
-		}
-	}
+	m.remove.cursor--
+	m.clampListWindow()
 	return m
 }
 
@@ -286,6 +221,10 @@ func (m Model) updateFilterInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) viewList() string {
+	return fitLines(m.renderList(), m.width)
+}
+
+func (m Model) renderList() string {
 	var b strings.Builder
 
 	b.WriteString(viewTitle(titleList))
@@ -295,6 +234,24 @@ func (m Model) viewList() string {
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 
+	if m.listAwaitingRows() {
+		fmt.Fprintf(&b, "  %s\n", shimmerLine(starFrame(m.motionTick)+" Loading worktrees…", rampDim, m.motionTick))
+		return b.String()
+	}
+	if err := m.remove.loadErr; err != nil && len(m.remove.worktrees) == 0 {
+		fmt.Fprintf(&b, "  %s %s\n", styleIndicatorFailed.Render(indicatorFailed), styleError.Render("Could not load worktrees"))
+		// The reason wraps instead of truncating: git's own message ends the
+		// error chain, and this view has no details portal to hold the rest.
+		reason := ansi.Wrap(strings.Join(nonEmptyLines(err.Error()), "\n"), max(m.width-4, 20), "")
+		for _, line := range strings.Split(reason, "\n") {
+			// A wrapped line keeps the space it broke at, one cell past the limit.
+			b.WriteString("    " + styleError.Render(strings.TrimRight(line, " ")) + "\n")
+		}
+		b.WriteString("\n")
+		b.WriteString(styleDim.Render("  Press esc for the menu, then choose Remove worktrees to try again."))
+		b.WriteString("\n")
+		return b.String()
+	}
 	if len(m.remove.worktrees) == 0 {
 		b.WriteString(styleDim.Render("  No worktrees found."))
 		b.WriteString("\n")
@@ -310,7 +267,7 @@ func (m Model) viewList() string {
 		return b.String()
 	}
 
-	end := min(m.remove.offset+m.height, len(m.remove.visibleIndices))
+	end := min(m.remove.offset+m.listRows(), len(m.remove.visibleIndices))
 
 	arrow := " ▲"
 	if !m.remove.sortAscending {
@@ -392,9 +349,9 @@ func (m Model) viewList() string {
 
 		status := statusIndicator(wt)
 
-		branch := worktreeLabel(wt)
+		branch := worktree.Label(wt)
 
-		age := relativeTime(wt.LastCommitDate)
+		age := worktree.RelativeTime(wt.LastCommitDate)
 		subject := wt.LastCommitSubject
 		if wt.EnrichmentError != "" {
 			age = "error"
@@ -478,10 +435,21 @@ func (m Model) viewList() string {
 	return b.String()
 }
 
+// listAwaitingRows reports whether the list has nothing to show yet because
+// its worktrees are still loading, which is not the same as having none.
+func (m Model) listAwaitingRows() bool {
+	return len(m.remove.worktrees) == 0 && m.worktreesLoading()
+}
+
 func (m Model) viewStatusOrFilter() string {
 	if m.remove.filterActive {
-		// The filter keeps the chrome margin like every other line.
-		return "  " + m.remove.filterInput.View()
+		// The filter keeps the chrome margin like every other line, and
+		// scrolls inside what is left of the row: the terminal width less
+		// the margin, the prompt and the cursor cell.
+		input := m.remove.filterInput
+		input.SetWidth(max(m.width-2-lipgloss.Width(input.Prompt)-1, 1))
+		input.SetCursor(input.Position())
+		return "  " + input.View()
 	}
 	return m.viewStatusBar()
 }
@@ -509,9 +477,14 @@ func (m Model) viewStatusBar() string {
 	if count == 0 {
 		hintSet = listFooterNoSelection
 	}
-	prefix := fmt.Sprintf("  %d selected%s \u00b7 ", count, filterInfo)
-	hints := footerHints(m.width-lipgloss.Width(prefix), hintSet)
-	return styleStatusBar.Render(prefix) + hints
+	selection := fmt.Sprintf("  %d selected%s", count, filterInfo)
+	head := selection + " \u00b7 "
+	// The count and its filters come first. Hints take what is left of the
+	// row, and a count that fills it leaves none.
+	if m.width > 0 && lipgloss.Width(head) >= m.width {
+		return styleStatusBar.Render(truncateWithEllipsis(selection, m.width))
+	}
+	return styleStatusBar.Render(head) + footerHints(m.width-lipgloss.Width(head), hintSet)
 }
 
 func (m Model) viewLegend() string {
