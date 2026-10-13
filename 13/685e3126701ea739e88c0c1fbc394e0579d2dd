@@ -1,0 +1,42 @@
+internal/creator/prepared.go
+  s_b5d41ab2ae0f4c::t_24beeec0959b62 44-50,131,159-160,162-167,173-183,186
+internal/creator/contract_test.go
+  s_b5d41ab2ae0f4c::t_a12ff629993144 51-52,95-97,148-151,190-191
+  s_b5d41ab2ae0f4c::t_fe583348bd5fd0 50
+internal/creator/git_test.go
+  s_b5d41ab2ae0f4c::t_067e0beed1017d 158-177,193-194,209-210
+  s_b5d41ab2ae0f4c::t_ed4a66fed6ad25 123-157,178-192,195-208,211-215
+internal/creator/creator_test.go
+  s_b5d41ab2ae0f4c::t_a12ff629993144 17-19,63,93-95,129-130
+  s_b5d41ab2ae0f4c::t_9757bb0f2bb412 16
+internal/creator/dependencies_test.go
+  s_b5d41ab2ae0f4c::t_a12ff629993144 24-25,71-72,94-95
+  s_b5d41ab2ae0f4c::t_9913c7682e7d6e 23
+internal/creator/worktree_files_test.go
+  s_b5d41ab2ae0f4c::t_a12ff629993144 70,106-107
+  s_b5d41ab2ae0f4c::t_d444b3d8145328 69,108
+cmd/create_run_test.go
+  s_b5d41ab2ae0f4c::t_9ce04b19c01a50 228-245
+internal/creator/creator.go
+  s_b5d41ab2ae0f4c::t_e60922962952a9 33-37
+internal/tui/create_summary.go
+  s_b5d41ab2ae0f4c::t_2fa9c1ccfe0e07 70-74
+internal/tui/create_summary_test.go
+  s_b5d41ab2ae0f4c::t_6a91b786560979 178-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "13685e3126701ea739e88c0c1fbc394e0579d2dd",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
