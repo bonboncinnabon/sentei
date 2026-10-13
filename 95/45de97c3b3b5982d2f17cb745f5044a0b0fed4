@@ -1,0 +1,19 @@
+internal/tui/quit_test.go
+  s_b33d749fcbd8b8::t_e15ff95e0881ad 4-6,20-49,90,98-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9545de97c3b3b5982d2f17cb745f5044a0b0fed4",
+  "prompts": {},
+  "sessions": {
+    "s_b33d749fcbd8b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12a86d18-55fd-4d39-8508-629ad0e5b434",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
