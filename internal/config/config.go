@@ -36,17 +36,43 @@ var unknownKey = regexp.MustCompile(`^(line \d+): field (\S+) not found in type 
 // parse decodes one YAML config document, rejecting keys sentei does not know.
 func parse(data []byte) (*Config, error) {
 	var cfg Config
+	if err := decodeKnown(data, &cfg); err != nil {
+		return nil, err
+	}
+
+	// A second, lenient pass for what a string field drops: a pointer is nil
+	// for a missing or null key and set for `command: ""`.
+	var written struct {
+		Ecosystems []struct {
+			Install struct {
+				Command *string `yaml:"command"`
+			} `yaml:"install"`
+		} `yaml:"ecosystems"`
+	}
+	if err := yaml.Unmarshal(data, &written); err != nil {
+		return nil, err
+	}
+	for i := range min(len(cfg.Ecosystems), len(written.Ecosystems)) {
+		command := written.Ecosystems[i].Install.Command
+		cfg.Ecosystems[i].Install.cleared = command != nil && *command == ""
+	}
+	return &cfg, nil
+}
+
+// decodeKnown decodes data into cfg and reports every key cfg has no field
+// for, except the retired ones.
+func decodeKnown(data []byte, cfg *Config) error {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
-	err := decoder.Decode(&cfg)
+	err := decoder.Decode(cfg)
 
 	// A type error lists every problem; the rest of the document is decoded.
 	var typeErr *yaml.TypeError
 	switch {
 	case err == nil, errors.Is(err, io.EOF): // io.EOF: nothing but comments
-		return &cfg, nil
+		return nil
 	case !errors.As(err, &typeErr):
-		return nil, err
+		return err
 	}
 	var problems []string
 	for _, problem := range typeErr.Errors {
@@ -59,9 +85,9 @@ func parse(data []byte) (*Config, error) {
 		}
 	}
 	if len(problems) == 0 {
-		return &cfg, nil
+		return nil
 	}
-	return nil, errors.New(strings.Join(problems, "; "))
+	return errors.New(strings.Join(problems, "; "))
 }
 
 func loadEmbeddedDefaults() (*Config, error) {
@@ -93,9 +119,9 @@ func loadFile(path string) (*Config, error) {
 // the key. Existing entries are updated field by field with the keys the
 // overlay names: a list the overlay sets replaces the base list, and an
 // explicit empty list (`env_files: []`) clears it, while an absent key leaves
-// the base value alone. install.command has no such form: an empty string is
-// indistinguishable from an absent key, so it keeps the base command. New
-// entries are appended. Source is set on all changed or new entries.
+// the base value alone. install.command follows the same rule: an explicit
+// empty string (`command: ""`) clears the base command, an absent key keeps
+// it. New entries are appended. Source is set on all changed or new entries.
 func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []EcosystemConfig {
 	if len(overlay) == 0 {
 		return base
@@ -125,8 +151,8 @@ func mergeEcosystems(base, overlay []EcosystemConfig, overlaySource string) []Ec
 		if over.Detect.Files != nil {
 			e.Detect.Files = over.Detect.Files
 		}
-		if over.Install.Command != "" {
-			e.Install.Command = over.Install.Command
+		if over.Install.Command != "" || over.Install.cleared {
+			e.Install = over.Install
 		}
 		if over.EnvFiles != nil {
 			e.EnvFiles = over.EnvFiles

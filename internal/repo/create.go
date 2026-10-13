@@ -23,6 +23,8 @@ type DefaultGhRunner struct{}
 func (r *DefaultGhRunner) RunGh(dir string, args ...string) (string, error) {
 	cmd := exec.Command("gh", args...)
 	cmd.Dir = dir
+	// gh asks git which repository it is in.
+	cmd.Env = git.Environ()
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

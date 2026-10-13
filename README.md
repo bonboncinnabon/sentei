@@ -186,13 +186,18 @@ ecosystems:
     detect:
       files: [mkdocs.yml]
     env_files: []              # an explicit empty list clears the inherited one
+  - name: go
+    install:
+      command: ""              # an explicit empty command clears the inherited one
   - name: cargo
     enabled: false
 ```
 
-An install command runs once, at the root of the new worktree. A key sentei
-does not know is an error that names the file, the line and the key, so a
-typo cannot silently switch a setting off.
+An install command runs once, at the root of the new worktree. `command: ""`
+turns an inherited install off and keeps the rest of the ecosystem, such as
+its env files; leaving the key out inherits the command. A key sentei does
+not know is an error that names the file, the line and the key, so a typo
+cannot silently switch a setting off.
 
 ### Git behaviour
 
@@ -202,6 +207,16 @@ otherwise the command fails with a message saying so. git output is read with
 `LC_ALL=C`, an inherited `GIT_DIR` is ignored, and a git command that has not
 finished after an hour is stopped. Hooks that git starts inherit that
 environment.
+
+ssh runs in batch mode (`GIT_SSH_COMMAND="ssh -oBatchMode=yes"`), so it fails
+instead of asking you to confirm a host key or type a key's passphrase. When
+that happens, connect to the host once by hand (`ssh -T git@github.com`) to
+accept its key, or load the key into an agent with `ssh-add`, and run the
+command again. If you have configured your own ssh command with `GIT_SSH`,
+`GIT_SSH_COMMAND` or `core.sshCommand`, sentei runs it unchanged: add
+`-oBatchMode=yes` to it if it should never prompt. `sentei clone` also leaves
+ssh alone when your git config has an `includeIf` section, because the include
+may set `core.sshCommand` for the new repository.
 
 ### Layouts and platforms
 
