@@ -5,7 +5,13 @@
 
 ### ⚠ BREAKING CHANGES
 
-* **readme:** git never prompts for credentials; use a credential helper or an SSH key.
+* `sentei migrate --delete-backup` is removed. Migrate converts the repository in place and makes no backup.
+* `sentei migrate` refuses repositories with submodules, linked worktrees or sparse checkout.
+* An unknown config key is an error, and a config file that fails to load stops the run.
+* `sentei remove` needs `--force` for a locked worktree.
+* Removing worktrees in the TUI no longer runs cleanup afterwards; run `sentei cleanup`.
+* `sentei clone` keeps only the default branch as a local branch.
+* git never prompts for credentials; use a credential helper or an SSH key.
 * the `integrations` command, the integration views, and the integrations_enabled, protected_branches and post_install config keys are gone. Index folders that already exist on disk are not touched.
 
 ### Features
