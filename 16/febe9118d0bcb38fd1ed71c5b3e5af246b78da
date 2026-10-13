@@ -1,0 +1,35 @@
+internal/cleanup/branches.go
+  s_b5d41ab2ae0f4c::t_44eaee096888a2 163,165,174,183-194
+internal/cleanup/branches_test.go
+  s_b5d41ab2ae0f4c::t_72feb6f39002d5 214-220,246-252,333-335
+internal/cleanup/cleanup_test.go
+  s_b5d41ab2ae0f4c::t_2ea740f9c36c1f 22-31,84
+internal/cleanup/config.go
+  s_b5d41ab2ae0f4c::t_6d55bb4653f7cc 46,48,50-52
+internal/cleanup/config_test.go
+  s_b5d41ab2ae0f4c::t_2ed119a06c7901 56-57,73-76
+internal/cleanup/dryrun.go
+  s_b5d41ab2ae0f4c::t_801a0a2d3ff740 142
+internal/cleanup/dryrun_test.go
+  s_b5d41ab2ae0f4c::t_ea8e5c70ca4e0e 21-23
+internal/cleanup/protection_test.go
+  s_b5d41ab2ae0f4c::t_718c7c90e1347c 17-19
+internal/cleanup/realgit_test.go
+  s_b5d41ab2ae0f4c::t_f73a8252699e2a 402-428
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "16febe9118d0bcb38fd1ed71c5b3e5af246b78da",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
