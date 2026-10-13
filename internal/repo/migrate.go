@@ -84,42 +84,38 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "git-pointer", label: "Write .git pointer",
 		run: func() (string, error) {
-			return "", os.WriteFile(gitDir, []byte("gitdir: .bare\n"), 0o644)
-		},
-		undo: func() error { return removeFile(gitDir) },
-	})
-	migrate.add(migrateConvertPhaseID, "Convert", step{
-		id: "mark-bare", label: "Mark repository as bare",
-		run: func() (string, error) {
+			// Every git edit to the config comes after this step, so this is
+			// where the copy for the rollback is taken.
 			var err error
 			if originalConfig, err = os.ReadFile(configPath); err != nil {
 				return "", err
 			}
-			_, err = runner.Run(root, "config", "core.bare", "true")
-			return "", err
+			return "", os.WriteFile(gitDir, []byte("gitdir: .bare\n"), 0o644)
 		},
 		undo: func() error {
-			if originalConfig == nil {
-				return nil
+			var undoErr error
+			if originalConfig != nil {
+				// The file goes back as it was read. Undoing the edits one
+				// by one would not be enough: registering the worktree can
+				// add an extension and raise the repository format version.
+				// A read-only config cannot be written in place. git
+				// replaces the file instead, as it did for its own edits.
+				if undoErr = os.WriteFile(configPath, originalConfig, 0o644); undoErr != nil {
+					_, undoErr = runner.Run(root, "config", "core.bare", "false")
+				}
 			}
-			// The file goes back as it was read. Unsetting core.bare alone
-			// would not be enough: registering the worktree can add an
-			// extension and raise the repository format version.
-			if err := os.WriteFile(configPath, originalConfig, 0o644); err == nil {
-				return nil
-			}
-			// A read-only config cannot be written in place. git replaces
-			// the file instead, as it did for the edit being undone.
-			_, err := runner.Run(root, "config", "core.bare", "false")
-			return err
+			return errors.Join(undoErr, removeFile(gitDir))
 		},
 	})
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "worktree", label: "Register worktree",
 		run: func() (string, error) {
 			// --no-checkout registers the worktree without writing a single
-			// file: the existing files and index are moved in instead.
-			if _, err := runner.Run(root, "worktree", "add", "--no-checkout", plan.WorktreePath, plan.Branch); err != nil {
+			// file: the existing files and index are moved in instead. The
+			// repository is not marked bare yet, and git will not add a
+			// worktree for the branch a main working tree has checked out,
+			// so this one command is told that it is bare.
+			if _, err := runner.Run(root, "-c", "core.bare=true", "worktree", "add", "--no-checkout", plan.WorktreePath, plan.Branch); err != nil {
 				return "", err
 			}
 			registered = true
@@ -177,6 +173,12 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			return err
 		},
 	})
+	// No undo of its own: the config goes back as a whole with the .git
+	// pointer.
+	migrate.add(migrateConvertPhaseID, "Convert", step{id: "mark-bare", label: "Mark repository as bare", run: func() (string, error) {
+		_, err := runner.Run(root, "config", "core.bare", "true")
+		return "", err
+	}})
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "move-files", label: "Move working tree",
 		run: func() (string, error) {

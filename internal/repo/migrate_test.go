@@ -899,8 +899,8 @@ func TestMigrate_RollbackWritesNoConfigItNeverRead(t *testing.T) {
 
 	result := finish(migrate.run(nil))
 
-	if marked := stepResult(result.Phases, migrateConvertPhaseID, "mark-bare"); marked.Status != progress.StepFailed {
-		t.Fatalf("mark-bare = %#v, want failed on the missing config", marked)
+	if pointer := stepResult(result.Phases, migrateConvertPhaseID, "git-pointer"); pointer.Status != progress.StepFailed {
+		t.Fatalf("git-pointer = %#v, want failed on the missing config", pointer)
 	}
 	if exists(filepath.Join(root, ".git", "config")) {
 		t.Error("the rollback wrote a config file it had never read")
