@@ -261,9 +261,16 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			}
 			names := slices.Clone(perWorktreeFiles)
 			// A split index keeps most of its entries in sharedindex.<hash>.
-			shared, _ := filepath.Glob(filepath.Join(barePath, "sharedindex.*"))
-			for _, path := range shared {
-				names = append(names, filepath.Base(path))
+			// The names are matched one by one: a glob would read brackets
+			// in the repository path as part of the pattern.
+			entries, err := os.ReadDir(barePath)
+			if err != nil {
+				return "", err
+			}
+			for _, entry := range entries {
+				if strings.HasPrefix(entry.Name(), "sharedindex.") {
+					names = append(names, entry.Name())
+				}
 			}
 			for _, name := range names {
 				from := filepath.Join(barePath, name)

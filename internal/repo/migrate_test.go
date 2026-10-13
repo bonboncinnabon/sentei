@@ -909,3 +909,27 @@ func TestMigrate_RollbackWritesNoConfigItNeverRead(t *testing.T) {
 		t.Errorf(".git did not return with the original config: %v", err)
 	}
 }
+
+// The shared half of a split index is found by name. Brackets in the
+// repository path must not be read as a pattern while looking for it.
+func TestMigrate_SplitIndexUnderAPathWithPatternCharacters(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "proj[1]")
+	mustGit(t, base, "init", "-q", "-b", "main", root)
+	mustWrite(t, filepath.Join(root, "a.txt"), "a\n")
+	mustGit(t, root, "add", ".")
+	mustGit(t, root, "commit", "-qm", "init")
+	mustGit(t, root, "update-index", "--split-index")
+	mustWrite(t, filepath.Join(root, "a.txt"), "staged edit\n")
+	mustGit(t, root, "add", "a.txt")
+	status := mustGit(t, root, "status", "--porcelain")
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	if got := mustGit(t, result.WorktreePath, "status", "--porcelain"); got != status {
+		t.Errorf("status = %q, want %q", got, status)
+	}
+}
