@@ -46,8 +46,12 @@ The `remove` command SHALL accept a `--merged` flag that pre-selects worktrees w
 - **THEN** `--merged` SHALL select its worktree
 
 #### Scenario: Branch nobody has worked on
-- **WHEN** a branch was created from the default branch and never committed to, and the default branch has gained commits since
+- **WHEN** a branch was created from the default branch and has not moved since, and the default branch has gained commits
 - **THEN** `--merged` SHALL NOT select its worktree
+
+#### Scenario: Branch brought up to date without commits of its own
+- **WHEN** a branch was created from the default branch, never committed to, and later fast-forwarded to the default branch
+- **THEN** `--merged` SHALL select its worktree, because its reflog shows a move and nothing tells that move from merged work
 
 #### Scenario: Fast-forwarded branch without a reflog
 - **WHEN** a branch's tip is on the default branch's first-parent chain and the branch has no reflog

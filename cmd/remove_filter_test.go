@@ -54,6 +54,15 @@ func TestCheckMerged_RealGit(t *testing.T) {
 	check("feature/unused", false, "main moving on does not make an unused branch merged")
 	check("feature/unused-logged", false, "main moving on does not make an unused branch merged")
 
+	// Never committed to, only brought up to date with main. Its reflog shows
+	// a move, and nothing tells that move from pulled work main absorbed.
+	mustGit(t, bareRepo, "branch", "feature/synced", "main~1")
+	syncedPath := filepath.Join(t.TempDir(), "wt")
+	mustGit(t, bareRepo, "worktree", "add", syncedPath, "feature/synced")
+	mustGit(t, syncedPath, "merge", "--ff-only", "main")
+	mustGit(t, bareRepo, "worktree", "remove", "--force", syncedPath)
+	check("feature/synced", true, "a fast-forward to main moves the branch as a commit does")
+
 	mustGit(t, bareRepo, "branch", "feature/no-reflog", "main")
 	commitOn("feature/no-reflog", "-c", "core.logAllRefUpdates=false")
 	mustGit(t, mainPath, "merge", "--ff-only", "feature/no-reflog")
