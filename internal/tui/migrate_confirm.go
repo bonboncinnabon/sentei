@@ -109,8 +109,20 @@ func (m Model) viewMigrateConfirm() string {
 		fmt.Fprintf(&b, "  %s %s\n", styleDim.Render(fmt.Sprintf("%-16s", "Default branch")), info.Plan.DefaultBranch)
 		b.WriteString("\n")
 		b.WriteString("  This will:\n")
-		fmt.Fprintf(&b, "    %s Move .git to .bare\n", styleDim.Render("●"))
-		fmt.Fprintf(&b, "    %s Move the working tree into %s\n", styleDim.Render("●"), worktree)
+		changes := []string{"Move .git to .bare", "Move the working tree into " + worktree}
+		if count := info.Plan.LinkedWorktrees; count > 0 {
+			changes = append(changes, fmt.Sprintf("Relink %d linked %s, left where %s",
+				count, pluralize(count, "worktree", "worktrees"), pluralize(count, "it is", "they are")))
+		}
+		if count := info.Plan.Submodules; count > 0 {
+			changes = append(changes, fmt.Sprintf("Reattach %d %s to the new worktree", count, pluralize(count, "submodule", "submodules")))
+		}
+		if remotes := info.Plan.RelativeRemotes; len(remotes) > 0 {
+			changes = append(changes, "Make the relative path of "+strings.Join(remotes, ", ")+" absolute")
+		}
+		for _, change := range changes {
+			fmt.Fprintf(&b, "    %s %s\n", styleDim.Render("●"), change)
+		}
 		b.WriteString("\n")
 		b.WriteString(styleDim.Render("  Nothing is copied or deleted. Uncommitted, untracked and"))
 		b.WriteString("\n")

@@ -163,6 +163,47 @@ func TestMigrateConfirmView_ShowsThePlan(t *testing.T) {
 			t.Errorf("view missing %q:\n%s", want, output)
 		}
 	}
+	for _, absent := range []string{"Relink", "Reattach", "relative path"} {
+		if strings.Contains(output, absent) {
+			t.Errorf("view mentions %q for a repository that has none:\n%s", absent, output)
+		}
+	}
+}
+
+// What the conversion does besides the two moves is said before it is
+// confirmed: it changes .git files and the repository config.
+func TestMigrateConfirmView_ListsWhatElseChanges(t *testing.T) {
+	m := makeMigrateConfirmModel(nil)
+	m.repo.migrateInfo = readyMigrateInfo()
+	m.repo.migrateInfo.Plan.LinkedWorktrees = 2
+	m.repo.migrateInfo.Plan.Submodules = 1
+	m.repo.migrateInfo.Plan.RelativeRemotes = []string{"origin", "mirror"}
+
+	output := stripAnsi(m.viewMigrateConfirm())
+
+	for _, want := range []string{
+		"Relink 2 linked worktrees, left where they are",
+		"Reattach 1 submodule to the new worktree",
+		"Make the relative path of origin, mirror absolute",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("view missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestMigrateConfirmView_ShowsTheRefusal(t *testing.T) {
+	m := makeMigrateConfirmModel(nil)
+	m.repo.migrateInfo = MigrateInfo{Loaded: true, Err: errors.New("HEAD is detached; check out a branch first")}
+
+	output := stripAnsi(m.viewMigrateConfirm())
+
+	if !strings.Contains(output, "cannot be migrated yet") || !strings.Contains(output, "HEAD is detached") {
+		t.Errorf("expected the refusal and its reason:\n%s", output)
+	}
+	if strings.Contains(output, "enter confirm") {
+		t.Errorf("a refused migration must not offer confirm:\n%s", output)
+	}
 }
 
 func TestUpdateMigrateConfirm_EnterIsInertUntilThePreflightAllows(t *testing.T) {
