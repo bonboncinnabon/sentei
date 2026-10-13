@@ -789,6 +789,82 @@ func TestMigrate_StatusThatChangedDuringTheConversionRollsBack(t *testing.T) {
 	}
 }
 
+// The last step also asks git about the submodules and the sparse patterns.
+// Neither shows in git status, and a difference in either rolls back as well.
+func TestMigrate_SubmoduleOrSparseStateThatChangedDuringTheConversionRollsBack(t *testing.T) {
+	tests := []struct {
+		name  string
+		build func(t *testing.T) (root string)
+		// change edits the new worktree once the files are in it.
+		change func(t *testing.T, worktree string)
+		want   string
+	}{
+		{
+			name: "a submodule",
+			build: func(t *testing.T) string {
+				base, root := newCheckout(t)
+				addSubmodules(t, base, root)
+				return root
+			},
+			// A tag changes how git describes the submodule's commit.
+			change: func(t *testing.T, worktree string) {
+				mustGit(t, filepath.Join(worktree, "vendor", "plain"), "tag", "v1")
+			},
+			want: "git submodule status",
+		},
+		{
+			name: "the sparse patterns",
+			build: func(t *testing.T) string {
+				_, root := newCheckout(t)
+				makeSparse(t, root, sparseSet("--no-cone", "/*", "!/docs/"))
+				return root
+			},
+			change: func(t *testing.T, worktree string) {
+				patterns := filepath.Join(mustGit(t, worktree, "rev-parse", "--absolute-git-dir"), "info", "sparse-checkout")
+				mustWrite(t, patterns, "/*\n!/docs/\n!/tools/\n")
+			},
+			want: "git sparse-checkout list",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			root := test.build(t)
+			status := mustGit(t, root, "status", "--porcelain")
+			migrate, finish := prepareMigrate(realGit, MigrateOptions{RepoPath: root})
+			for index, declared := range migrate.steps {
+				if declared.id != "move-files" {
+					continue
+				}
+				migrate.steps[index].run = func() (string, error) {
+					message, err := declared.run()
+					test.change(t, filepath.Join(root, "main"))
+					return message, err
+				}
+			}
+
+			result := finish(migrate.run(nil))
+
+			failure := result.Failure()
+			if failure == nil || !strings.Contains(failure.Error(), test.want+" in the new worktree differs from before the conversion") {
+				t.Fatalf("Failure() = %v, want the difference in %s reported", failure, test.want)
+			}
+			if !strings.Contains(failure.Error(), "the repository is unchanged") {
+				t.Errorf("Failure() = %v, want it reported as rolled back", failure)
+			}
+			if info, err := os.Stat(filepath.Join(root, ".git")); err != nil || !info.IsDir() {
+				t.Errorf(".git is not a directory again (err %v)", err)
+			}
+			if exists(filepath.Join(root, ".bare")) || exists(filepath.Join(root, "main")) {
+				t.Error("the rollback left .bare or the worktree directory behind")
+			}
+			if got := mustGit(t, root, "status", "--porcelain"); got != status {
+				t.Errorf("status = %q, want %q as before", got, status)
+			}
+		})
+	}
+}
+
 func TestMigrate_ResolvesRelativeRepoPath(t *testing.T) {
 	base, root := newCheckout(t)
 	t.Chdir(base)
@@ -1509,33 +1585,48 @@ func TestMigrate_LeavesRepositoriesGitDoesNotAbsorbInPlace(t *testing.T) {
 	}
 }
 
-// A submodule directory that cannot be written keeps its .git file. That
-// stops the conversion after the repositories of other submodules have moved
-// into their directories, and they have to come back.
+// A submodule that cannot be detached stops the conversion after the
+// repositories of other submodules have moved into their directories, and
+// they have to come back. A directory that cannot be written keeps its .git
+// file. A repository that cannot be moved has lost its .git file by then,
+// and gets it back as it was.
 func TestMigrate_SubmoduleThatCannotBeDetachedRollsBackTheOthers(t *testing.T) {
-	t.Parallel()
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory permissions")
 	}
-	base, root := newCheckout(t)
-	addSubmodules(t, base, root)
-	library := filepath.Join(root, "vendor", "library")
-	if err := os.Chmod(library, 0o555); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		// locked is the directory without write permission, under the root.
+		locked    string
+		submodule string
+	}{
+		{"its directory cannot be written", filepath.Join("vendor", "library"), filepath.Join("vendor", "library")},
+		{"its repository cannot be moved", filepath.Join(".git", "modules", "vendor"), filepath.Join("vendor", "plain")},
 	}
-	t.Cleanup(func() { _ = os.Chmod(library, 0o755) })
-	before := snapshot(t, base)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			base, root := newCheckout(t)
+			addSubmodules(t, base, root)
+			locked := filepath.Join(root, test.locked)
+			if err := os.Chmod(locked, 0o555); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+			before := snapshot(t, base)
 
-	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+			result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
 
-	failure := result.Failure()
-	if failure == nil || !strings.Contains(failure.Error(), "moving the repository of submodule "+filepath.Join("vendor", "library")) {
-		t.Fatalf("Failure() = %v, want the submodule named", failure)
+			failure := result.Failure()
+			if failure == nil || !strings.Contains(failure.Error(), "moving the repository of submodule "+test.submodule) {
+				t.Fatalf("Failure() = %v, want the submodule %s named", failure, test.submodule)
+			}
+			if !strings.Contains(failure.Error(), "the repository is unchanged") {
+				t.Errorf("Failure() = %v, want it reported as rolled back", failure)
+			}
+			assertSameSnapshot(t, before, snapshot(t, base))
+		})
 	}
-	if !strings.Contains(failure.Error(), "the repository is unchanged") {
-		t.Errorf("Failure() = %v, want it reported as rolled back", failure)
-	}
-	assertSameSnapshot(t, before, snapshot(t, base))
 }
 
 // gitFunc stands in for git where a test needs one command to go wrong.
