@@ -250,6 +250,36 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			return nil
 		},
 	})
+	if len(plan.remotes) > 0 {
+		// git resolves a relative remote path from the top of the working
+		// tree, which is about to be one level further down.
+		replace := func(key, value, replaced string) error {
+			_, err := runner.Run(root, "config", "--local", "--fixed-value", "--replace-all", key, value, replaced)
+			return err
+		}
+		rewritten := 0
+		migrate.add(migrateConvertPhaseID, "Convert", step{
+			id: "remote-paths", label: "Make relative remote paths absolute",
+			run: func() (string, error) {
+				for _, remote := range plan.remotes {
+					if err := replace(remote.key, remote.absolute, remote.relative); err != nil {
+						return "", err
+					}
+					rewritten++
+				}
+				return strings.Join(plan.RelativeRemotes, ", "), nil
+			},
+			undo: func() error {
+				// Only what was rewritten: git adds a value when the one to
+				// replace is not there.
+				var undoErr error
+				for _, remote := range plan.remotes[:rewritten] {
+					undoErr = errors.Join(undoErr, replace(remote.key, remote.relative, remote.absolute))
+				}
+				return undoErr
+			},
+		})
+	}
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "move-files", label: "Move working tree",
 		run: func() (string, error) {

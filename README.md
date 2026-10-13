@@ -251,12 +251,13 @@ What a caller can rely on:
   after the current branch, so staged, unstaged, untracked and ignored files,
   stashes, remotes, config and hooks all stay. Linked worktrees stay where
   they are and are relinked, submodules keep their commits and local changes,
-  and a sparse checkout stays sparse. It refuses before touching anything
-  when the conversion cannot be done safely (detached or unborn `HEAD`, a
-  merge or rebase in progress, `core.worktree`, a config include that points
-  into the working tree, a directory already named like the worktree, a
-  linked worktree whose directory is missing), and a step that fails midway
-  is rolled back to the original layout.
+  a sparse checkout stays sparse, and a remote given as a relative path is
+  rewritten to the absolute path it meant. It refuses before touching
+  anything when the conversion cannot be done safely (detached or unborn
+  `HEAD`, a merge or rebase in progress, `core.worktree`, a config include
+  that points into the working tree, a directory already named like the
+  worktree, a linked worktree whose directory is missing), and a step that
+  fails midway is rolled back to the original layout.
 - **`--copy-env` is independent of `--ecosystems`.** The files come from the
   ecosystems detected in the source worktree; `--ecosystems` only selects
   which installs run.

@@ -20,13 +20,15 @@ type MigratePlan struct {
 	DefaultBranch string // branch the bare HEAD will name
 
 	// What the conversion handles besides the checkout itself.
-	LinkedWorktrees int // linked worktrees; they stay where they are
-	Submodules      int // submodules checked out in the working tree
+	LinkedWorktrees int      // linked worktrees; they stay where they are
+	Submodules      int      // submodules checked out in the working tree
+	RelativeRemotes []string // remotes whose relative path becomes absolute
 
 	linked     []string // directories of the linked worktrees
 	kept       []string // those inside the root, relative to it
 	relinks    []relink
 	submodules []submodule
+	remotes    []remoteURL
 	// worktreeConfig is extensions.worktreeConfig: each worktree reads a
 	// config.worktree of its own on top of the shared config.
 	worktreeConfig bool
@@ -56,6 +58,10 @@ type submodule struct {
 	// repository into the new worktree's own modules directory.
 	absorb bool
 }
+
+// remoteURL is a remote URL or push URL that is a path relative to the
+// checkout, and the absolute path it resolves to.
+type remoteURL struct{ key, relative, absolute string }
 
 // migrateBlockers are entries under .git that hold state the conversion
 // cannot carry into a linked worktree. A directory only counts when it has
@@ -148,11 +154,19 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 	if plan.submodules, err = submodulesUnder(runner, root, filepath.Join(gitDir, "modules"), false); err != nil {
 		return MigratePlan{}, err
 	}
+	plan.remotes = relativeRemoteURLs(runner, root)
 	if plan.state, err = checkoutState(runner, root, plan.kept, nil); err != nil {
 		return MigratePlan{}, fmt.Errorf("reading the working tree status: %w", err)
 	}
 
 	plan.LinkedWorktrees, plan.Submodules = len(plan.linked), len(plan.submodules)
+	for _, remote := range plan.remotes {
+		// remote.<name>.url; the name itself may hold dots.
+		name := remote.key[len("remote."):strings.LastIndex(remote.key, ".")]
+		if !slices.Contains(plan.RelativeRemotes, name) {
+			plan.RelativeRemotes = append(plan.RelativeRemotes, name)
+		}
+	}
 	return plan, nil
 }
 
@@ -329,6 +343,43 @@ func readSubmodule(runner git.CommandRunner, root, gitDir string) (sub submodule
 		work: inside, gitDir: gitDir, link: link, mode: info.Mode().Perm(), config: config,
 		absorb: strings.HasPrefix(entry, "160000 "),
 	}, true, nil
+}
+
+// relativeRemoteURLs returns the remote URLs and push URLs that are a path
+// relative to the checkout and lead somewhere. git resolves such a path from
+// the top of the working tree, which the conversion moves one level down.
+func relativeRemoteURLs(runner git.CommandRunner, root string) []remoteURL {
+	// The path counts from where the root really is, not from a symlink
+	// that leads to it.
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return nil
+	}
+	// With -z each entry is key, newline, value, NUL.
+	entries, _ := runner.Run(root, "config", "--local", "-z", "--get-regexp", `^remote\..*\.(url|pushurl)$`)
+	var remotes []remoteURL
+	for _, entry := range strings.Split(entries, "\x00") {
+		key, value, _ := strings.Cut(entry, "\n")
+		if !isRelativePath(value) {
+			continue
+		}
+		absolute := filepath.Join(resolved, value)
+		if exists(absolute) {
+			remotes = append(remotes, remoteURL{key: key, relative: value, absolute: absolute})
+		}
+	}
+	return remotes
+}
+
+// isRelativePath reports whether git reads a remote URL as a relative local
+// path: it is not absolute and has no colon before its first slash, which
+// would make it a URL with a scheme or an SSH address (host:path).
+func isRelativePath(url string) bool {
+	if url == "" || filepath.IsAbs(url) {
+		return false
+	}
+	colon, slash := strings.Index(url, ":"), strings.Index(url, "/")
+	return colon < 0 || (slash >= 0 && slash < colon)
 }
 
 // checkoutProbes are the questions whose answers must be the same for the new

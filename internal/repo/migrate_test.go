@@ -204,9 +204,24 @@ func sparseByHand(t *testing.T, root string) {
 	mustGit(t, root, "read-tree", "-mu", "HEAD")
 }
 
+// addRelativeRemote adds a remote whose URL and push URL are a path relative
+// to the checkout, and fetches from it. It returns the path they lead to.
+func addRelativeRemote(t *testing.T, base, root string) string {
+	t.Helper()
+	mustGit(t, base, "clone", "-q", "--bare", root, filepath.Join(base, "up.git"))
+	mustGit(t, root, "remote", "add", "local", "../up.git")
+	mustGit(t, root, "config", "remote.local.pushurl", "../up.git")
+	mustGit(t, root, "fetch", "-q", "local")
+	resolved, err := filepath.EvalSymlinks(filepath.Join(base, "up.git"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resolved
+}
+
 // everythingCheckout is a checkout with all of it at once: submodules, a
-// sparse working tree, uncommitted state and linked worktrees, one of them
-// with the submodules checked out too.
+// sparse working tree, uncommitted state, linked worktrees, one of them with
+// the submodules checked out too, and a relative remote.
 func everythingCheckout(t *testing.T) (base, root string) {
 	t.Helper()
 	base, root = newCheckout(t)
@@ -217,6 +232,7 @@ func everythingCheckout(t *testing.T) (base, root string) {
 	addLinkedWorktrees(t, base, root)
 	outside, _, _, _ := linkedDirs(base, root)
 	mustGit(t, outside, "-c", "protocol.file.allow=always", "submodule", "update", "-q", "--init", "--recursive")
+	addRelativeRemote(t, base, root)
 	return base, root
 }
 
@@ -598,7 +614,7 @@ func TestMigrate_FailureAtAnyStepRestoresTheOriginalLayout(t *testing.T) {
 		}},
 		{"everything at once", everythingCheckout, []progress.StepID{
 			"preflight", "detach-submodules", "move-git", "git-pointer", "relink-worktrees", "worktree", "mark-bare",
-			"move-files", "attach-submodules", "default-branch", "verify",
+			"remote-paths", "move-files", "attach-submodules", "default-branch", "verify",
 		}},
 	}
 	for _, fixture := range fixtures {
@@ -1464,6 +1480,36 @@ func TestMigrate_KeepsASparseCheckoutSparse(t *testing.T) {
 	}
 }
 
+// A remote given as a path relative to the checkout would lead somewhere else
+// from one directory further down. It is rewritten to the absolute path it
+// meant; every other remote stays as it is.
+func TestMigrate_MakesRelativeRemotePathsAbsolute(t *testing.T) {
+	t.Parallel()
+	base, root := dirtyCheckout(t)
+	upstream := addRelativeRemote(t, base, root)
+	mustGit(t, root, "remote", "add", "absolute", filepath.Join(base, "up.git"))
+	// Not a path on disk: an address git would send to ssh.
+	mustGit(t, root, "remote", "add", "host", "example.invalid:team/proj.git")
+	gitBefore := gitState(t, root)
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	worktree := result.WorktreePath
+	for _, direction := range []string{"--all", "--push"} {
+		if got := mustGit(t, worktree, "remote", "get-url", direction, "local"); got != upstream {
+			t.Errorf("remote get-url %s local = %q, want %q", direction, got, upstream)
+		}
+	}
+	// It leads to the same repository from the worktree and the container.
+	mustGit(t, worktree, "fetch", "-q", "local")
+	mustGit(t, root, "fetch", "-q", "local")
+	gitBefore["remotes"] = strings.ReplaceAll(gitBefore["remotes"], "../up.git", upstream)
+	assertSameGitState(t, gitBefore, gitState(t, worktree))
+}
+
 // All of it in one repository: each part has to work beside the others.
 func TestMigrate_ConvertsACheckoutWithEverythingAtOnce(t *testing.T) {
 	t.Parallel()
@@ -1477,6 +1523,11 @@ func TestMigrate_ConvertsACheckoutWithEverythingAtOnce(t *testing.T) {
 		t.Fatalf("migrate failed: %v", err)
 	}
 	worktree := result.WorktreePath
+	upstream, err := filepath.EvalSymlinks(filepath.Join(base, "up.git"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gitBefore["remotes"] = strings.ReplaceAll(gitBefore["remotes"], "../up.git", upstream)
 	for _, key := range []string{"status", "ignored"} {
 		gitBefore[key] = dropLines(gitBefore[key], "inside/")
 	}
@@ -1489,4 +1540,39 @@ func TestMigrate_ConvertsACheckoutWithEverythingAtOnce(t *testing.T) {
 	for _, dir := range []string{outside, relative, inside, deep, worktree} {
 		mustGit(t, dir, "commit", "-q", "--allow-empty", "-m", "after migrate")
 	}
+}
+
+// The rollback normally writes the config back as it was read, which covers
+// any edit. A read-only config takes that away, so undoing the remote paths
+// has to be exact on its own: git adds a value when the one it is asked to
+// replace is not there, and a path that was never rewritten must not come
+// back twice.
+func TestMigrate_RemotePathsRewrittenHalfwayRollBackInAReadOnlyConfig(t *testing.T) {
+	t.Parallel()
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file permissions")
+	}
+	base, root := dirtyCheckout(t)
+	addRelativeRemote(t, base, root)
+	if err := os.Chmod(filepath.Join(root, ".git", "config"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	before := snapshot(t, base)
+	replaced := 0
+	secondFails := gitFunc(func(dir string, args ...string) (string, error) {
+		if slices.Contains(args, "--replace-all") && slices.Contains(args, "../up.git") {
+			if replaced++; replaced == 2 {
+				return "", errors.New("interrupted")
+			}
+		}
+		return realGit.Run(dir, args...)
+	})
+
+	result := Migrate(secondFails, MigrateOptions{RepoPath: root}, nil)
+
+	failure := result.Failure()
+	if failure == nil || !strings.Contains(failure.Error(), "interrupted") || !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Fatalf("Failure() = %v, want the interruption reported as rolled back", failure)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
 }
