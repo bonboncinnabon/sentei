@@ -53,8 +53,8 @@ func TestOrphanedBranchSections(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			runner := &mock.Runner{Responses: map[string]mock.Response{
-				"/repo:[branch --format=%(refname:lstrip=2)]": {Output: tt.branches},
-				"/repo:[config --local --name-only --list]":   {Output: tt.keys},
+				"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: tt.branches},
+				"/repo:[config --local --name-only --list]":                    {Output: tt.keys},
 			}}
 
 			got, err := orphanedBranchSections(runner, "/repo")
@@ -70,10 +70,10 @@ func TestOrphanedBranchSections(t *testing.T) {
 
 func TestPurgeOrphanedBranchConfigs_StopsAtFirstFailure(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[branch --format=%(refname:lstrip=2)]":      {Output: "main"},
-		"/repo:[config --local --name-only --list]":        {Output: "branch.a.remote\nbranch.b.remote"},
-		"/repo:[config --local --remove-section branch.a]": {Output: ""},
-		"/repo:[config --local --remove-section branch.b]": {Err: fmt.Errorf("could not lock config file")},
+		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "main"},
+		"/repo:[config --local --name-only --list]":                    {Output: "branch.a.remote\nbranch.b.remote"},
+		"/repo:[config --local --remove-section branch.a]":             {Output: ""},
+		"/repo:[config --local --remove-section branch.b]":             {Err: fmt.Errorf("could not lock config file")},
 	}}
 
 	result, err := PurgeOrphanedBranchConfigs(runner, "/repo", Options{}, collectEvents(t).Emit)

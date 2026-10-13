@@ -160,11 +160,9 @@ func listNonWorktreeCandidates(runner git.CommandRunner, repoPath string, exclud
 	}
 	wtBranches := parseWorktreeBranches(wtOutput)
 
-	// lstrip=2, not short: `short` abbreviates to "heads/<name>" when a tag
-	// shares the branch's name, which matches neither set below.
-	branchOutput, err := runner.Run(repoPath, "branch", "--format=%(refname:lstrip=2)")
+	branches, err := localBranches(runner, repoPath)
 	if err != nil {
-		return nil, fmt.Errorf("listing branches: %w", err)
+		return nil, err
 	}
 
 	// The repo's real default branch may be non-standard ("trunk"); it is not
@@ -173,17 +171,25 @@ func listNonWorktreeCandidates(runner git.CommandRunner, repoPath string, exclud
 	protected := defaultBranch(runner, repoPath)
 
 	var candidates []string
-	for _, line := range strings.Split(branchOutput, "\n") {
-		b := strings.TrimSpace(line)
-		if b == "" {
-			continue
-		}
+	for _, b := range branches {
 		if wtBranches[b] || git.IsProtectedBranchWith(b, protected) || slices.Contains(exclude, b) {
 			continue
 		}
 		candidates = append(candidates, b)
 	}
 	return candidates, nil
+}
+
+// localBranches returns the names of the local branches. It asks
+// for-each-ref, not `git branch`, which adds a "(no branch)" entry in a
+// worktree with a detached HEAD. lstrip=2, not short: `short` abbreviates to
+// "heads/<name>" when a tag shares the branch's name.
+func localBranches(runner git.CommandRunner, repoPath string) ([]string, error) {
+	output, err := runner.Run(repoPath, "for-each-ref", "--format=%(refname:lstrip=2)", "refs/heads")
+	if err != nil {
+		return nil, fmt.Errorf("listing branches: %w", err)
+	}
+	return strings.Fields(output), nil
 }
 
 // goneBranchFormat asks for-each-ref for a branch's name, its upstream ref,

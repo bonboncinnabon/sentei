@@ -399,3 +399,30 @@ func TestDryRun_MetadataOfBranchNamedLikeATag(t *testing.T) {
 		t.Errorf("candidate rel has no commit metadata: %+v", got)
 	}
 }
+
+// In a worktree with a detached HEAD, `git branch` lists a "(no branch)"
+// entry beside the branches. It is not a branch: cleanup must neither count
+// it nor try to delete it.
+func TestRun_DetachedWorktreePathHasNoPhantomBranch(t *testing.T) {
+	f := newRepoFixture(t)
+	detached := filepath.Join(f.root, "detached")
+	f.git(f.root, "worktree", "add", "--quiet", "--detach", detached, "main")
+	f.git(f.root, "branch", "--quiet", "extra", "main")
+	runner := &git.GitRunner{}
+
+	safe := Run(runner, detached, Options{Mode: ModeSafe, DryRun: true}, discard)
+	if safe.NonWtBranchesRemaining != 1 {
+		t.Errorf("NonWtBranchesRemaining = %d, want 1 (extra)", safe.NonWtBranchesRemaining)
+	}
+
+	result := Run(runner, detached, Options{Mode: ModeAggressive, Force: true}, discard)
+	if len(result.Errors) > 0 {
+		t.Errorf("unexpected errors: %v", result.Errors)
+	}
+	if want := []string{"extra"}; !slices.Equal(result.NonWtBranchesDeleted, want) {
+		t.Errorf("NonWtBranchesDeleted = %v, want %v", result.NonWtBranchesDeleted, want)
+	}
+	if len(result.BranchesSkipped) > 0 {
+		t.Errorf("BranchesSkipped = %v, want none", result.BranchesSkipped)
+	}
+}

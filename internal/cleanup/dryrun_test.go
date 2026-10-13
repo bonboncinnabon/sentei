@@ -18,9 +18,9 @@ func dryRunMock() *mock.Runner {
 		goneBranchCall: {Output: goneRef("feature/gone") + "\n" +
 			refLine("main", "refs/remotes/origin/main", "", "/repo/main") + "\n" +
 			refLine("feature/extra", "refs/remotes/origin/feature/extra", "", "")},
-		"/repo:[worktree list --porcelain]":           {Output: "worktree /repo\nbare\n\nworktree /repo/main\nHEAD def456\nbranch refs/heads/main\n"},
-		"/repo:[branch --format=%(refname:lstrip=2)]": {Output: "feature/gone\nfeature/extra\nmain"},
-		"/repo:[config --local --name-only --list]":   {Output: "core.bare\nbranch.main.remote"},
+		"/repo:[worktree list --porcelain]":                                                                              {Output: "worktree /repo\nbare\n\nworktree /repo/main\nHEAD def456\nbranch refs/heads/main\n"},
+		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]":                                                   {Output: "feature/gone\nfeature/extra\nmain"},
+		"/repo:[config --local --name-only --list]":                                                                      {Output: "core.bare\nbranch.main.remote"},
 		"/repo:[for-each-ref --format=%(refname:lstrip=2)\x1f%(committerdate:iso8601-strict)\x1f%(subject) refs/heads/]": {Output: "feature/gone\x1f2026-02-10T19:00:00+05:30\x1fold work\nfeature/extra\x1f2026-06-01T10:00:00+05:30\x1fwip\nmain\x1f2026-06-10T12:00:00+05:30\x1flatest"},
 		// feature/extra is merged into its live upstream. feature/gone has no
 		// upstream ref left, so git judges it against HEAD, where it is merged.

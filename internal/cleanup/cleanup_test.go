@@ -19,16 +19,16 @@ func collectEvents(t *testing.T) *mock.EventCollector[Event] {
 // section for a branch that no longer exists.
 func orchestratorMock() *mock.Runner {
 	return &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[rev-parse --git-dir]":                          {Output: "/repo/.bare"},
-		"/repo:[remote]":                                       {Output: "origin"},
-		"/repo:[remote prune origin --dry-run]":                {Output: ""},
-		"/repo:[fetch --prune origin]":                         {Output: ""},
-		"/repo:[symbolic-ref --short HEAD]":                    {Output: "main"},
-		goneBranchCall:                                         {Output: refLine("main", "refs/remotes/origin/main", "", "/repo/main") + "\n" + refLine("feature/old", "", "", "")},
-		"/repo:[worktree list --porcelain]":                    {Output: "worktree /repo/.bare\nbare\n\nworktree /repo/main\nHEAD abc\nbranch refs/heads/main"},
-		"/repo:[branch --format=%(refname:lstrip=2)]":          {Output: "main\nfeature/old"},
-		"/repo:[config --local --name-only --list]":            {Output: "core.bare\nbranch.main.remote\nbranch.ghost.remote\nbranch.ghost.merge"},
-		"/repo:[config --local --remove-section branch.ghost]": {Output: ""},
+		"/repo:[rev-parse --git-dir]":                                  {Output: "/repo/.bare"},
+		"/repo:[remote]":                                               {Output: "origin"},
+		"/repo:[remote prune origin --dry-run]":                        {Output: ""},
+		"/repo:[fetch --prune origin]":                                 {Output: ""},
+		"/repo:[symbolic-ref --short HEAD]":                            {Output: "main"},
+		goneBranchCall:                                                 {Output: refLine("main", "refs/remotes/origin/main", "", "/repo/main") + "\n" + refLine("feature/old", "", "", "")},
+		"/repo:[worktree list --porcelain]":                            {Output: "worktree /repo/.bare\nbare\n\nworktree /repo/main\nHEAD abc\nbranch refs/heads/main"},
+		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "main\nfeature/old"},
+		"/repo:[config --local --name-only --list]":                    {Output: "core.bare\nbranch.main.remote\nbranch.ghost.remote\nbranch.ghost.merge"},
+		"/repo:[config --local --remove-section branch.ghost]":         {Output: ""},
 	}}
 }
 
@@ -81,7 +81,7 @@ func assertNoMutatingCall(t *testing.T, runner *mock.Runner) {
 	t.Helper()
 	readOnly := []string{
 		"/repo:[rev-parse ", "/repo:[remote]", "/repo:[remote prune origin --dry-run]", "/repo:[symbolic-ref ",
-		"/repo:[for-each-ref ", "/repo:[worktree list ", "/repo:[branch --format=", "/repo:[config --local --name-only --list]",
+		"/repo:[for-each-ref ", "/repo:[worktree list ", "/repo:[config --local --name-only --list]",
 		"/repo:[merge-base ", "/repo:[show-ref ",
 	}
 	for _, call := range runner.Calls {

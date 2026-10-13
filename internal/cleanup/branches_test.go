@@ -211,13 +211,13 @@ func TestCleanNonWorktreeBranches(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			runner := &mock.Runner{Responses: map[string]mock.Response{
-				"/repo:[worktree list --porcelain]":           {Output: worktreeList},
-				"/repo:[branch --format=%(refname:lstrip=2)]": {Output: branchList},
-				"/repo:[symbolic-ref --short HEAD]":           {Output: "main"},
-				"/repo:[branch -d feature/old]":               {Output: ""},
-				"/repo:[branch -d fix/stale]":                 {Output: ""},
-				"/repo:[branch -D feature/old]":               {Output: ""},
-				"/repo:[branch -D fix/stale]":                 {Output: ""},
+				"/repo:[worktree list --porcelain]":                            {Output: worktreeList},
+				"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: branchList},
+				"/repo:[symbolic-ref --short HEAD]":                            {Output: "main"},
+				"/repo:[branch -d feature/old]":                                {Output: ""},
+				"/repo:[branch -d fix/stale]":                                  {Output: ""},
+				"/repo:[branch -D feature/old]":                                {Output: ""},
+				"/repo:[branch -D fix/stale]":                                  {Output: ""},
 				// Only the dry run asks: feature/old is merged, fix/stale is not.
 				"/repo:[rev-parse --abbrev-ref feature/old@{upstream}]": {Err: fmt.Errorf("no upstream")},
 				"/repo:[merge-base --is-ancestor feature/old HEAD]":     {Output: ""},
@@ -243,13 +243,13 @@ func TestCleanNonWorktreeBranches(t *testing.T) {
 
 func TestCleanNonWorktreeBranches_UnmergedIsSkippedAndRemains(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[worktree list --porcelain]":             {Output: "worktree /repo\nbare"},
-		"/repo:[branch --format=%(refname:lstrip=2)]":   {Output: "main\nwip\ndone"},
-		"/repo:[symbolic-ref --short HEAD]":             {Output: "main"},
-		"/repo:[branch -d wip]":                         {Err: fmt.Errorf("error: the branch 'wip' is not fully merged")},
-		"/repo:[rev-parse --abbrev-ref wip@{upstream}]": {Err: fmt.Errorf("no upstream")},
-		"/repo:[merge-base --is-ancestor wip HEAD]":     {Err: fmt.Errorf("exit status 1")},
-		"/repo:[branch -d done]":                        {Output: ""},
+		"/repo:[worktree list --porcelain]":                            {Output: "worktree /repo\nbare"},
+		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "main\nwip\ndone"},
+		"/repo:[symbolic-ref --short HEAD]":                            {Output: "main"},
+		"/repo:[branch -d wip]":                                        {Err: fmt.Errorf("error: the branch 'wip' is not fully merged")},
+		"/repo:[rev-parse --abbrev-ref wip@{upstream}]":                {Err: fmt.Errorf("no upstream")},
+		"/repo:[merge-base --is-ancestor wip HEAD]":                    {Err: fmt.Errorf("exit status 1")},
+		"/repo:[branch -d done]":                                       {Output: ""},
 	}}
 
 	result, err := CleanNonWorktreeBranches(runner, "/repo", nil, nil, Options{Mode: ModeAggressive}, collectEvents(t).Emit)
@@ -330,9 +330,9 @@ func TestBranchDeletableByGit_StaleUpstreamCountsAsMissing(t *testing.T) {
 // Branches the gone-upstream step deletes are not there for the next step.
 func TestCleanNonWorktreeBranches_LeavesOutWhatTheGoneStepDeleted(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[worktree list --porcelain]":           {Output: "worktree /repo\nbare"},
-		"/repo:[branch --format=%(refname:lstrip=2)]": {Output: "main\ngone/merged\nextra"},
-		"/repo:[symbolic-ref --short HEAD]":           {Output: "main"},
+		"/repo:[worktree list --porcelain]":                            {Output: "worktree /repo\nbare"},
+		"/repo:[for-each-ref --format=%(refname:lstrip=2) refs/heads]": {Output: "main\ngone/merged\nextra"},
+		"/repo:[symbolic-ref --short HEAD]":                            {Output: "main"},
 	}}
 
 	result, err := CleanNonWorktreeBranches(runner, "/repo", nil, []string{"gone/merged"}, Options{Mode: ModeSafe, DryRun: true}, collectEvents(t).Emit)

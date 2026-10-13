@@ -139,7 +139,7 @@ func branchDeletableByGit(runner git.CommandRunner, repoPath, branch string, sta
 // branchMetadata fetches commit date and subject for every local branch in
 // one git call.
 func branchMetadata(runner git.CommandRunner, repoPath string) (map[string]BranchInfo, error) {
-	// lstrip=2, not short: see listNonWorktreeCandidates, whose names key the map.
+	// lstrip=2, not short: see localBranches, whose names key the map.
 	output, err := runner.Run(repoPath, "for-each-ref",
 		"--format=%(refname:lstrip=2)\x1f%(committerdate:iso8601-strict)\x1f%(subject)", "refs/heads/")
 	if err != nil {

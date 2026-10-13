@@ -43,17 +43,13 @@ func PurgeOrphanedBranchConfigs(runner git.CommandRunner, repoPath string, opts 
 // orphanedBranchSections returns the names that have a branch.<name> section
 // in the repository's own config file but no local branch.
 func orphanedBranchSections(runner git.CommandRunner, repoPath string) ([]string, error) {
-	// lstrip=2, not short: `short` abbreviates to "heads/<name>" when a tag
-	// shares the branch's name, and the live branch's section would look orphaned.
-	branchOutput, err := runner.Run(repoPath, "branch", "--format=%(refname:lstrip=2)")
+	branches, err := localBranches(runner, repoPath)
 	if err != nil {
-		return nil, fmt.Errorf("listing branches: %w", err)
+		return nil, err
 	}
-	existing := make(map[string]bool)
-	for _, line := range strings.Split(branchOutput, "\n") {
-		if b := strings.TrimSpace(line); b != "" {
-			existing[b] = true
-		}
+	existing := make(map[string]bool, len(branches))
+	for _, b := range branches {
+		existing[b] = true
 	}
 
 	keys, err := runner.Run(repoPath, "config", "--local", "--name-only", "--list")
