@@ -68,7 +68,7 @@ func setupBareRepoWithMergedBranch(t *testing.T) string {
 	mustGit(t, cloneDir, "push", "origin", "feature/merged-branch")
 
 	mustGit(t, cloneDir, "checkout", "main")
-	mustGit(t, cloneDir, "merge", "feature/merged-branch")
+	mustGit(t, cloneDir, "merge", "--no-ff", "-m", "merge feature", "feature/merged-branch")
 	mustGit(t, cloneDir, "push", "origin", "main")
 
 	mustGit(t, bareRepo, "worktree", "add", filepath.Join(bareRepo, "feature-merged-branch"), "feature/merged-branch")

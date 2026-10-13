@@ -68,16 +68,28 @@ func shortBranch(branch string) string {
 	return strings.TrimPrefix(branch, "refs/heads/")
 }
 
-// CheckMerged creates a MergedChecker that uses git merge-base --is-ancestor
-// to determine if a branch is fully merged into the default branch. The default
-// branch is never reported as merged into itself (a branch is its own ancestor),
-// so --merged can never select the default worktree.
+// CheckMerged creates a MergedChecker that reports whether the default branch
+// has absorbed a branch: every commit of the branch is in the default branch,
+// and the default branch has moved past it. A branch still at the default
+// branch's tip is a new branch with no commits of its own, not a merged one; a
+// branch fast-forwarded into the default looks the same until the default gets
+// another commit. The default branch is never merged into itself, so --merged
+// can never select the default worktree.
 func CheckMerged(runner git.CommandRunner, repoPath string, defaultBranch string) MergedChecker {
 	return func(branch string) bool {
 		if strings.EqualFold(branch, defaultBranch) {
 			return false
 		}
-		_, err := runner.Run(repoPath, "merge-base", "--is-ancestor", branch, defaultBranch)
-		return err == nil
+		// Full ref names: a bare name resolves to a tag of that name first.
+		out, err := runner.Run(repoPath, "rev-list", "--left-right", "--count",
+			"refs/heads/"+branch+"...refs/heads/"+defaultBranch)
+		if err != nil {
+			return false
+		}
+		var onlyInBranch, onlyInDefault int
+		if _, err := fmt.Sscan(out, &onlyInBranch, &onlyInDefault); err != nil {
+			return false
+		}
+		return onlyInBranch == 0 && onlyInDefault > 0
 	}
 }

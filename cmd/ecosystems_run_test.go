@@ -31,9 +31,13 @@ func TestRunEcosystems_ListsEmbeddedEcosystems(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	dir := t.TempDir()
 
+	var err error
 	out := captureStdout(t, func() {
-		RunEcosystems([]string{dir})
+		err = RunEcosystems([]string{dir})
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if !strings.Contains(out, "Ecosystems (") {
 		t.Errorf("expected ecosystems header, got:\n%s", out)
@@ -53,9 +57,13 @@ func TestRunEcosystems_MarksDisabledEcosystems(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, ".sentei.yaml"), "ecosystems:\n  - name: pnpm\n    enabled: false\n")
 
+	var err error
 	out := captureStdout(t, func() {
-		RunEcosystems([]string{dir})
+		err = RunEcosystems([]string{dir})
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if !strings.Contains(out, "disabled") {
 		t.Errorf("expected disabled ecosystem status, got:\n%s", out)

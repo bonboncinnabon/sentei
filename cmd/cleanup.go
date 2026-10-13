@@ -8,14 +8,6 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/repo"
 )
 
-const (
-	green  = "\033[0;32m"
-	yellow = "\033[1;33m"
-	blue   = "\033[0;34m"
-	dim    = "\033[2m"
-	nc     = "\033[0m"
-)
-
 // RunCleanup executes the cleanup command in non-interactive mode.
 func RunCleanup(args []string) error {
 	opts, repoPath, err := ParseCleanupFlags(args)

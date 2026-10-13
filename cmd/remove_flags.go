@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -20,43 +22,47 @@ type RemoveOptions struct {
 	RepoPath string
 }
 
+// maxStaleDays is the longest duration a time.Duration can hold, in whole days
+// (about 292 years).
+const maxStaleDays = int(math.MaxInt64 / (24 * time.Hour))
+
 // ParseStaleDuration parses human-friendly duration strings like "30d", "2w", "3m".
 func ParseStaleDuration(s string) (time.Duration, error) {
 	if len(s) < 2 {
 		return 0, fmt.Errorf("invalid duration %q: must be a positive number followed by d, w, or m", s)
 	}
 
-	unit := s[len(s)-1]
-	numStr := s[:len(s)-1]
-
-	n, err := strconv.Atoi(numStr)
-	if err != nil || n <= 0 {
-		return 0, fmt.Errorf("invalid duration %q: must be a positive number followed by d, w, or m", s)
-	}
-
-	var days int
-	switch unit {
+	var daysPerUnit int
+	switch s[len(s)-1] {
 	case 'd':
-		days = n
+		daysPerUnit = 1
 	case 'w':
-		days = n * 7
+		daysPerUnit = 7
 	case 'm':
-		days = n * 30
+		daysPerUnit = 30
 	default:
 		return 0, fmt.Errorf("invalid duration %q: unit must be d (days), w (weeks), or m (months)", s)
 	}
 
-	return time.Duration(days) * 24 * time.Hour, nil
+	n, err := strconv.Atoi(s[:len(s)-1])
+	if errors.Is(err, strconv.ErrRange) || (err == nil && n > maxStaleDays/daysPerUnit) {
+		return 0, fmt.Errorf("invalid duration %q: too large, use at most %dd", s, maxStaleDays)
+	}
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("invalid duration %q: must be a positive number followed by d, w, or m", s)
+	}
+
+	return time.Duration(n*daysPerUnit) * 24 * time.Hour, nil
 }
 
 // ParseRemoveFlags parses remove-specific flags and returns RemoveOptions.
 func ParseRemoveFlags(args []string) (*RemoveOptions, error) {
 	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
 	stale := fs.String("stale", "", "Remove worktrees older than duration (e.g., 30d, 2w, 3m)")
-	merged := fs.Bool("merged", false, "Remove worktrees whose branches are fully merged")
+	merged := fs.Bool("merged", false, "Remove worktrees whose branches are merged into the default branch (a branch still at its tip counts as new)")
 	all := fs.Bool("all", false, "Remove all non-protected worktrees")
 	dryRun := fs.Bool("dry-run", false, "Show what would be removed without deleting")
-	force := fs.Bool("force", false, "Remove at-risk worktrees (uncommitted, untracked, or unpushed work)")
+	force := fs.Bool("force", false, "Remove at-risk worktrees (locked, or with uncommitted, untracked, or unpushed work)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -9,16 +10,27 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/ecosystem"
 )
 
-func RunEcosystems(args []string) {
-	repoPath := "."
-	if len(args) > 0 {
-		repoPath = args[0]
+// RunEcosystems lists the ecosystems sentei can detect, with the configuration
+// that applies to the given repository.
+func RunEcosystems(args []string) error {
+	fs := flag.NewFlagSet("ecosystems", flag.ContinueOnError)
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: sentei ecosystems [repo]\n\nList the ecosystems sentei can detect and how each one installs dependencies.")
+	}
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	repoPath, err := repoPathArg(fs)
+	if err != nil {
+		return err
+	}
+	if repoPath == "" {
+		repoPath = "."
 	}
 
 	cfg, err := config.LoadConfig(repoPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	reg := ecosystem.NewRegistry(cfg.Ecosystems)
@@ -42,6 +54,7 @@ func RunEcosystems(args []string) {
 			status,
 		)
 	}
+	return nil
 }
 
 func truncate(s string, max int) string {

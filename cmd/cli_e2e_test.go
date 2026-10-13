@@ -25,7 +25,7 @@ func buildBinary(t *testing.T) string {
 func TestEcosystemsCLI(t *testing.T) {
 	bin := buildBinary(t)
 
-	cmd := exec.Command(bin, "ecosystems")
+	cmd := exec.Command(bin, "ecosystems", t.TempDir())
 	cmd.Env = testtmp.HermeticGitEnv()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -36,6 +36,64 @@ func TestEcosystemsCLI(t *testing.T) {
 	for _, want := range []string{"Ecosystems (", "pnpm", "go", "SOURCE"} {
 		if !strings.Contains(output, want) {
 			t.Errorf("output missing %q\nfull output:\n%s", want, output)
+		}
+	}
+}
+
+// --help used to be taken as the repository path, so it printed the table.
+func TestEcosystemsCLI_Help(t *testing.T) {
+	bin := buildBinary(t)
+
+	cmd := exec.Command(bin, "ecosystems", "--help")
+	cmd.Dir = t.TempDir()
+	cmd.Env = testtmp.HermeticGitEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("--help must exit 0: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Usage: sentei ecosystems") {
+		t.Errorf("expected usage text, got:\n%s", out)
+	}
+	if strings.Contains(string(out), "DETECT FILES") {
+		t.Errorf("--help must not list ecosystems, got:\n%s", out)
+	}
+}
+
+func TestEcosystemsCLI_RejectsUnknownFlag(t *testing.T) {
+	bin := buildBinary(t)
+
+	cmd := exec.Command(bin, "ecosystems", "--nope")
+	cmd.Dir = t.TempDir()
+	cmd.Env = testtmp.HermeticGitEnv()
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("an unknown flag must exit non-zero, got:\n%s", out)
+	}
+	if strings.Contains(string(out), "DETECT FILES") {
+		t.Errorf("an unknown flag must not be read as a path, got:\n%s", out)
+	}
+}
+
+// Scripts and logs read this output through a pipe: escape codes there are
+// noise that has to be stripped before the text can be matched.
+func TestNonInteractiveOutput_NoANSIWhenPiped(t *testing.T) {
+	bin := buildBinary(t)
+	bareRepo := setupBareRepoWithMergedBranch(t)
+
+	for _, args := range [][]string{
+		{"cleanup", "--mode", "safe", "--dry-run", "--non-interactive", bareRepo},
+		{"remove", "--merged", "--dry-run", "--non-interactive", bareRepo},
+		{"remove", "--merged", "--non-interactive", bareRepo},
+	} {
+		cmd := exec.Command(bin, args...)
+		cmd.Dir = t.TempDir()
+		cmd.Env = testtmp.HermeticGitEnv()
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("sentei %v failed: %v\n%s", args, err, out)
+		}
+		if strings.Contains(string(out), "\x1b[") {
+			t.Errorf("sentei %v wrote ANSI escape codes to a pipe:\n%q", args, out)
 		}
 	}
 }
@@ -51,8 +109,11 @@ func TestUnknownCommandCLI(t *testing.T) {
 	}
 
 	output := string(out)
-	if !strings.Contains(output, "unknown command: foobar") {
+	if !strings.Contains(output, "Error: unknown command: foobar") {
 		t.Errorf("expected 'unknown command' error, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Usage: sentei [command] [options]") {
+		t.Errorf("expected the command list after the error, got:\n%s", output)
 	}
 }
 
@@ -329,7 +390,7 @@ func setupBareRepoWithMergedBranch(t *testing.T) string {
 
 	// Merge the feature branch into main.
 	runGitCmd(t, cloneDir, "checkout", "main")
-	runGitCmd(t, cloneDir, "merge", "feature/merged-branch")
+	runGitCmd(t, cloneDir, "merge", "--no-ff", "-m", "merge feature", "feature/merged-branch")
 	runGitCmd(t, cloneDir, "push", "origin", "main")
 
 	// Create a worktree in the bare repo for the merged branch.
@@ -432,6 +493,32 @@ func TestRemoveNonInteractive_DryRun(t *testing.T) {
 	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
 	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
 		t.Error("worktree should still exist after dry-run")
+	}
+}
+
+// A dry run deletes nothing, so it needs no --force even when a match is at
+// risk: the global flags must not demand one before the command runs.
+func TestRemoveNonInteractive_DryRunNeedsNoForce(t *testing.T) {
+	bin := buildBinary(t)
+	bareRepo := setupBareRepoWithMergedBranch(t)
+	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
+	draft := filepath.Join(wtPath, "draft.txt")
+	if err := os.WriteFile(draft, []byte("unsaved\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	cmd := exec.Command(bin, "remove", "--dry-run", "--merged", "--non-interactive", bareRepo)
+	cmd.Dir = t.TempDir()
+	cmd.Env = testtmp.HermeticGitEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("remove --dry-run --non-interactive must not need --force: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Would remove 1 worktree(s)") {
+		t.Errorf("expected the dry-run preview, got:\n%s", out)
+	}
+	if _, statErr := os.Stat(draft); statErr != nil {
+		t.Errorf("a dry run must leave the worktree untouched: %v", statErr)
 	}
 }
 
