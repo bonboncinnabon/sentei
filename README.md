@@ -257,7 +257,11 @@ What a caller can rely on:
   `HEAD`, a merge or rebase in progress, `core.worktree`, a config include
   that points into the working tree, a directory already named like the
   worktree, a linked worktree whose directory is missing), and a step that
-  fails midway is rolled back to the original layout.
+  fails midway is rolled back to the original layout. Two things follow from
+  the tree sitting one directory further down, and need fixing by hand: a
+  relative symlink that points outside the repository now points somewhere
+  else, and files that record absolute paths into the tree, such as a Python
+  virtual environment, have to be recreated.
 - **`--copy-env` is independent of `--ecosystems`.** The files come from the
   ecosystems detected in the source worktree; `--ecosystems` only selects
   which installs run.
@@ -271,7 +275,10 @@ What a caller can rely on:
 - **`migrate` converts in place.** It makes no backup because it copies and
   deletes nothing, so `--delete-backup` is removed. Submodules, linked
   worktrees and sparse checkouts are converted with the rest; "Scripts and
-  agents" lists what is still refused.
+  agents" lists what is still refused. The working tree ends up one directory
+  further down, so a relative symlink that points outside the repository, or
+  a Python virtual environment and other files that record absolute paths,
+  need fixing afterwards.
 - **Config is strict.** An unknown key is an error, and a config file that
   fails to load stops the run. Installs run once at the root of the new
   worktree; the per-workspace install keys are accepted and ignored.
