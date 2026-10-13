@@ -68,3 +68,36 @@ func TestDetectContext_BareSettingInWorktreeConfig(t *testing.T) {
 		}
 	}
 }
+
+// With safe.bareRepository=explicit git refuses a bare directory it has to
+// discover, so the shared directory is named to git, never entered. A layout
+// reached through a worktree or through the container's .git pointer is still
+// a bare layout; asked inside the directory, git refused and every command
+// took the layout for a regular repository.
+func TestDetectContext_WhenBareRepositoriesMustBeExplicit(t *testing.T) {
+	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
+		if entry == layout.Bare {
+			return // git itself finds no repository when started in the bare directory
+		}
+		gitConfigEnv(t, "safe.bareRepository", "explicit")
+		if got := DetectContext(realGit, entry); got != ContextBareRepo {
+			t.Errorf("DetectContext(%q) = %v, want %v", entry, got, ContextBareRepo)
+		}
+	})
+}
+
+// A regular clone whose config has no core.bare is still a regular clone.
+// Started inside such a .git directory git guesses "bare", and remove and
+// create would then run against an ordinary checkout.
+func TestDetectContext_RegularRepositoryWithoutCoreBare(t *testing.T) {
+	_, regular := newCheckout(t)
+	linked := filepath.Join(t.TempDir(), "linked")
+	mustGit(t, regular, "worktree", "add", "--quiet", "-b", "linked", linked)
+	mustGit(t, regular, "config", "--unset", "core.bare")
+
+	for _, entry := range []string{regular, linked, filepath.Join(regular, ".git")} {
+		if got := DetectContext(realGit, entry); got != ContextNonBareRepo {
+			t.Errorf("DetectContext(%q) = %v, want %v", entry, got, ContextNonBareRepo)
+		}
+	}
+}

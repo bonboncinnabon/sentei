@@ -515,6 +515,33 @@ func TestRunRoot_DryRunFromEveryEntryPoint(t *testing.T) {
 	})
 }
 
+// With safe.bareRepository=explicit git reaches a bare directory only through
+// a .git pointer or a worktree, which is how a container layout is entered.
+// The summary used to fail there with "requires a bare repository".
+func TestRunRoot_DryRunWhenBareRepositoriesMustBeExplicit(t *testing.T) {
+	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
+		if layout.Root == layout.Bare || entry == layout.Bare {
+			return // git refuses every command started in a bare directory
+		}
+		t.Setenv("GIT_CONFIG_COUNT", "1")
+		t.Setenv("GIT_CONFIG_KEY_0", "safe.bareRepository")
+		t.Setenv("GIT_CONFIG_VALUE_0", "explicit")
+
+		var err error
+		out := captureStdout(t, func() {
+			err = run(buildRegistry(), []string{"--dry-run", entry})
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, want := range []string{"feature", "scratch", layouts.DefaultBranch} {
+			if !strings.Contains(out, want) {
+				t.Errorf("summary missing %q:\n%s", want, out)
+			}
+		}
+	})
+}
+
 // The menu of a bare layout opens on the layout's root from every entry
 // point, with every worktree loaded.
 func TestMenu_BareLayoutFromEveryEntryPoint(t *testing.T) {
