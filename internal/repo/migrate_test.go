@@ -1638,8 +1638,13 @@ func TestMigrate_MakesRelativeRemotePathsAbsolute(t *testing.T) {
 	base, root := dirtyCheckout(t)
 	upstream := addRelativeRemote(t, base, root)
 	mustGit(t, root, "remote", "add", "absolute", filepath.Join(base, "up.git"))
-	// Not a path on disk: an address git would send to ssh.
+	// git finds up.git under this name too.
+	mustGit(t, root, "remote", "add", "suffixed", "../up")
+	mustGit(t, root, "fetch", "-q", "suffixed")
+	// Not paths on disk: an address git would send to ssh, and a name that
+	// only looks like a path, as a url.<base>.insteadOf alias does.
 	mustGit(t, root, "remote", "add", "host", "example.invalid:team/proj.git")
+	mustGit(t, root, "remote", "add", "alias", "team/proj")
 	gitBefore := gitState(t, root)
 
 	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
@@ -1653,10 +1658,13 @@ func TestMigrate_MakesRelativeRemotePathsAbsolute(t *testing.T) {
 			t.Errorf("remote get-url %s local = %q, want %q", direction, got, upstream)
 		}
 	}
-	// It leads to the same repository from the worktree and the container.
-	mustGit(t, worktree, "fetch", "-q", "local")
-	mustGit(t, root, "fetch", "-q", "local")
+	// They lead to the same repository from the worktree and the container.
+	for _, remote := range []string{"local", "suffixed"} {
+		mustGit(t, worktree, "fetch", "-q", remote)
+		mustGit(t, root, "fetch", "-q", remote)
+	}
 	gitBefore["remotes"] = strings.ReplaceAll(gitBefore["remotes"], "../up.git", upstream)
+	gitBefore["remotes"] = strings.ReplaceAll(gitBefore["remotes"], "../up", strings.TrimSuffix(upstream, ".git"))
 	assertSameGitState(t, gitBefore, gitState(t, worktree))
 }
 

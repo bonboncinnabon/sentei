@@ -363,8 +363,10 @@ func relativeRemoteURLs(runner git.CommandRunner, root string) []remoteURL {
 		if !isRelativePath(value) {
 			continue
 		}
+		// git also finds a repository when the name leaves out its .git
+		// suffix. The absolute path keeps leaving it out.
 		absolute := filepath.Join(resolved, value)
-		if exists(absolute) {
+		if exists(absolute) || exists(absolute+".git") {
 			remotes = append(remotes, remoteURL{key: key, relative: value, absolute: absolute})
 		}
 	}
