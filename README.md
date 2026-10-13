@@ -202,9 +202,9 @@ What a caller can rely on:
   flag, a worktree that could not be removed, a cleanup step that errored, a
   failed setup or install step.
 - **`--non-interactive` does not override a safety.** `remove` refuses the
-  whole run, and names the worktrees, when a match has uncommitted, untracked
-  or unpushed work, or a status that could not be read. `--force` removes
-  those too. Protected branches and the worktree holding the current
+  whole run, and names the worktrees, when a match is locked, has uncommitted,
+  untracked or unpushed work, or has a status that could not be read. `--force`
+  removes those too. Protected branches and the worktree holding the current
   directory are never removed, with or without `--force`.
 - **`--dry-run` changes nothing.** It prints what `remove` or `cleanup` would
   do and leaves locks in place.

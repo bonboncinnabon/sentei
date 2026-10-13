@@ -47,9 +47,9 @@ func TestRun_RejectsDuplicateEcosystemIdentityBeforeExecution(t *testing.T) {
 
 func TestRun_ResultPhasesMatchCompletedEventStream(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[show-ref --verify refs/heads/feature/parity]":              {Err: errors.New("missing")},
-		"/repo:[worktree add /repo/feature-parity -b feature/parity main]": {},
-		"/repo/feature-parity:shell[go mod download]":                      {},
+		"/repo:[show-ref --verify refs/heads/feature/parity]":                 {Err: errors.New("missing")},
+		"/repo:[worktree add -b feature/parity -- /repo/feature-parity main]": {},
+		"/repo/feature-parity:shell[go mod download]":                         {},
 	}}
 	var events []progress.Event
 	result := Run(runner, runner, Options{
@@ -92,9 +92,9 @@ func TestRun_MergeFailureDoesNotBlockEnvCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/independent]", repo):      {Err: errors.New("missing")},
-		fmt.Sprintf("%s:[worktree add %s -b feature/independent main]", repo, worktree): {},
-		fmt.Sprintf("%s:[merge main --no-edit]", worktree):                              {Err: errors.New("conflict")},
+		fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/independent]", repo):         {Err: errors.New("missing")},
+		fmt.Sprintf("%s:[worktree add -b feature/independent -- %s main]", repo, worktree): {},
+		fmt.Sprintf("%s:[merge --no-edit -- main]", worktree):                              {Err: errors.New("conflict")},
 	}}
 	result := Run(runner, runner, Options{
 		BranchName: "feature/independent", BaseBranch: "main", RepoPath: repo,
@@ -145,10 +145,10 @@ func TestRun_IndependentSetupFailureDoesNotBlockDependencies(t *testing.T) {
 				t.Fatal(err)
 			}
 			responses := map[string]mock.Response{
-				fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/fallbacks]", repo):      {Err: errors.New("missing")},
-				fmt.Sprintf("%s:[worktree add %s -b feature/fallbacks main]", repo, worktree): {},
-				fmt.Sprintf("%s:[merge main --no-edit]", worktree):                            {Err: tc.mergeErr},
-				fmt.Sprintf("%s:shell[go mod download]", worktree):                            {},
+				fmt.Sprintf("%s:[show-ref --verify refs/heads/feature/fallbacks]", repo):         {Err: errors.New("missing")},
+				fmt.Sprintf("%s:[worktree add -b feature/fallbacks -- %s main]", repo, worktree): {},
+				fmt.Sprintf("%s:[merge --no-edit -- main]", worktree):                            {Err: tc.mergeErr},
+				fmt.Sprintf("%s:shell[go mod download]", worktree):                               {},
 			}
 			runner := &mock.Runner{Responses: responses}
 			result := Run(runner, runner, Options{
@@ -187,8 +187,8 @@ func creatorResultStep(t *testing.T, result Result, name string) progress.StepRe
 
 func TestRun_WorktreeFailureBlocksAllPreparedExecution(t *testing.T) {
 	runner := &mock.Runner{Responses: map[string]mock.Response{
-		"/repo:[show-ref --verify refs/heads/feature/blocked]":               {Err: errors.New("missing")},
-		"/repo:[worktree add /repo/feature-blocked -b feature/blocked main]": {Err: errors.New("cannot create")},
+		"/repo:[show-ref --verify refs/heads/feature/blocked]":                  {Err: errors.New("missing")},
+		"/repo:[worktree add -b feature/blocked -- /repo/feature-blocked main]": {Err: errors.New("cannot create")},
 	}}
 	result := Run(runner, runner, Options{
 		BranchName: "feature/blocked", BaseBranch: "main", RepoPath: "/repo", MergeBase: true,

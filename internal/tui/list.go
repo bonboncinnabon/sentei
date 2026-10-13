@@ -23,12 +23,6 @@ const (
 	colAge      = 4
 )
 
-// stripBranchPrefix is worktree.ShortBranch under the name the create flow
-// calls it by.
-func stripBranchPrefix(ref string) string {
-	return worktree.ShortBranch(ref)
-}
-
 // removalProtected reports whether wt can never be selected for removal: a
 // protected branch, or a worktree holding the directory sentei was launched
 // from (removing it would leave the user's shell in a directory that no

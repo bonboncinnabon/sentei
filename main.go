@@ -9,7 +9,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/log/v2"
 
 	"github.com/bonboncinnabon/sentei/cmd"
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
@@ -31,129 +30,56 @@ var (
 
 func buildRegistry() *cli.Registry {
 	r := cli.NewRegistry()
-
-	r.Register(&cli.Command{
-		Name: "ecosystems",
-		Type: cli.Output,
-		RunCLI: func(args []string) error {
-			cmd.RunEcosystems(args)
-			return nil
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "clone",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunClone(args)
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "create",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunCreate(args)
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "cleanup",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunCleanup(args)
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "migrate",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunMigrate(args)
-		},
-	})
-
-	r.Register(&cli.Command{
-		Name: "remove",
-		Type: cli.Decision,
-		RunCLI: func(args []string) error {
-			return cmd.RunRemove(args)
-		},
-	})
-
+	r.Register(&cli.Command{Name: "ecosystems", Type: cli.Output, RunCLI: cmd.RunEcosystems})
+	r.Register(&cli.Command{Name: "clone", Type: cli.Decision, RunCLI: cmd.RunClone})
+	r.Register(&cli.Command{Name: "create", Type: cli.Decision, RunCLI: cmd.RunCreate})
+	r.Register(&cli.Command{Name: "cleanup", Type: cli.Decision, RunCLI: cmd.RunCleanup})
+	r.Register(&cli.Command{Name: "migrate", Type: cli.Decision, RunCLI: cmd.RunMigrate})
+	r.Register(&cli.Command{Name: "remove", Type: cli.Decision, RunCLI: cmd.RunRemove})
 	return r
 }
 
-// runCommand runs a CLI command, exiting 1 on a real error but treating a
-// -h/--help request (flag.ErrHelp) as success — the flag package has already
-// printed usage, so a "help requested" line and non-zero exit are wrong.
-func runCommand(run func([]string) error, args []string) {
-	if err := run(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return
-		}
-		log.Error(err)
-		os.Exit(1)
-	}
-}
-
-// exitOnFlagError handles a flag-parse error: -h/--help (flag.ErrHelp) exits 0
-// since usage was already printed; any other error exits 1 with a message.
-func exitOnFlagError(err error) {
-	if err == nil {
+func main() {
+	registry := buildRegistry()
+	err := run(registry, os.Args[1:])
+	// -h/--help is success: the flag package has already printed usage.
+	if err == nil || errors.Is(err, flag.ErrHelp) {
 		return
 	}
-	if errors.Is(err, flag.ErrHelp) {
-		os.Exit(0)
+	fmt.Fprintln(os.Stderr, "Error:", err)
+	if cli.IsUnknownCommand(err) {
+		fmt.Fprint(os.Stderr, registry.UsageString())
 	}
-	log.Error(err)
 	os.Exit(1)
 }
 
-func main() {
-	// CLI errors are immediate feedback, not a log stream: no timestamps.
-	log.SetReportTimestamp(false)
-
-	registry := buildRegistry()
-
-	result, err := registry.Dispatch(os.Args[1:])
+// run dispatches the command line. The code below it returns its error instead
+// of calling os.Exit: an exit would skip deferred cleanup, such as removing the
+// playground's temp repo.
+func run(registry *cli.Registry, args []string) error {
+	result, err := registry.Dispatch(args)
 	if err != nil {
-		log.Error(err)
-		if cli.IsUnknownCommand(err) {
-			fmt.Fprint(os.Stderr, registry.UsageString())
-		}
-		os.Exit(1)
+		return err
 	}
 
-	// Dispatch to registered commands.
-	if result.Command != nil {
-		switch result.Command.Type {
-		case cli.Output:
-			runCommand(result.Command.RunCLI, result.Args)
-			return
-
-		case cli.Decision:
-			if result.NonInteractive || result.Yes {
-				args := result.Args
-				// cleanup and remove have their own --force semantics, and the
-				// global flag extractor consumed the flag. Re-inject it so it
-				// reaches the command.
-				// Prepend it: the flag parser stops at the first positional
-				// (the repo path), so appending would be silently ignored.
-				if result.Force && (result.Command.Name == "cleanup" || result.Command.Name == "remove") {
-					args = append([]string{"--force"}, result.Args...)
-				}
-				runCommand(result.Command.RunCLI, args)
-				return
-			}
-			// Interactive mode: parse flags and launch TUI at the appropriate view.
-			launchInteractiveDecision(*result)
-			return
-		}
+	// No command: handle the root flags and launch the TUI.
+	if result.Command == nil {
+		return runRoot(result.Args)
 	}
 
-	// Root: no command specified — handle global flags and launch TUI.
-	runRoot(result.Args)
+	if result.Command.Type == cli.Decision && !result.NonInteractive && !result.Yes {
+		return launchInteractiveDecision(*result)
+	}
+
+	args = result.Args
+	// cleanup and remove have their own --force semantics, and the global flag
+	// extractor consumed the flag. Re-inject it so it reaches the command.
+	// Prepend it: the flag parser stops at the first positional (the repo
+	// path), so appending would be silently ignored.
+	if result.Force && (result.Command.Name == "cleanup" || result.Command.Name == "remove") {
+		args = append([]string{"--force"}, args...)
+	}
+	return result.Command.RunCLI(args)
 }
 
 // decisionOpts holds one interactive decision command's parsed flags and the
@@ -176,9 +102,7 @@ func parseDecision(name string, args []string) (decisionOpts, error) {
 	var err error
 	switch name {
 	case "cleanup":
-		if parsed.cleanup, err = cmd.ParseCleanupFlags(args); err == nil {
-			parsed.repoPath = cmd.ParseCleanupRepoPath(args)
-		}
+		parsed.cleanup, parsed.repoPath, err = cmd.ParseCleanupFlags(args)
 	case "create":
 		if parsed.create, err = cmd.ParseCreateFlags(args); err == nil && parsed.create.RepoPath != "" {
 			parsed.repoPath = parsed.create.RepoPath
@@ -205,29 +129,15 @@ func parseDecision(name string, args []string) (decisionOpts, error) {
 	return parsed, nil
 }
 
-func launchInteractiveDecision(result cli.DispatchResult) {
+func launchInteractiveDecision(result cli.DispatchResult) error {
 	parsed, err := parseDecision(result.Command.Name, result.Args)
-	exitOnFlagError(err)
-	repoPath := parsed.repoPath
+	if err != nil {
+		return err
+	}
 
 	runner := &git.GitRunner{}
-	shell := &git.DefaultShellRunner{}
-
-	context := repo.DetectContext(runner, repoPath)
-	if context == repo.ContextBareRepo {
-		repoPath = repo.ResolveBareRoot(runner, repoPath)
-	}
-
-	var cfg *config.Config
-	if context == repo.ContextBareRepo {
-		var err error
-		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
-		if err != nil {
-			log.Warn("failed to load config", "err", err)
-		}
-	}
-
-	model := tui.NewMenuModel(runner, shell, repoPath, cfg, context)
+	context, repoPath := detectRepo(runner, parsed.repoPath)
+	model := newMenuModel(runner, repoPath, context)
 
 	switch result.Command.Name {
 	case "cleanup":
@@ -263,8 +173,7 @@ func launchInteractiveDecision(result cli.DispatchResult) {
 		if opts.Merged || opts.All || opts.Stale > 0 {
 			worktrees, err := git.ListWorktrees(runner, repoPath)
 			if err != nil {
-				log.Error(err)
-				os.Exit(1)
+				return err
 			}
 			worktrees = worktree.EnrichWorktrees(runner, worktrees, worktree.DefaultEnrichConcurrency)
 
@@ -293,37 +202,66 @@ func launchInteractiveDecision(result cli.DispatchResult) {
 		})
 	}
 
-	p := tea.NewProgram(model)
-	final, err := p.Run()
+	return runTUI(model)
+}
+
+// detectRepo reports what kind of repository holds path and, for a bare
+// layout, the layout's root: path may be any worktree inside it.
+func detectRepo(runner git.CommandRunner, path string) (repo.RepoContext, string) {
+	context := repo.DetectContext(runner, path)
+	if context == repo.ContextBareRepo {
+		path = repo.ResolveBareRoot(runner, path)
+	}
+	return context, path
+}
+
+// newMenuModel builds the menu TUI for a detected repository. A config that
+// fails to load is reported and the TUI opens without it.
+func newMenuModel(runner git.CommandRunner, repoPath string, context repo.RepoContext, opts ...tui.ModelOption) tui.Model {
+	var cfg *config.Config
+	if context == repo.ContextBareRepo {
+		var err error
+		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Warning: failed to load config:", err)
+		}
+	}
+	return tui.NewMenuModel(runner, &git.DefaultShellRunner{}, repoPath, cfg, context, opts...)
+}
+
+// runTUI runs the model to completion and warns when the user quit in the
+// middle of a flow that changes the repository.
+func runTUI(model tui.Model) error {
+	final, err := tea.NewProgram(model).Run()
 	if err != nil {
-		log.Error("failed to run TUI", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to run TUI: %w", err)
 	}
 	if tm, ok := final.(tui.Model); ok {
 		if op := tm.InterruptedFlow(); op != "" {
-			log.Warn("quit during " + op + "; check repository state before retrying")
+			fmt.Fprintln(os.Stderr, "Warning: quit during "+op+"; check repository state before retrying")
 		}
 	}
+	return nil
 }
 
-func runRoot(args []string) {
+func runRoot(args []string) error {
+	// ExitOnError exits inside Parse, before anything that needs cleanup.
 	fs := flag.NewFlagSet("sentei", flag.ExitOnError)
 	versionFlag := fs.Bool("version", false, "Print version and exit")
 	playgroundFlag := fs.Bool("playground", false, "Launch with a temporary test repo")
 	dryRunFlag := fs.Bool("dry-run", false, "Print worktree summary and exit (no interactive TUI)")
 	if err := fs.Parse(args); err != nil {
-		os.Exit(1)
+		return err
 	}
 
 	if *versionFlag {
 		fmt.Printf("sentei %s (%s, %s)\n", version, commit, date)
-		os.Exit(0)
+		return nil
 	}
 	// The flag package stops at the first positional, so a flag written after
 	// the repo path (`sentei <path> --dry-run`) would be silently dropped.
 	if fs.NArg() > 1 {
-		log.Error(fmt.Sprintf("unexpected argument %q after repository path %q: flags must come before the path", fs.Arg(1), fs.Arg(0)))
-		os.Exit(1)
+		return fmt.Errorf("unexpected argument %q after repository path %q: flags must come before the path", fs.Arg(1), fs.Arg(0))
 	}
 
 	repoPath := "."
@@ -339,31 +277,23 @@ func runRoot(args []string) {
 		var err error
 		repoPath, cleanup, err = playground.Setup()
 		if err != nil {
-			log.Error("failed to set up playground", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to set up playground: %w", err)
 		}
 		fmt.Fprintf(os.Stderr, "Playground repo: %s\n", repoPath)
 		defer cleanup()
 	}
 
 	runner := &git.GitRunner{}
-	shell := &git.DefaultShellRunner{}
-
-	context := repo.DetectContext(runner, repoPath)
-	if context == repo.ContextBareRepo {
-		repoPath = repo.ResolveBareRoot(runner, repoPath)
-	}
+	context, repoPath := detectRepo(runner, repoPath)
 
 	if *dryRunFlag {
 		if context != repo.ContextBareRepo {
-			log.Error("--dry-run requires a bare repository")
-			os.Exit(1)
+			return errors.New("--dry-run requires a bare repository")
 		}
 
 		worktrees, err := git.ListWorktrees(runner, repoPath)
 		if err != nil {
-			log.Error(err)
-			os.Exit(1)
+			return err
 		}
 
 		worktrees = worktree.EnrichWorktrees(runner, worktrees, worktree.DefaultEnrichConcurrency)
@@ -377,40 +307,15 @@ func runRoot(args []string) {
 
 		if len(filtered) == 0 {
 			fmt.Println("No worktrees found (only the main working tree exists).")
-			os.Exit(0)
+			return nil
 		}
 
-		if err := dryrun.Print(filtered, git.DetectDefaultBranch(runner, repoPath), os.Stdout); err != nil {
-			log.Error(err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
-
-	var cfg *config.Config
-	if context == repo.ContextBareRepo {
-		var err error
-		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
-		if err != nil {
-			log.Warn("failed to load config", "err", err)
-		}
+		return dryrun.Print(filtered, git.DetectDefaultBranch(runner, repoPath), os.Stdout)
 	}
 
 	var menuOpts []tui.ModelOption
 	if *playgroundFlag {
 		menuOpts = append(menuOpts, tui.WithMinProgressDuration(1500*time.Millisecond))
 	}
-	model := tui.NewMenuModel(runner, shell, repoPath, cfg, context, menuOpts...)
-	p := tea.NewProgram(model)
-
-	final, err := p.Run()
-	if err != nil {
-		log.Error("failed to run TUI", "err", err)
-		os.Exit(1)
-	}
-	if tm, ok := final.(tui.Model); ok {
-		if op := tm.InterruptedFlow(); op != "" {
-			log.Warn("quit during " + op + "; check repository state before retrying")
-		}
-	}
+	return runTUI(newMenuModel(runner, repoPath, context, menuOpts...))
 }

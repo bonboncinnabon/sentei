@@ -1,6 +1,7 @@
 package git
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -413,5 +414,47 @@ func TestGitRunner_ExplainsADisabledCredentialPrompt(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error = %q, want it to contain %q", err, want)
 		}
+	}
+}
+
+// sentei runs status in the background across every worktree. Left alone, git
+// rewrites the index it has just refreshed, taking index.lock under whatever
+// git command the user runs at that moment.
+func TestGitRunner_StatusLeavesTheIndexAlone(t *testing.T) {
+	dir := t.TempDir()
+	runner := &GitRunner{}
+	run := func(args ...string) {
+		t.Helper()
+		if _, err := runner.Run(dir, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run("init", "--quiet")
+	tracked := filepath.Join(dir, "a.txt")
+	if err := os.WriteFile(tracked, []byte("a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "a.txt")
+	run("-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "--quiet", "-m", "init")
+	// Same content, newer mtime: the stat data cached in the index is stale,
+	// which is what makes a plain status write the index back.
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(tracked, later, later); err != nil {
+		t.Fatal(err)
+	}
+	index := filepath.Join(dir, ".git", "index")
+	before, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	run("status", "--porcelain")
+
+	after, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Error("git status rewrote the index: read-only commands must not take optional locks")
 	}
 }

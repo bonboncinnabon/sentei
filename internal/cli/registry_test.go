@@ -42,16 +42,16 @@ func TestDispatch_Root(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !result.IsRoot {
-		t.Error("expected IsRoot=true for nil args")
+	if result.Command != nil {
+		t.Errorf("nil args must dispatch to the root, got command %q", result.Command.Name)
 	}
 
 	result, err = r.Dispatch([]string{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !result.IsRoot {
-		t.Error("expected IsRoot=true for empty args")
+	if result.Command != nil {
+		t.Errorf("empty args must dispatch to the root, got command %q", result.Command.Name)
 	}
 }
 
@@ -62,8 +62,8 @@ func TestDispatch_RootWithFlags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !result.IsRoot {
-		t.Error("expected IsRoot=true when first arg is a flag")
+	if result.Command != nil {
+		t.Errorf("a leading flag must dispatch to the root, got command %q", result.Command.Name)
 	}
 	if len(result.Args) != 1 || result.Args[0] != "--version" {
 		t.Errorf("expected args=[--version], got %v", result.Args)
@@ -77,8 +77,8 @@ func TestDispatch_KnownOutputCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result.IsRoot {
-		t.Error("expected IsRoot=false for known command")
+	if result.Command == nil {
+		t.Fatal("expected the ecosystems command, got the root")
 	}
 	if result.Command.Name != "ecosystems" {
 		t.Errorf("expected command=ecosystems, got %s", result.Command.Name)
@@ -172,22 +172,11 @@ func TestDispatch_DirectoryIsRootWithRepoPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !result.IsRoot || result.Command != nil {
+	if result.Command != nil {
 		t.Errorf("a directory argument must dispatch to the root command, got %+v", result)
 	}
 	if len(result.Args) != 2 || result.Args[0] != dir {
 		t.Errorf("args = %v, want the path kept for the root command", result.Args)
-	}
-}
-
-func TestLookup(t *testing.T) {
-	r := newTestRegistry()
-
-	if cmd := r.Lookup("ecosystems"); cmd == nil {
-		t.Error("expected to find ecosystems")
-	}
-	if cmd := r.Lookup("nope"); cmd != nil {
-		t.Error("expected nil for unknown command")
 	}
 }
 

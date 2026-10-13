@@ -18,61 +18,36 @@ func (m Model) updateRepoName(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, keys.Tab):
-			if m.repo.focusedField == 0 {
-				m.repo.focusedField = 1
-				m.repo.nameInput.Blur()
-				m.repo.locationInput.CursorEnd()
-				return m, m.repo.locationInput.Focus()
-			}
-			m.repo.focusedField = 0
-			m.repo.locationInput.Blur()
-			m.repo.nameInput.CursorEnd()
-			return m, m.repo.nameInput.Focus()
+			return m, switchFormField(&m.repo.focusedField, &m.repo.nameInput, &m.repo.locationInput)
 
 		case key.Matches(msg, keys.Confirm):
 			name := strings.TrimSpace(m.repo.nameInput.Value())
-			location := strings.TrimSpace(m.repo.locationInput.Value())
+			location := m.repoLocation()
+			dest := filepath.Join(location, name)
+			locationInfo, locationErr := os.Stat(location)
+			_, destErr := os.Lstat(dest)
 
-			if name == "" {
+			switch {
+			case name == "":
 				m.repo.validationErr = "repository name is required"
-				return m, nil
-			}
-			if strings.Contains(name, " ") {
+			case strings.Contains(name, " "):
 				m.repo.validationErr = "repository name cannot contain spaces"
-				return m, nil
+			case name == "." || name == ".." || strings.ContainsAny(name, `/\`):
+				m.repo.validationErr = "repository name must be a directory name, not a path"
+			case locationErr != nil || !locationInfo.IsDir():
+				m.repo.validationErr = fmt.Sprintf("location is not an existing directory: %s", location)
+			case destErr == nil:
+				m.repo.validationErr = fmt.Sprintf("directory already exists: %s", dest)
+			default:
+				m.repo.validationErr = ""
 			}
-			if location == "" {
-				m.repo.validationErr = "location is required"
-				return m, nil
-			}
-
-			// Expand ~ in location
-			if strings.HasPrefix(location, "~/") {
-				home, err := os.UserHomeDir()
-				if err == nil {
-					location = filepath.Join(home, location[2:])
-					m.repo.locationInput.SetValue(location)
-				}
-			}
-
-			// Check parent directory exists
-			parentDir := filepath.Dir(location)
-			if _, err := os.Stat(parentDir); os.IsNotExist(err) {
-				m.repo.validationErr = fmt.Sprintf("parent directory does not exist: %s", parentDir)
+			if m.repo.validationErr != "" {
 				return m, nil
 			}
 
-			// Check destination doesn't already exist
-			if _, err := os.Stat(location); err == nil {
-				m.repo.validationErr = fmt.Sprintf("directory already exists: %s", location)
-				return m, nil
-			}
-
-			m.repo.validationErr = ""
 			m.repo.focusedField = 0
 			m.repo.locationInput.Blur()
 			m.repo.nameInput.Blur()
-			m.repo.createWorktree = true
 			m.repo.publishGitHub = false
 			m.repo.ghStatus = ""
 			m.repo.optionsCursor = repoOptPublish
@@ -84,19 +59,26 @@ func (m Model) updateRepoName(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m.updateRepoNameInput(msg)
 }
 
-func (m Model) updateRepoNameInput(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m.repo.validationErr = ""
-	var cmd tea.Cmd
-	if m.repo.focusedField == 0 {
-		m.repo.nameInput, cmd = m.repo.nameInput.Update(msg)
-		name := strings.TrimSpace(m.repo.nameInput.Value())
-		if name != "" {
-			m.repo.locationInput.SetValue(filepath.Join(m.repoPath, name))
-		} else {
-			m.repo.locationInput.SetValue(m.repoPath)
+// repoLocation is the directory the new repository is created in: the
+// Location field with ~ expanded, resolved against the directory sentei was
+// opened on. An empty field is that directory, as its placeholder shows.
+func (m Model) repoLocation() string {
+	location := strings.TrimSpace(m.repo.locationInput.Value())
+	if location == "~" || strings.HasPrefix(location, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			location = filepath.Join(home, location[1:])
 		}
-	} else {
-		m.repo.locationInput, cmd = m.repo.locationInput.Update(msg)
+	}
+	if !filepath.IsAbs(location) {
+		location = filepath.Join(m.repoPath, location)
+	}
+	return filepath.Clean(location)
+}
+
+func (m Model) updateRepoNameInput(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmd, edited := editFormField(m.repo.focusedField, &m.repo.nameInput, &m.repo.locationInput, msg)
+	if edited {
+		m.repo.validationErr = ""
 	}
 	return m, cmd
 }
@@ -115,6 +97,10 @@ func (m Model) viewRepoName() string {
 
 	b.WriteString(inputFieldLabel("Location", m.repo.focusedField == 1))
 	b.WriteString("  " + m.repo.locationInput.View())
+	b.WriteString("\n")
+	// The repository is a directory named after it inside Location.
+	dest := filepath.Join(m.repoLocation(), strings.TrimSpace(m.repo.nameInput.Value()))
+	b.WriteString(destinationPreview(dest, m.width))
 	b.WriteString("\n")
 
 	if m.repo.validationErr != "" {

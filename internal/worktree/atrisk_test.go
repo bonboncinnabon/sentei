@@ -19,6 +19,7 @@ func TestAtRisk(t *testing.T) {
 		// Enrichment stops at the first failing git call, before status runs,
 		// so every flag is false. Unknown must not read as clean.
 		{"status could not be read", git.Worktree{EnrichmentError: "git log -1: fatal: no commits yet"}, true},
+		{"locked and otherwise clean", git.Worktree{IsEnriched: true, IsLocked: true}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
