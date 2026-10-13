@@ -22,7 +22,7 @@ The system SHALL run a dry-run cleanup scan when the user selects cleanup from t
 The system SHALL display the results of a safe-mode dry-run grouped by category with counts.
 
 #### Scenario: Safe results with actions
-- **WHEN** the scan finds 3 stale refs, 1 config duplicate, and 1 stale worktree
+- **WHEN** the scan finds 3 stale refs, 1 orphaned config section, and 1 stale worktree
 - **THEN** the preview SHALL display under "Safe cleanup:" each category with `●` indicator and count
 
 #### Scenario: Safe results with no-ops

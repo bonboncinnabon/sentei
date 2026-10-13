@@ -176,9 +176,7 @@ func parseDecision(name string, args []string) (decisionOpts, error) {
 	var err error
 	switch name {
 	case "cleanup":
-		if parsed.cleanup, err = cmd.ParseCleanupFlags(args); err == nil {
-			parsed.repoPath = cmd.ParseCleanupRepoPath(args)
-		}
+		parsed.cleanup, parsed.repoPath, err = cmd.ParseCleanupFlags(args)
 	case "create":
 		if parsed.create, err = cmd.ParseCreateFlags(args); err == nil && parsed.create.RepoPath != "" {
 			parsed.repoPath = parsed.create.RepoPath

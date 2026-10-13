@@ -58,16 +58,16 @@ func TestViewCleanupPreview_CleanRepository(t *testing.T) {
 
 func TestViewCleanupPreview_SafeResults(t *testing.T) {
 	m := previewModel()
-	m.cleanupScan = &cleanup.DryRunResult{StaleRefs: 3, ConfigDuplicates: 1, PrunableWorktrees: 1}
+	m.cleanupScan = &cleanup.DryRunResult{StaleRefs: 3, OrphanedConfigs: 1, ConfigDuplicates: 2, PrunableWorktrees: 1}
 	view := stripANSI(m.viewCleanupPreview())
 
 	for _, want := range []string{
 		"Safe cleanup:",
 		"▸ 3 stale remote refs would be pruned",
-		"▸ 1 config duplicate would be removed",
+		"▸ 1 orphaned config section would be removed",
+		"▸ 2 duplicate config lines would be removed",
 		"▸ 1 stale worktree would be pruned",
 		"· No branches with gone upstream",
-		"· No orphaned config sections",
 	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("missing %q:\n%s", want, view)
@@ -360,11 +360,11 @@ func TestViewCleanupResult_SkippedBranchesSurfaced(t *testing.T) {
 	}
 
 	view := stripANSI(m.viewCleanupResult())
-	if !strings.Contains(view, "⚠ 1 branch skipped (not fully merged)") {
+	if !strings.Contains(view, "⚠ 1 branch skipped") {
 		t.Errorf("skips must be reported:\n%s", view)
 	}
-	if !strings.Contains(view, "old/unmerged") {
-		t.Errorf("skipped branch names must be listed:\n%s", view)
+	if !strings.Contains(view, "old/unmerged  not fully merged") {
+		t.Errorf("skipped branches must be listed with their reason:\n%s", view)
 	}
 	if !strings.Contains(view, "--mode aggressive --force") {
 		t.Errorf("tip must point at --force after an aggressive run with skips:\n%s", view)

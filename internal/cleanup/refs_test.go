@@ -1,6 +1,7 @@
 package cleanup
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
@@ -11,23 +12,22 @@ func TestPruneRemoteRefs(t *testing.T) {
 		name        string
 		dryRun      bool
 		pruneOutput string
-		wantCount   int
+		want        []string
 	}{
 		{
 			name:        "no stale refs",
 			pruneOutput: "",
-			wantCount:   0,
 		},
 		{
 			name:        "some stale refs",
 			pruneOutput: "Pruning origin\nURL: git@github.com:Org/repo.git\n * [would prune] origin/feature/old\n * [would prune] origin/fix/done",
-			wantCount:   2,
+			want:        []string{"origin/feature/old", "origin/fix/done"},
 		},
 		{
-			name:        "dry run reports count",
+			name:        "dry run reports the same refs",
 			dryRun:      true,
 			pruneOutput: "Pruning origin\nURL: git@github.com:Org/repo.git\n * [would prune] origin/feature/old",
-			wantCount:   1,
+			want:        []string{"origin/feature/old"},
 		},
 	}
 
@@ -41,14 +41,27 @@ func TestPruneRemoteRefs(t *testing.T) {
 			opts := Options{DryRun: tt.dryRun}
 			events := collectEvents(t)
 
-			count, err := PruneRemoteRefs(runner, "/repo", opts, events.Emit)
+			stale, err := PruneRemoteRefs(runner, "/repo", opts, events.Emit)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if count != tt.wantCount {
-				t.Errorf("count = %d, want %d", count, tt.wantCount)
+			if !slices.Equal(stale, tt.want) {
+				t.Errorf("stale = %v, want %v", stale, tt.want)
 			}
 		})
+	}
+}
+
+// The bracketed label is translated by git; the bullet and the ref name are
+// not. A dangling-symref notice has no bullet and is not a pruned ref.
+func TestParseStaleRefs_DoesNotDependOnTheLabelText(t *testing.T) {
+	output := "Pruning origin\n" +
+		"URL: git@github.com:Org/repo.git\n" +
+		" * [würde veralteten Branch entfernen] origin/feature/old\n" +
+		" origin/HEAD will become dangling!"
+
+	if got, want := parseStaleRefs(output), []string{"origin/feature/old"}; !slices.Equal(got, want) {
+		t.Errorf("parseStaleRefs = %v, want %v", got, want)
 	}
 }
 
@@ -68,12 +81,12 @@ func TestPruneRemoteRefs_NoRemotes(t *testing.T) {
 			}}
 			events := collectEvents(t)
 
-			count, err := PruneRemoteRefs(runner, "/repo", Options{}, events.Emit)
+			stale, err := PruneRemoteRefs(runner, "/repo", Options{}, events.Emit)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if count != 0 {
-				t.Errorf("count = %d, want 0", count)
+			if len(stale) != 0 {
+				t.Errorf("stale = %v, want none", stale)
 			}
 
 			for _, call := range runner.Calls {
