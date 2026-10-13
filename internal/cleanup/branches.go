@@ -170,7 +170,7 @@ func listNonWorktreeCandidates(runner git.CommandRunner, repoPath string, exclud
 	// The repo's real default branch may be non-standard ("trunk"); it is not
 	// checked out when no worktree holds it, so the worktree set alone would
 	// let aggressive mode delete it.
-	defaultBranch := git.DetectDefaultBranch(runner, repoPath)
+	protected := defaultBranch(runner, repoPath)
 
 	var candidates []string
 	for _, line := range strings.Split(branchOutput, "\n") {
@@ -178,7 +178,7 @@ func listNonWorktreeCandidates(runner git.CommandRunner, repoPath string, exclud
 		if b == "" {
 			continue
 		}
-		if wtBranches[b] || git.IsProtectedBranchWith(b, defaultBranch) || slices.Contains(exclude, b) {
+		if wtBranches[b] || git.IsProtectedBranchWith(b, protected) || slices.Contains(exclude, b) {
 			continue
 		}
 		candidates = append(candidates, b)
@@ -205,7 +205,7 @@ func listGoneBranches(runner git.CommandRunner, repoPath string, stale []string)
 	for _, ref := range stale {
 		pendingPrune["refs/remotes/"+ref] = true
 	}
-	defaultBranch := git.DetectDefaultBranch(runner, repoPath)
+	protected := defaultBranch(runner, repoPath)
 
 	for _, line := range strings.Split(output, "\n") {
 		fields := strings.SplitN(line, "\x1f", 4)
@@ -217,7 +217,7 @@ func listGoneBranches(runner git.CommandRunner, repoPath string, stale []string)
 			continue
 		}
 		switch {
-		case git.IsProtectedBranchWith(name, defaultBranch):
+		case git.IsProtectedBranchWith(name, protected):
 			kept = append(kept, SkippedBranch{Name: name, Reason: SkipProtected})
 		case worktreePath != "":
 			kept = append(kept, SkippedBranch{Name: name, Reason: SkipInWorktree})
@@ -226,6 +226,17 @@ func listGoneBranches(runner git.CommandRunner, repoPath string, stale []string)
 		}
 	}
 	return gone, kept, nil
+}
+
+// defaultBranch returns the repository's default branch, read from HEAD of
+// the common git directory. repoPath may be a worktree, and there HEAD names
+// that worktree's branch: detecting from it would leave the real default
+// branch unprotected.
+func defaultBranch(runner git.CommandRunner, repoPath string) string {
+	if commonDir, err := git.CommonDir(runner, repoPath); err == nil {
+		repoPath = commonDir
+	}
+	return git.DetectDefaultBranch(runner, repoPath)
 }
 
 func parseWorktreeBranches(output string) map[string]bool {

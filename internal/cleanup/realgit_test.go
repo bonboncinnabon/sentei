@@ -342,3 +342,41 @@ func TestRun_DryRunReportsWhatTheRealRunDoes(t *testing.T) {
 		})
 	}
 }
+
+// HEAD is per worktree: inside one it names that worktree's branch. A cleanup
+// given a worktree path must still protect the repository's default branch,
+// which only the HEAD of the bare repository records.
+func TestRun_WorktreePathKeepsTheDefaultBranch(t *testing.T) {
+	f := newRepoFixture(t)
+	// A default branch with a non-standard name, in no worktree, whose
+	// upstream is gone: both branch steps have to recognise it.
+	f.trackRemoteBranch("trunk")
+	f.git(f.origin, "branch", "--quiet", "-D", "trunk")
+	f.git(f.root, "symbolic-ref", "HEAD", "refs/heads/trunk")
+	worktree := filepath.Join(f.root, "main")
+	runner := &git.GitRunner{}
+
+	scan, err := DryRun(runner, worktree)
+	if err != nil {
+		t.Fatalf("DryRun: %v", err)
+	}
+	if slices.Contains(scan.GoneBranches, "trunk") {
+		t.Errorf("preview GoneBranches = %v: the default branch must not be listed", scan.GoneBranches)
+	}
+	for _, candidate := range scan.AggressiveBranches {
+		if candidate.Name == "trunk" {
+			t.Error("the preview lists the default branch as an aggressive candidate")
+		}
+	}
+
+	result := Run(runner, worktree, Options{Mode: ModeAggressive, Force: true}, discard)
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+	if !slices.Contains(f.branches(), "trunk") {
+		t.Fatal("cleanup run from a worktree path deleted the default branch")
+	}
+	if want := (SkippedBranch{Name: "trunk", Reason: SkipProtected}); !slices.Contains(result.BranchesSkipped, want) {
+		t.Errorf("BranchesSkipped = %v, want it to contain %v", result.BranchesSkipped, want)
+	}
+}
