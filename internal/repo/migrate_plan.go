@@ -441,14 +441,49 @@ func readGitfile(path string) (content []byte, target string, err error) {
 	return content, filepath.Clean(pointer), nil
 }
 
-// pathInside returns dir relative to root when it lies inside root. Symlinks
-// are resolved first: git records resolved paths, and the root may have been
-// reached through a symlink.
+// pathInside returns dir relative to root when it lies inside root.
+// Directories are compared as files, not by name: git records resolved paths,
+// while the root may be reached through a symlink or, where the filesystem
+// ignores case, be spelled differently. The result is matched against
+// directory listings when the working tree moves, so it uses the names the
+// directory entries have wherever they can be read.
 func pathInside(root, dir string) (string, bool) {
-	root, rootErr := filepath.EvalSymlinks(root)
-	dir, dirErr := filepath.EvalSymlinks(dir)
-	inside, err := filepath.Rel(root, dir)
-	return inside, rootErr == nil && dirErr == nil && err == nil && inside != "." && filepath.IsLocal(inside)
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		return "", false
+	}
+	if dir, err = filepath.EvalSymlinks(dir); err != nil {
+		return "", false
+	}
+	// dir and its parents below the root, innermost first.
+	var below []fs.FileInfo
+	for {
+		info, err := os.Stat(dir)
+		if err != nil {
+			return "", false
+		}
+		if os.SameFile(info, rootInfo) {
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		below, dir = append(below, info), parent
+	}
+	inside := ""
+	for _, info := range slices.Backward(below) {
+		name := info.Name()
+		entries, _ := os.ReadDir(filepath.Join(root, inside))
+		for _, entry := range entries {
+			if entryInfo, err := entry.Info(); err == nil && os.SameFile(entryInfo, info) {
+				name = entry.Name()
+				break
+			}
+		}
+		inside = filepath.Join(inside, name)
+	}
+	return inside, inside != ""
 }
 
 // sameFile reports whether two paths lead to the same file or directory.

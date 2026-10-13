@@ -1231,6 +1231,127 @@ func TestMigrate_KeepsLinkedWorktreesWhereTheyAre(t *testing.T) {
 	}
 }
 
+// Where the filesystem ignores case, the repository can be named in another
+// spelling than the one git recorded for the worktrees inside it. A linked
+// worktree is recognised by the directory it is, not by how its path is
+// written: moved along with the checkout, git would list it as prunable.
+func TestMigrate_KeepsALinkedWorktreeUnderARootSpelledInAnotherCase(t *testing.T) {
+	t.Parallel()
+	base, root := newCheckout(t)
+	spelled := filepath.Join(base, "PROJ")
+	if !sameFile(root, spelled) {
+		t.Skip("this filesystem tells names apart by case")
+	}
+	inside, deep := filepath.Join(root, "inside"), filepath.Join(root, ".claude", "worktrees", "deep")
+	for branch, dir := range map[string]string{"in": inside, "deep": deep} {
+		mustGit(t, root, "worktree", "add", "-q", "-b", branch, dir)
+		mustWrite(t, filepath.Join(dir, "wip.txt"), "work in progress\n")
+	}
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: spelled}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	for _, dir := range []string{inside, deep} {
+		if got := mustGit(t, dir, "status", "--porcelain"); got != "?? wip.txt" {
+			t.Errorf("status of %s = %q, want its work in progress", dir, got)
+		}
+	}
+	for _, moved := range []string{"inside", ".claude"} {
+		if exists(filepath.Join(result.WorktreePath, moved)) {
+			t.Errorf("%s was moved into the new worktree", moved)
+		}
+	}
+	worktrees, err := git.ListWorktrees(realGit, root)
+	if err != nil || len(worktrees) != 4 {
+		t.Fatalf("worktrees = %+v, err %v; want the bare entry, the new worktree and the two linked ones", worktrees, err)
+	}
+	for _, listed := range worktrees {
+		if listed.IsPrunable {
+			t.Errorf("%s is listed as prunable", listed.Path)
+		}
+	}
+}
+
+// A directory on the way to a linked worktree can be closed to listing while
+// git still reaches the worktree through it. The worktree is then known by
+// the path git recorded, and it is not moved: the move stops at the directory
+// and is rolled back.
+func TestMigrate_LinkedWorktreeUnderADirectoryThatCannotBeListedIsNotMoved(t *testing.T) {
+	t.Parallel()
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	base, root := newCheckout(t)
+	closed := filepath.Join(root, ".private")
+	linked := filepath.Join(closed, "wt")
+	mustGit(t, root, "worktree", "add", "-q", "-b", "wt", linked)
+	before := snapshot(t, base)
+	if err := os.Chmod(closed, 0o311); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(closed, 0o755) })
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	failure := result.Failure()
+	if failure == nil || !strings.Contains(failure.Error(), ".private") || !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Fatalf("Failure() = %v, want the directory named and the failure reported as rolled back", failure)
+	}
+	if err := os.Chmod(closed, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
+	if status := mustGit(t, linked, "status", "--porcelain"); status != "" {
+		t.Errorf("status of the linked worktree = %q, want it clean and readable", status)
+	}
+}
+
+// A directory lies inside the root when walking up from it arrives at the
+// root, whatever either path is called, and the answer names it the way the
+// directory entries do.
+func TestPathInside(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	for _, dir := range []string{filepath.Join(root, "a", "b"), filepath.Join(base, "elsewhere", "c")} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for link, target := range map[string]string{
+		filepath.Join(base, "alias"):  root,
+		filepath.Join(root, "within"): "a",
+		filepath.Join(root, "beyond"): filepath.Join(base, "elsewhere"),
+	} {
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tests := []struct {
+		name, root, dir string
+		want            string
+		inside          bool
+	}{
+		{"a directory below the root", root, filepath.Join(root, "a", "b"), filepath.Join("a", "b"), true},
+		{"the root reached through a symlink", filepath.Join(base, "alias"), filepath.Join(root, "a", "b"), filepath.Join("a", "b"), true},
+		{"the directory reached through a symlink", root, filepath.Join(base, "alias", "a"), "a", true},
+		{"through a symlink that stays inside", root, filepath.Join(root, "within", "b"), filepath.Join("a", "b"), true},
+		{"through a symlink that leads outside", root, filepath.Join(root, "beyond", "c"), "", false},
+		{"the root itself", root, root, "", false},
+		{"beside the root", root, filepath.Join(base, "elsewhere"), "", false},
+		{"a directory that does not exist", root, filepath.Join(root, "missing"), "", false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, inside := pathInside(test.root, test.dir)
+			if inside != test.inside || (inside && got != test.want) {
+				t.Errorf("pathInside(%q, %q) = %q, %v; want %q, %v", test.root, test.dir, got, inside, test.want, test.inside)
+			}
+		})
+	}
+}
+
 // Submodules keep their checked-out commits and local changes. Their
 // repositories end up where git keeps them for a linked worktree, nested ones
 // included, and a repository kept for a deinitialised submodule is still used.
