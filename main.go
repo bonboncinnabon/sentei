@@ -9,7 +9,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/log/v2"
 
 	"github.com/bonboncinnabon/sentei/cmd"
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
@@ -82,16 +81,13 @@ func buildRegistry() *cli.Registry {
 }
 
 func main() {
-	// CLI errors are immediate feedback, not a log stream: no timestamps.
-	log.SetReportTimestamp(false)
-
 	registry := buildRegistry()
 	err := run(registry, os.Args[1:])
 	// -h/--help is success: the flag package has already printed usage.
 	if err == nil || errors.Is(err, flag.ErrHelp) {
 		return
 	}
-	log.Error(err)
+	fmt.Fprintln(os.Stderr, "Error:", err)
 	if cli.IsUnknownCommand(err) {
 		fmt.Fprint(os.Stderr, registry.UsageString())
 	}
@@ -196,7 +192,7 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 		var err error
 		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
 		if err != nil {
-			log.Warn("failed to load config", "err", err)
+			fmt.Fprintln(os.Stderr, "Warning: failed to load config:", err)
 		}
 	}
 
@@ -272,7 +268,7 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 	}
 	if tm, ok := final.(tui.Model); ok {
 		if op := tm.InterruptedFlow(); op != "" {
-			log.Warn("quit during " + op + "; check repository state before retrying")
+			fmt.Fprintln(os.Stderr, "Warning: quit during "+op+"; check repository state before retrying")
 		}
 	}
 	return nil
@@ -356,7 +352,7 @@ func runRoot(args []string) error {
 		var err error
 		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
 		if err != nil {
-			log.Warn("failed to load config", "err", err)
+			fmt.Fprintln(os.Stderr, "Warning: failed to load config:", err)
 		}
 	}
 
@@ -373,7 +369,7 @@ func runRoot(args []string) error {
 	}
 	if tm, ok := final.(tui.Model); ok {
 		if op := tm.InterruptedFlow(); op != "" {
-			log.Warn("quit during " + op + "; check repository state before retrying")
+			fmt.Fprintln(os.Stderr, "Warning: quit during "+op+"; check repository state before retrying")
 		}
 	}
 	return nil

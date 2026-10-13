@@ -109,8 +109,11 @@ func TestUnknownCommandCLI(t *testing.T) {
 	}
 
 	output := string(out)
-	if !strings.Contains(output, "unknown command: foobar") {
+	if !strings.Contains(output, "Error: unknown command: foobar") {
 		t.Errorf("expected 'unknown command' error, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Usage: sentei [command] [options]") {
+		t.Errorf("expected the command list after the error, got:\n%s", output)
 	}
 }
 
