@@ -276,6 +276,7 @@ func TestDeleteGoneBranches_ForceGatedByMode(t *testing.T) {
 			goneBranchCall:                       {Output: refs},
 			"/repo:[symbolic-ref HEAD]":          {Output: "refs/heads/main"},
 			"/repo:[branch -d feature/unmerged]": {Err: fmt.Errorf("error: branch not fully merged")},
+
 			"/repo:[rev-parse --abbrev-ref feature/unmerged@{upstream}]": {Err: fmt.Errorf("no upstream")},
 			"/repo:[merge-base --is-ancestor feature/unmerged HEAD]":     {Err: fmt.Errorf("exit status 1")},
 			// -D is mocked to SUCCEED: if the code wrongly used it in safe mode,
