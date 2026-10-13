@@ -1,10 +1,10 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/creator"
@@ -70,7 +70,7 @@ func RunCreate(args []string) error {
 	if opts.CopyEnv {
 		worktrees, err := git.ListWorktrees(runner, repoPath)
 		if err == nil {
-			creatorOpts.SourceWorktree = findSource(worktrees)
+			creatorOpts.SourceWorktree = creator.SourceWorktree(worktrees)
 		}
 		if cfg != nil && creatorOpts.SourceWorktree != "" {
 			detected, _ := ecosystem.NewRegistry(cfg.Ecosystems).Detect(creatorOpts.SourceWorktree)
@@ -80,7 +80,9 @@ func RunCreate(args []string) error {
 		}
 	}
 
-	fmt.Printf("Creating worktree %q from %s...\n", opts.Branch, opts.Base)
+	// The base is not named here: it only applies to a branch that does not
+	// exist yet, and the create step reports which case this was.
+	fmt.Printf("Creating worktree %q...\n", opts.Branch)
 
 	result := creator.Run(runner, shell, creatorOpts, func(e progress.Event) {
 		printCreateEvent(e)
@@ -94,12 +96,16 @@ func RunCreate(args []string) error {
 	return nil
 }
 
+// createResultError maps the run to the command's exit status and says
+// whether a worktree was left behind, because that decides the next step.
 func createResultError(result creator.Result) error {
-	if result.Err != nil {
+	switch {
+	case result.Err != nil:
 		return fmt.Errorf("create failed: %w", result.Err)
-	}
-	if result.HasFailures() {
-		return fmt.Errorf("create completed with errors")
+	case result.WorktreePath == "":
+		return errors.New("create failed: no worktree was created; fix the error above and run create again")
+	case result.HasFailures():
+		return fmt.Errorf("create completed with errors: the worktree exists at %s; resolve the failed steps above inside it", result.WorktreePath)
 	}
 	return nil
 }
@@ -140,24 +146,4 @@ func matchEcosystems(available []config.EcosystemConfig, requested []string) []c
 		}
 	}
 	return matched
-}
-
-// findSource picks a source worktree for env file copying (prefers main/master).
-// The bare repo's own entry is listed first and holds no working files, so it
-// is never a source.
-func findSource(worktrees []git.Worktree) string {
-	fallback := ""
-	for _, wt := range worktrees {
-		if wt.IsBare || wt.IsPrunable {
-			continue
-		}
-		branch := strings.TrimPrefix(wt.Branch, "refs/heads/")
-		if branch == "main" || branch == "master" {
-			return wt.Path
-		}
-		if fallback == "" {
-			fallback = wt.Path
-		}
-	}
-	return fallback
 }

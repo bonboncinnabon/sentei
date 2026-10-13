@@ -58,8 +58,8 @@ func inheritedEnv() []string {
 
 // GitRunner runs git against the repository named by dir and nothing else:
 // the child cannot prompt on the terminal, reads no input, ignores an
-// inherited GIT_DIR, prints untranslated messages, and is stopped after
-// gitTimeout.
+// inherited GIT_DIR, prints untranslated messages, takes no optional locks,
+// and is stopped after gitTimeout.
 type GitRunner struct {
 	// Env holds extra NAME=value entries for the child, such as GIT_AUTHOR_DATE.
 	Env []string
@@ -77,8 +77,10 @@ func (r *GitRunner) Run(dir string, args ...string) (string, error) {
 	// The last entry for a name wins, so the settings below hold whatever the
 	// caller's environment says. LC_ALL=C keeps git's messages in English,
 	// which callers match on ("is not locked", "[gone]"). Stdin stays nil: the
-	// child reads the null device.
-	cmd.Env = append(append(inheritedEnv(), r.Env...), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
+	// child reads the null device. GIT_OPTIONAL_LOCKS=0 keeps read-only
+	// commands read-only: a background status must not rewrite the index and
+	// hold index.lock under the user's own git command.
+	cmd.Env = append(append(inheritedEnv(), r.Env...), "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0", "LC_ALL=C")
 	// SIGTERM lets git remove its lock files. A git that ignores it, or a
 	// helper it left behind holding the output pipes, is cut off by WaitDelay.
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }

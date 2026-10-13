@@ -145,11 +145,13 @@ type createState struct {
 	focusedField  int // 0 = branch, 1 = base
 	validationErr string
 
-	ecosystems    []config.EcosystemConfig
-	ecoEnabled    map[string]bool
-	mergeBase     bool
-	copyEnvFiles  bool
-	optionsCursor int
+	ecosystems   []config.EcosystemConfig
+	ecoEnabled   map[string]bool
+	mergeBase    bool
+	copyEnvFiles bool
+	// mergeDefaultFor is the branch name mergeBase was last defaulted for.
+	mergeDefaultFor string
+	optionsCursor   int
 
 	eventCh  chan progress.Event
 	resultCh chan creator.Result
@@ -172,12 +174,11 @@ type repoState struct {
 	validationErr string
 
 	// Options
-	createWorktree bool
-	publishGitHub  bool
-	visibility     string // "private" or "public"
-	descInput      textinput.Model
-	ghStatus       string // "authenticated", "not authenticated", "gh not found"
-	optionsCursor  int
+	publishGitHub bool
+	visibility    string // "private" or "public"
+	descInput     textinput.Model
+	ghStatus      string // "authenticated", "not authenticated", "gh not found"
+	optionsCursor int
 
 	// Clone fields
 	urlInput           textinput.Model
