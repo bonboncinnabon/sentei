@@ -194,8 +194,10 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 	root, _ := filepath.Abs(opts.RepoPath)
 	gitDir := filepath.Join(root, ".git")
 	barePath := filepath.Join(root, ".bare")
+	configPath := filepath.Join(barePath, "config")
 	var gitMoved, stateMoved, filesMoved renames
-	registered := false // git created the worktree directory and its .git file
+	var originalConfig []byte // the repository config before the first git edit
+	registered := false       // git created the worktree directory and its .git file
 
 	migrate := flow{name: "repository migration"}
 	migrate.add(migrateValidatePhaseID, "Validate", step{id: "preflight", label: "Check repository", run: func() (string, error) {
@@ -208,23 +210,41 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 		run:  func() (string, error) { return "", gitMoved.move(gitDir, barePath) },
 		undo: gitMoved.undo,
 	})
-	migrate.add(migrateConvertPhaseID, "Convert", step{
-		id: "mark-bare", label: "Mark repository as bare",
-		run: func() (string, error) {
-			_, err := runner.Run(barePath, "config", "core.bare", "true")
-			return "", err
-		},
-		undo: func() error {
-			_, err := runner.Run(barePath, "config", "core.bare", "false")
-			return err
-		},
-	})
+	// The pointer comes before any git command: from here on git reaches .bare
+	// through it. A bare repository git finds on its own is refused when
+	// safe.bareRepository is "explicit".
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "git-pointer", label: "Write .git pointer",
 		run: func() (string, error) {
 			return "", os.WriteFile(gitDir, []byte("gitdir: .bare\n"), 0o644)
 		},
 		undo: func() error { return removeFile(gitDir) },
+	})
+	migrate.add(migrateConvertPhaseID, "Convert", step{
+		id: "mark-bare", label: "Mark repository as bare",
+		run: func() (string, error) {
+			var err error
+			if originalConfig, err = os.ReadFile(configPath); err != nil {
+				return "", err
+			}
+			_, err = runner.Run(root, "config", "core.bare", "true")
+			return "", err
+		},
+		undo: func() error {
+			if originalConfig == nil {
+				return nil
+			}
+			// The file goes back as it was read. Unsetting core.bare alone
+			// would not be enough: registering the worktree can add an
+			// extension and raise the repository format version.
+			if err := os.WriteFile(configPath, originalConfig, 0o644); err == nil {
+				return nil
+			}
+			// A read-only config cannot be written in place. git replaces
+			// the file instead, as it did for the edit being undone.
+			_, err := runner.Run(root, "config", "core.bare", "false")
+			return err
+		},
 	})
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "worktree", label: "Register worktree",
@@ -241,9 +261,16 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			}
 			names := slices.Clone(perWorktreeFiles)
 			// A split index keeps most of its entries in sharedindex.<hash>.
-			shared, _ := filepath.Glob(filepath.Join(barePath, "sharedindex.*"))
-			for _, path := range shared {
-				names = append(names, filepath.Base(path))
+			// The names are matched one by one: a glob would read brackets
+			// in the repository path as part of the pattern.
+			entries, err := os.ReadDir(barePath)
+			if err != nil {
+				return "", err
+			}
+			for _, entry := range entries {
+				if strings.HasPrefix(entry.Name(), "sharedindex.") {
+					names = append(names, entry.Name())
+				}
 			}
 			for _, name := range names {
 				from := filepath.Join(barePath, name)
@@ -278,7 +305,7 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			if err := os.Remove(plan.WorktreePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return err
 			}
-			_, err := runner.Run(barePath, "worktree", "prune")
+			_, err := runner.Run(root, "worktree", "prune")
 			return err
 		},
 	})
@@ -306,7 +333,7 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 	// new one in .bare for these switches, which the rollback would then find
 	// in the place the original has to return to.
 	pointHEAD := func(branch string) error {
-		_, err := runner.Run(barePath, "-c", "core.logAllRefUpdates=false", "symbolic-ref", "HEAD", "refs/heads/"+branch)
+		_, err := runner.Run(root, "-c", "core.logAllRefUpdates=false", "symbolic-ref", "HEAD", "refs/heads/"+branch)
 		return err
 	}
 	migrate.add(migrateConvertPhaseID, "Convert", step{
