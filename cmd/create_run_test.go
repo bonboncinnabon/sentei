@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,7 +11,7 @@ import (
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/creator"
-	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
 func TestCreateResultErrorPropagatesContractError(t *testing.T) {
@@ -45,47 +46,6 @@ func TestMatchEcosystems(t *testing.T) {
 			}
 			if !reflect.DeepEqual(names, tt.want) {
 				t.Errorf("matchEcosystems(%v) = %v, want %v", tt.requested, names, tt.want)
-			}
-		})
-	}
-}
-
-func TestFindSource(t *testing.T) {
-	tests := []struct {
-		name      string
-		worktrees []git.Worktree
-		want      string
-	}{
-		{
-			"prefers main",
-			[]git.Worktree{
-				{Path: "/wt/feature", Branch: "refs/heads/feature"},
-				{Path: "/wt/main", Branch: "refs/heads/main"},
-			},
-			"/wt/main",
-		},
-		{
-			"prefers master",
-			[]git.Worktree{
-				{Path: "/wt/feature", Branch: "refs/heads/feature"},
-				{Path: "/wt/master", Branch: "refs/heads/master"},
-			},
-			"/wt/master",
-		},
-		{
-			"falls back to first worktree",
-			[]git.Worktree{
-				{Path: "/wt/one", Branch: "refs/heads/one"},
-				{Path: "/wt/two", Branch: "refs/heads/two"},
-			},
-			"/wt/one",
-		},
-		{"no worktrees", nil, ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := findSource(tt.worktrees); got != tt.want {
-				t.Errorf("findSource() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -202,7 +162,72 @@ func TestRunCreate_FailsForMissingBaseBranch(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing base branch")
 	}
-	if !strings.Contains(err.Error(), "create completed with errors") {
+	if !strings.Contains(err.Error(), "no worktree was created") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// The error is the command's verdict: it must not say "completed" when
+// nothing was created, and must point at the worktree when one exists.
+func TestCreateResultErrorSaysWhetherAWorktreeExists(t *testing.T) {
+	failed := []progress.Phase{{Name: "Setup", Steps: []progress.StepResult{{Status: progress.StepFailed, Error: errors.New("boom")}}}}
+
+	notCreated := createResultError(creator.Result{Phases: failed})
+	if notCreated == nil || !strings.Contains(notCreated.Error(), "no worktree was created") {
+		t.Errorf("without a worktree path: %v, want an error saying nothing was created", notCreated)
+	}
+	created := createResultError(creator.Result{WorktreePath: "/repo/feature-x", Phases: failed})
+	if created == nil || !strings.Contains(created.Error(), "the worktree exists at /repo/feature-x") {
+		t.Errorf("with a worktree path: %v, want an error naming the worktree", created)
+	}
+	if err := createResultError(creator.Result{WorktreePath: "/repo/feature-x"}); err != nil {
+		t.Errorf("a clean run returned %v", err)
+	}
+}
+
+// --base is ignored for a branch that already exists. The output has to say
+// so, or the caller believes the worktree starts from the base.
+func TestRunCreate_ExistingBranchSaysBaseWasNotApplied(t *testing.T) {
+	bareRepo := setupBareRepo(t)
+	mustGit(t, bareRepo, "branch", "feature/existing", "main")
+
+	var err error
+	out := captureStdout(t, func() {
+		err = RunCreate([]string{"--branch", "feature/existing", "--base", "main", bareRepo})
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "checked out existing branch feature/existing; base main was not applied") {
+		t.Errorf("output does not say the existing branch was used:\n%s", out)
+	}
+}
+
+// The header is printed before git says whether the branch already exists, so
+// it must not promise the base: for an existing branch, local or only on
+// origin, "from main" was false. The create step says what happened.
+func TestRunCreate_HeaderDoesNotClaimTheBase(t *testing.T) {
+	bareRepo := setupBareRepo(t)
+	seed := filepath.Join(filepath.Dir(bareRepo), "clone")
+	mustGit(t, bareRepo, "branch", "feature/local", "main")
+	mustGit(t, seed, "branch", "feature/remote", "main")
+	mustGit(t, bareRepo, "remote", "add", "origin", seed)
+	mustGit(t, bareRepo, "fetch", "-q", "origin")
+
+	for _, branch := range []string{"feature/new", "feature/local", "feature/remote"} {
+		var err error
+		out := captureStdout(t, func() {
+			err = RunCreate([]string{"--branch", branch, "--base", "main", bareRepo})
+		})
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", branch, err)
+		}
+		header, _, _ := strings.Cut(out, "\n")
+		if want := fmt.Sprintf("Creating worktree %q...", branch); header != want {
+			t.Errorf("%s: header = %q, want %q", branch, header, want)
+		}
+		if existed := branch != "feature/new"; strings.Contains(out, "base main was not applied") != existed {
+			t.Errorf("%s: output must say the base was not applied exactly when the branch existed:\n%s", branch, out)
+		}
 	}
 }

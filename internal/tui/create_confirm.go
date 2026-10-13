@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -9,10 +10,9 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
-// SetCreateOpts sets the create options and starts at the appropriate view.
-// If branch and base are both set, starts at createConfirmView.
-// If only branch is set, starts at createOptionsView (base selection done).
-// If nothing is set, starts at createBranchView (normal flow).
+// SetCreateOpts applies the flags of `sentei create` and picks the first view:
+// the confirmation when branch and base are both given, the options screen
+// when only the branch is, the branch form otherwise.
 func (m *Model) SetCreateOpts(opts *CreateOpts) {
 	m.createOpts = opts
 
@@ -22,26 +22,51 @@ func (m *Model) SetCreateOpts(opts *CreateOpts) {
 	if opts.Base != "" {
 		m.create.baseInput.SetValue(opts.Base)
 	}
-	if opts.MergeBase {
-		m.create.mergeBase = true
-	}
-	if opts.CopyEnv {
-		m.create.copyEnvFiles = true
-	}
-	if len(opts.Ecosystems) > 0 {
-		for _, eco := range opts.Ecosystems {
-			m.create.ecoEnabled[eco] = true
+	m.prepareCreateOptions()
+
+	// --ecosystems names the installs. On the options screen it preselects
+	// among the detected ecosystems, which stay editable there. The rows left
+	// out are recorded as unchecked so a later detection keeps them that way.
+	direct := opts.Branch != "" && opts.Base != ""
+	if direct || len(opts.Ecosystems) > 0 {
+		for _, eco := range m.create.ecosystems {
+			m.create.ecoEnabled[eco.Name] = false
+		}
+		for _, name := range opts.Ecosystems {
+			m.create.ecoEnabled[name] = true
 		}
 	}
 
 	switch {
-	case opts.Branch != "" && opts.Base != "":
+	case direct:
+		// No options screen follows, so the flags are the whole decision,
+		// exactly as in the non-interactive run.
+		m.create.mergeBase = opts.MergeBase
+		m.create.copyEnvFiles = opts.CopyEnv
+		m.offerConfiguredEcosystems(opts.Ecosystems)
 		m.view = createConfirmView
 	case opts.Branch != "":
-		m.prepareCreateOptions()
 		m.view = createOptionsView
 	default:
 		m.view = createBranchView
+	}
+}
+
+// offerConfiguredEcosystems adds the named ecosystems that were not detected
+// in the source worktree: the non-interactive run installs any configured
+// ecosystem that --ecosystems names, detected or not.
+func (m *Model) offerConfiguredEcosystems(names []string) {
+	if m.cfg == nil {
+		return
+	}
+	offered := make(map[string]bool, len(m.create.ecosystems))
+	for _, eco := range m.create.ecosystems {
+		offered[eco.Name] = true
+	}
+	for _, eco := range m.cfg.Ecosystems {
+		if slices.Contains(names, eco.Name) && !offered[eco.Name] {
+			m.create.ecosystems = append(m.create.ecosystems, eco)
+		}
 	}
 }
 

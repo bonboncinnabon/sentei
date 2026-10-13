@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/ecosystem"
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
@@ -29,6 +30,7 @@ func (m Model) withCreateFlowReset() Model {
 	m.create.validationErr = ""
 	m.create.ecoEnabled = make(map[string]bool)
 	m.create.mergeBase = true
+	m.create.mergeDefaultFor = ""
 	m.create.copyEnvFiles = true
 	m.create.optionsCursor = 0
 	m.create.events = nil
@@ -67,16 +69,7 @@ func (m Model) updateCreateBranch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, keys.Tab):
-			if m.create.focusedField == 0 {
-				m.create.focusedField = 1
-				m.create.branchInput.Blur()
-				m.create.baseInput.CursorEnd()
-				return m, m.create.baseInput.Focus()
-			}
-			m.create.focusedField = 0
-			m.create.baseInput.Blur()
-			m.create.branchInput.CursorEnd()
-			return m, m.create.branchInput.Focus()
+			return m, switchFormField(&m.create.focusedField, &m.create.branchInput, &m.create.baseInput)
 
 		case key.Matches(msg, keys.QuickCreate):
 			branch := m.create.branchInput.Value()
@@ -119,45 +112,57 @@ func (m Model) updateCreateBranch(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateCreateBranchInput(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m.create.validationErr = ""
-	var cmd tea.Cmd
-	if m.create.focusedField == 0 {
-		m.create.branchInput, cmd = m.create.branchInput.Update(msg)
-	} else {
-		m.create.baseInput, cmd = m.create.baseInput.Update(msg)
+	cmd, edited := editFormField(m.create.focusedField, &m.create.branchInput, &m.create.baseInput, msg)
+	if edited {
+		m.create.validationErr = ""
 	}
 	return m, cmd
 }
 
-func (m *Model) prepareCreateOptions() {
-	if m.cfg == nil {
+// defaultMergeBase turns the merge off for a branch that already exists,
+// locally or only on origin: the user is opening that branch, and merging the
+// base would add a commit to it. --merge-base keeps it on. The default is set
+// once per branch name, so a toggle survives a return to the branch form.
+func (m *Model) defaultMergeBase() {
+	branch := m.create.branchInput.Value()
+	if branch == "" || branch == m.create.mergeDefaultFor {
 		return
 	}
+	m.create.mergeDefaultFor = branch
+	requested := m.createOpts != nil && m.createOpts.MergeBase
+	m.create.mergeBase = requested || creator.ExistingBranch(m.runner, m.repoPath, branch) == ""
+}
 
-	// Detect ecosystems from a source worktree
+// prepareCreateOptions sets the options for the branch in the form. It offers
+// the ecosystems detected in the source worktree: a row starts checked, and a
+// choice already made for it (a toggle before going back to this form, or
+// --ecosystems) stands.
+func (m *Model) prepareCreateOptions() {
+	m.defaultMergeBase()
+	m.create.ecosystems = nil
 	sourceWT := m.findSourceWorktree()
-	if sourceWT != "" {
-		registry := ecosystem.NewRegistry(m.cfg.Ecosystems)
-		detected, _ := registry.Detect(sourceWT)
-		m.create.ecosystems = nil
-		for _, eco := range detected {
-			m.create.ecosystems = append(m.create.ecosystems, eco.Config)
+	if m.cfg == nil || sourceWT == "" {
+		return
+	}
+	detected, _ := ecosystem.NewRegistry(m.cfg.Ecosystems).Detect(sourceWT)
+	for _, eco := range detected {
+		m.create.ecosystems = append(m.create.ecosystems, eco.Config)
+		if _, chosen := m.create.ecoEnabled[eco.Name]; !chosen {
 			m.create.ecoEnabled[eco.Name] = true
 		}
 	}
 }
 
+// findSourceWorktree returns the worktree that ecosystems are detected in and
+// env files are copied from. The menu loads the worktree list in the
+// background and a direct `sentei create` never loads it, so an empty list is
+// read from git here instead of being taken to mean "no worktrees".
 func (m Model) findSourceWorktree() string {
-	for _, wt := range m.remove.worktrees {
-		branch := stripBranchPrefix(wt.Branch)
-		if branch == "main" || branch == "master" {
-			return wt.Path
-		}
+	worktrees := m.remove.worktrees
+	if len(worktrees) == 0 {
+		worktrees, _ = git.ListWorktrees(m.runner, m.repoPath)
 	}
-	if len(m.remove.worktrees) > 0 {
-		return m.remove.worktrees[0].Path
-	}
-	return ""
+	return creator.SourceWorktree(worktrees)
 }
 
 func (m Model) viewCreateBranch() string {

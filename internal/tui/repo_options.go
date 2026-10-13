@@ -8,6 +8,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/repo"
@@ -33,14 +34,13 @@ func checkGitHubAuth(shell git.ShellRunner) tea.Cmd {
 
 // repoOptionIndex constants for options cursor navigation.
 const (
-	repoOptWorktree    = 0 // always shown, display-only
-	repoOptPublish     = 1 // toggle
-	repoOptVisibility  = 2 // only shown when publish is on
-	repoOptDescription = 3 // only shown when publish is on
+	repoOptPublish     = iota // toggle
+	repoOptVisibility         // only shown when publish is on
+	repoOptDescription        // only shown when publish is on
 )
 
 func (m Model) repoVisibleOptions() []int {
-	opts := []int{repoOptWorktree, repoOptPublish}
+	opts := []int{repoOptPublish}
 	if m.repo.publishGitHub {
 		opts = append(opts, repoOptVisibility, repoOptDescription)
 	}
@@ -100,8 +100,6 @@ func (m Model) updateRepoOptions(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, keys.Toggle):
 			switch m.repo.optionsCursor {
-			case repoOptWorktree:
-				m.repo.createWorktree = !m.repo.createWorktree
 			case repoOptPublish:
 				if m.repo.ghStatus == "authenticated" {
 					m.repo.publishGitHub = !m.repo.publishGitHub
@@ -119,12 +117,9 @@ func (m Model) updateRepoOptions(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, keys.Confirm):
-			name := strings.TrimSpace(m.repo.nameInput.Value())
-			location := strings.TrimSpace(m.repo.locationInput.Value())
-
 			opts := repo.CreateOptions{
-				Name:          name,
-				Location:      filepath.Dir(location),
+				Name:          strings.TrimSpace(m.repo.nameInput.Value()),
+				Location:      m.repoLocation(),
 				PublishGitHub: m.repo.publishGitHub,
 				Visibility:    m.repo.visibility,
 				Description:   strings.TrimSpace(m.repo.descInput.Value()),
@@ -161,37 +156,15 @@ func (m *Model) repoOptionsFocusChanged(oldOpt, newOpt int) tea.Cmd {
 func (m Model) viewRepoOptions() string {
 	var b strings.Builder
 
-	name := m.repo.nameInput.Value()
-	location := m.repo.locationInput.Value()
+	name := strings.TrimSpace(m.repo.nameInput.Value())
 
 	b.WriteString(viewTitle(titleCreateRepo))
 	b.WriteString("\n\n")
-	b.WriteString(styleDim.Render(fmt.Sprintf("  %s \u00b7 %s", name, location)))
+	header := fmt.Sprintf("  %s \u00b7 ", name)
+	dest := fitPathTail(filepath.Join(m.repoLocation(), name), max(m.width, 20)-ansi.StringWidth(header))
+	b.WriteString(styleDim.Render(header + dest))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
-	b.WriteString("\n\n")
-
-	// Setup section
-	b.WriteString("  " + styleTitle.Render("Setup"))
-	b.WriteString("\n\n")
-
-	// Worktree toggle
-	cursor := "  "
-	if m.repo.optionsCursor == repoOptWorktree {
-		cursor = "▸ "
-	}
-	var checkbox string
-	if m.repo.createWorktree {
-		checkbox = styleCheckboxOn.Render("[x]")
-	} else {
-		checkbox = styleCheckboxOff.Render("[ ]")
-	}
-	hint := "  " + styleDim.Render("main")
-	if m.repo.optionsCursor == repoOptWorktree {
-		b.WriteString(styleAccent.Render(cursor) + checkbox + " Create initial worktree" + hint)
-	} else {
-		b.WriteString("  " + checkbox + " Create initial worktree" + hint)
-	}
 	b.WriteString("\n\n")
 
 	// GitHub section
@@ -213,10 +186,11 @@ func (m Model) viewRepoOptions() string {
 	b.WriteString("\n\n")
 
 	// Publish toggle
-	cursor = "  "
+	cursor := "  "
 	if m.repo.optionsCursor == repoOptPublish {
 		cursor = "▸ "
 	}
+	var checkbox string
 	if m.repo.publishGitHub {
 		checkbox = styleCheckboxOn.Render("[x]")
 	} else {
