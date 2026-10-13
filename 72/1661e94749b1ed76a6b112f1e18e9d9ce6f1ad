@@ -1,0 +1,23 @@
+internal/cleanup/dryrun.go
+  s_b5d41ab2ae0f4c::t_fdfee831c6c970 142,144
+internal/cleanup/dryrun_test.go
+  s_b5d41ab2ae0f4c::t_f63b5a6f872fb4 24
+internal/cleanup/realgit_test.go
+  s_b5d41ab2ae0f4c::t_5afac2a6dffd6b 383-401
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "721661e94749b1ed76a6b112f1e18e9d9ce6f1ad",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
