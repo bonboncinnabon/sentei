@@ -80,7 +80,9 @@ func RunCreate(args []string) error {
 		}
 	}
 
-	fmt.Printf("Creating worktree %q from %s...\n", opts.Branch, opts.Base)
+	// The base is not named here: it only applies to a branch that does not
+	// exist yet, and the create step reports which case this was.
+	fmt.Printf("Creating worktree %q...\n", opts.Branch)
 
 	result := creator.Run(runner, shell, creatorOpts, func(e progress.Event) {
 		printCreateEvent(e)
