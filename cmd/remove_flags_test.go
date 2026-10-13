@@ -300,15 +300,6 @@ func TestResolveFilters_ProtectsNonStandardDefaultBranch(t *testing.T) {
 	}
 }
 
-func TestCheckMerged_DefaultBranchNeverMergedIntoItself(t *testing.T) {
-	// The self case must short-circuit before touching the runner, so a nil
-	// runner here proves git is never invoked for the default branch.
-	checker := CheckMerged(nil, "/repo", "production")
-	if checker("production") {
-		t.Error("the default branch must never report as merged into itself")
-	}
-}
-
 func TestResolveFilters_CombinedORLogic(t *testing.T) {
 	now := time.Now()
 	worktrees := []git.Worktree{

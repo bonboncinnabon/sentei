@@ -102,9 +102,13 @@ sentei remove --non-interactive --merged --stale 30d --dry-run
 
 Filters combine with OR:
 
-- `--merged`: the default branch contains every commit of the branch and has
-  moved past it. A branch that still sits at the default branch's tip has no
-  commits of its own yet and is not selected.
+- `--merged`: the default branch contains the branch's tip, and the branch
+  either came in through a merge commit or was fast-forwarded in after commits
+  were made on it. A branch that was created and never committed to is not
+  selected, however far the default branch has moved since. A fast-forward is
+  recognised from the branch's reflog, so a branch whose reflog has expired or
+  was never written is not selected. Squash and rebase merges are not
+  recognised: they leave the branch's own commits outside the default branch.
 - `--stale 30d` (also `w` and `m`): the last commit, by committer date, is
   older than that.
 - `--all`: every worktree that is not protected.
