@@ -31,20 +31,24 @@ The system SHALL accept a `--non-interactive` flag on all decision commands. Whe
 - **WHEN** the user runs `sentei ecosystems --non-interactive`
 - **THEN** the flag SHALL be accepted but have no effect (output commands are already non-interactive)
 
-### Requirement: --force flag required for destructive --non-interactive operations
-The system SHALL require `--force` alongside `--non-interactive` for commands that delete worktrees, branches, or perform migrations. Without `--force`, the system SHALL print a warning and exit with a non-zero exit code.
+### Requirement: --force overrides a command's own safeties and nothing else
+`--non-interactive` SHALL NOT require `--force`, and SHALL NOT override any safety. `--force` SHALL be the per-command override: for `remove` it allows removing worktrees that are at risk (locked, uncommitted, untracked or unpushed work, or a status that could not be read); for `cleanup` it allows deleting branches that are not fully merged. Protected branches and the worktree holding the current directory SHALL never be removed, with or without `--force`.
 
-#### Scenario: Destructive operation without --force
-- **WHEN** the user runs `sentei remove --merged --non-interactive` without `--force`
-- **THEN** the system SHALL print: "destructive operation requires --force with --non-interactive" and exit with code 1
+#### Scenario: Removal with nothing at risk
+- **WHEN** the user runs `sentei remove --merged --non-interactive` and no matched worktree is at risk
+- **THEN** the system SHALL execute the removal without TUI interaction and without `--force`
 
-#### Scenario: Destructive operation with --force
+#### Scenario: Removal with a worktree at risk
+- **WHEN** the user runs `sentei remove --merged --non-interactive` and a matched worktree is at risk
+- **THEN** the system SHALL remove nothing, name the worktrees at risk, and exit with a non-zero exit code
+
+#### Scenario: Removal with --force
 - **WHEN** the user runs `sentei remove --merged --force --non-interactive`
-- **THEN** the system SHALL execute the removal without TUI interaction
+- **THEN** the system SHALL also remove the matched worktrees that are at risk
 
-#### Scenario: Non-destructive operation without --force
-- **WHEN** the user runs `sentei create --branch foo --base main --non-interactive`
-- **THEN** the system SHALL execute without requiring `--force` (create is not destructive)
+#### Scenario: Migration
+- **WHEN** the user runs `sentei migrate --non-interactive <repo>`
+- **THEN** the system SHALL run the migration without `--force`: it checks everything before the first change and rolls back on failure
 
 ### Requirement: Flags build options struct for decision commands
 Each decision command SHALL define a typed options struct. Flags SHALL populate this struct via a `ParseFlags` function. Both TUI and `--non-interactive` paths SHALL consume the same options struct for execution.

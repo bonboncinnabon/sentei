@@ -41,7 +41,7 @@ sentei manages git worktrees in bare-repository layouts (a container directory h
 
 ### Git Commands
 
-All git calls go through `git.GitRunner` (`internal/git/commands.go`). It runs `git -C <dir>` with `LC_ALL=C` and `GIT_TERMINAL_PROMPT=0`, no stdin, without an inherited `GIT_DIR`, and with a timeout. Never call `exec.Command("git", ...)` directly, and never parse translated message text when a plumbing command gives the same answer.
+All git calls go through `git.GitRunner` (`internal/git/commands.go`). It runs `git -C <dir>` with `LC_ALL=C`, `GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0`, ssh in batch mode unless the user configured their own ssh command, no stdin, without an inherited `GIT_DIR`, and with a timeout. Other child processes get the same cleaned environment from `git.Environ`. Under `safe.bareRepository=explicit` git refuses a bare directory it is only pointed into, so name it with `--git-dir=` when asking about the shared directory. Never call `exec.Command("git", ...)` directly, and never parse translated message text when a plumbing command gives the same answer.
 
 The commands the core flows rely on:
 

@@ -125,7 +125,7 @@ them without `--force`.
 ### Clean up a repository
 
 ```bash
-sentei cleanup                                          # preview, then choose a mode
+sentei cleanup                                          # confirm, then run safe mode
 sentei cleanup --non-interactive --mode safe --dry-run  # print what would happen
 sentei cleanup --non-interactive --mode safe
 ```
@@ -263,7 +263,8 @@ What a caller can rely on:
   error; it is never silently ignored.
 - **The repository path defaults to the current directory** (`migrate` needs it
   spelled out). It may be the repository container or any worktree inside it.
-  `create` always places the new worktree beside the existing ones.
+  `create` always places the new worktree at the layout's root, whichever
+  worktree it is run from (see "Layouts and platforms").
 - **The exit status is the result.** Non-zero means something failed: a bad
   flag, a config file that does not load, a worktree that could not be
   removed, a cleanup step that errored, a failed setup or install step.
