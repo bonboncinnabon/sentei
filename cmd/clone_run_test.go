@@ -49,6 +49,14 @@ func TestRunClone_Success(t *testing.T) {
 	if !strings.Contains(out, "Cloned to") {
 		t.Errorf("expected 'Cloned to' confirmation, got:\n%s", out)
 	}
+	if !strings.Contains(out, "[Clone] Clone bare repository") {
+		t.Errorf("expected steps named by their labels, got:\n%s", out)
+	}
+	for _, id := range []string{"clone:", "bare-repository", "git-pointer"} {
+		if strings.Contains(out, id) {
+			t.Errorf("output leaks the step identity %q:\n%s", id, out)
+		}
+	}
 	if _, statErr := os.Stat(filepath.Join(dest, "cloned")); statErr != nil {
 		t.Errorf("expected cloned directory to exist: %v", statErr)
 	}

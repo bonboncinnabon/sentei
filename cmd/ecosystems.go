@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
-	"github.com/bonboncinnabon/sentei/internal/ecosystem"
 )
 
 // RunEcosystems lists the ecosystems sentei can detect, with the configuration
@@ -33,24 +32,20 @@ func RunEcosystems(args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	reg := ecosystem.NewRegistry(cfg.Ecosystems)
-	all := reg.All()
-
-	fmt.Printf("Ecosystems (%d registered)\n\n", len(all))
+	fmt.Printf("Ecosystems (%d registered)\n\n", len(cfg.Ecosystems))
 	fmt.Printf("  %-14s %-24s %-30s %-10s %s\n", "NAME", "DETECT FILES", "INSTALL", "SOURCE", "STATUS")
 
-	for _, eco := range all {
-		files := strings.Join(eco.Config.Detect.Files, ", ")
+	for _, eco := range cfg.Ecosystems {
+		files := strings.Join(eco.Detect.Files, ", ")
 		status := "enabled"
-		if !eco.Config.IsEnabled() {
+		if !eco.IsEnabled() {
 			status = "disabled"
 		}
-		source := eco.Config.Source
 		fmt.Printf("  %-14s %-24s %-30s %-10s %s\n",
 			eco.Name,
 			truncate(files, 22),
-			truncate(eco.Config.Install.Command, 28),
-			source,
+			truncate(eco.Install.Command, 28),
+			eco.Source,
 			status,
 		)
 	}

@@ -37,6 +37,7 @@ func RunCleanupWithOpts(opts *cleanup.Options, repoPath string) error {
 	result := cleanup.Run(runner, repoPath, *opts, printEvent)
 
 	fmt.Println()
+	printCleanupBranches(result, opts.DryRun)
 	for _, e := range result.Errors {
 		fmt.Printf("%s⚠%s  %s: %s\n", yellow, nc, e.Step, e.Err)
 	}
@@ -51,6 +52,34 @@ func RunCleanupWithOpts(opts *cleanup.Options, repoPath string) error {
 		return fmt.Errorf("cleanup finished with %d failed step(s)", len(result.Errors))
 	}
 	return nil
+}
+
+// printCleanupBranches names the branches the run deleted and the ones it
+// left alone, one per line with the reason. The step lines above only count
+// them. After a dry run it names what the real run would do.
+func printCleanupBranches(result cleanup.Result, dryRun bool) {
+	deleted, skipped, deletedStyle := "Deleted", "Skipped", green
+	if dryRun {
+		deleted, skipped, deletedStyle = "Would delete", "Would skip", ""
+	}
+
+	if count := len(result.GoneBranches) + len(result.NonWtBranchesDeleted); count > 0 {
+		fmt.Printf("%s%s %d branch(es):%s\n", deletedStyle, deleted, count, nc)
+		for _, name := range result.GoneBranches {
+			fmt.Printf("  %s  (upstream gone)\n", name)
+		}
+		for _, name := range result.NonWtBranchesDeleted {
+			fmt.Printf("  %s  (not in any worktree)\n", name)
+		}
+		fmt.Println()
+	}
+	if len(result.BranchesSkipped) > 0 {
+		fmt.Printf("%s%s %d branch(es):%s\n", yellow, skipped, len(result.BranchesSkipped), nc)
+		for _, branch := range result.BranchesSkipped {
+			fmt.Printf("  %s  (%s)\n", branch.Name, branch.Reason)
+		}
+		fmt.Println()
+	}
 }
 
 func printEvent(e cleanup.Event) {

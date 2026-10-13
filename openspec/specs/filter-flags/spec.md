@@ -23,7 +23,7 @@ The `remove` command SHALL accept a `--stale <duration>` flag that pre-selects w
 - **THEN** the system SHALL delete all worktrees whose last commit is older than 30 days without TUI interaction
 
 ### Requirement: --merged flag filters worktrees by merge status
-The `remove` command SHALL accept a `--merged` flag that pre-selects worktrees whose branches the default branch has absorbed: every commit of the branch is in the default branch and the default branch has moved past it. A branch still at the default branch's tip has no commits of its own and SHALL NOT be selected.
+The `remove` command SHALL accept a `--merged` flag that pre-selects worktrees whose branches the default branch has absorbed. A branch is merged when the default branch contains its tip and one of these holds: (a) the tip is not on the default branch's first-parent chain, so it arrived through a merge commit; (b) the tip is on that chain and the branch's reflog shows that the branch once pointed at another commit, so commits made on it were fast-forwarded in. A branch on the first-parent chain whose reflog shows no such move, or that has no reflog, SHALL NOT be selected, however far the default branch has moved. The default branch itself SHALL never be selected. The first-parent chain SHALL be read once per run, not once per branch.
 
 #### Scenario: Merged filter with TUI
 - **WHEN** the user runs `sentei remove --merged`
@@ -36,6 +36,30 @@ The `remove` command SHALL accept a `--merged` flag that pre-selects worktrees w
 #### Scenario: No merged worktrees
 - **WHEN** the user runs `sentei remove --merged` and no worktrees have merged branches
 - **THEN** the TUI SHALL display the list with nothing pre-selected and a message: "No merged worktrees found"
+
+#### Scenario: Branch merged through a merge commit
+- **WHEN** a branch's commits reached the default branch through a merge commit
+- **THEN** `--merged` SHALL select its worktree
+
+#### Scenario: Branch fast-forwarded into the default branch
+- **WHEN** commits were made on a branch, the default branch was fast-forwarded to them, and the default branch has not moved since
+- **THEN** `--merged` SHALL select its worktree
+
+#### Scenario: Branch nobody has worked on
+- **WHEN** a branch was created from the default branch and has not moved since, and the default branch has gained commits
+- **THEN** `--merged` SHALL NOT select its worktree
+
+#### Scenario: Branch brought up to date without commits of its own
+- **WHEN** a branch was created from the default branch, never committed to, and later fast-forwarded to the default branch
+- **THEN** `--merged` SHALL select its worktree, because its reflog shows a move and nothing tells that move from merged work
+
+#### Scenario: Fast-forwarded branch without a reflog
+- **WHEN** a branch's tip is on the default branch's first-parent chain and the branch has no reflog
+- **THEN** `--merged` SHALL NOT select its worktree
+
+#### Scenario: Squash merge
+- **WHEN** a branch was squash-merged, so its tip is not in the default branch
+- **THEN** `--merged` SHALL NOT select its worktree
 
 ### Requirement: --all flag selects all non-protected worktrees
 The `remove` command SHALL accept an `--all` flag that pre-selects all non-protected worktrees.
