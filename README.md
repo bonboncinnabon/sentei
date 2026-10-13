@@ -252,11 +252,35 @@ What a caller can rely on:
   stashes, remotes, config and hooks all stay. It refuses before touching
   anything when the conversion cannot be done safely (detached or unborn
   `HEAD`, a merge or rebase in progress, submodules, linked worktrees, sparse
-  checkout, a directory already named like the worktree), and a step that
-  fails midway is rolled back to the original layout.
+  checkout, `core.worktree`, a config include that points into the working
+  tree, a directory already named like the worktree), and a step that fails
+  midway is rolled back to the original layout.
 - **`--copy-env` is independent of `--ecosystems`.** The files come from the
   ecosystems detected in the source worktree; `--ecosystems` only selects
   which installs run.
+
+### Upgrading from 1.x
+
+- **Integrations are gone.** `sentei integrations`, the menu entry and the
+  `integrations_enabled` config key are removed. sentei no longer builds or
+  removes code indexes; existing `.code-review-graph/` and `.cocoindex_code/`
+  folders are left where they are.
+- **`migrate` converts in place.** It makes no backup because it copies and
+  deletes nothing, so `--delete-backup` is removed. It refuses repositories
+  with submodules, linked worktrees or sparse checkout.
+- **Config is strict.** An unknown key is an error, and a config file that
+  fails to load stops the run. Installs run once at the root of the new
+  worktree; the per-workspace install keys are accepted and ignored.
+- **`remove` on the command line.** A locked worktree needs `--force`.
+  `--non-interactive` no longer needs `--force` to run. An argument after the
+  repository path is an error. Worktree age is the committer date.
+- **Removing worktrees no longer runs cleanup.** The TUI ends a removal with
+  `git worktree prune` only; run `sentei cleanup` for branches and config.
+- **`clone` keeps only the default branch locally.** Other branches are
+  `origin/<branch>` until `sentei create --branch <name>` checks one out.
+- **git never prompts.** Use a credential helper or an SSH key.
+- **`sentei.json` is no longer written.** An old one in the repository can be
+  deleted.
 
 ### CLI Flags
 
