@@ -351,3 +351,83 @@ func TestUpdateCreateBranch_QuickCreateDoesNotMergeIntoAnExistingBranch(t *testi
 		t.Error("quick create merges the base into a branch that already exists on origin")
 	}
 }
+
+// directCreateRepo is a real repository as a direct `sentei create` finds it:
+// a worktree named taken, a branch local-only with no worktree, and a branch
+// remote-only that only origin has. The model's worktree list is not loaded.
+func directCreateRepo(t *testing.T) Model {
+	t.Helper()
+	bare := bareRepoWithWorktrees(t, "taken")
+	runTestGit(t, bare, "branch", "local-only", "main")
+	runTestGit(t, bare, "update-ref", "refs/remotes/origin/remote-only", "main")
+	m := NewMenuModel(&git.GitRunner{}, nil, bare, &config.Config{}, repo.ContextBareRepo)
+	m.width, m.height = 100, 24
+	m.view = createBranchView
+	return m
+}
+
+// The worktree list loads in the background. A duplicate submitted before it
+// lands used to pass the form and fail in git one screen later.
+func TestUpdateCreateBranch_RefusesExistingWorktreeBeforeTheListLoads(t *testing.T) {
+	for name, key := range map[string]tea.KeyPressMsg{
+		"enter":      {Code: tea.KeyEnter},
+		"ctrl+enter": {Code: tea.KeyEnter, Mod: tea.ModCtrl},
+	} {
+		m := directCreateRepo(t)
+		m.create.branchInput.SetValue("taken")
+
+		updated, cmd := m.updateCreateBranch(key)
+		model := updated.(Model)
+
+		if model.view != createBranchView || cmd != nil {
+			t.Errorf("%s: the form advanced to view %d for a worktree that exists", name, model.view)
+		}
+		if !strings.Contains(model.create.validationErr, `worktree "taken" already exists`) {
+			t.Errorf("%s: validationErr = %q, want the duplicate named", name, model.create.validationErr)
+		}
+	}
+}
+
+// The base only starts a branch that exists nowhere. The line under the title
+// must not say "from <base>" for a branch that is checked out as it is.
+func TestCreateFlow_SubtitleSaysWhereTheBranchComesFrom(t *testing.T) {
+	for branch, want := range map[string]string{
+		"brand-new":   "brand-new → from main",
+		"local-only":  "local-only → existing branch, not created from main",
+		"remote-only": "remote-only → tracks origin/remote-only, not created from main",
+	} {
+		m := directCreateRepo(t)
+		m.create.branchInput.SetValue(branch)
+		updated, _ := m.updateCreateBranch(tea.KeyPressMsg{Code: tea.KeyEnter})
+		model := updated.(Model)
+		if model.view != createOptionsView {
+			t.Fatalf("%s: view = %d, want the options screen: %q", branch, model.view, model.create.validationErr)
+		}
+
+		options := stripANSI(model.viewCreateOptions())
+		if !strings.Contains(options, "  "+want+"\n") {
+			t.Errorf("%s: options screen does not say %q:\n%s", branch, want, options)
+		}
+		if got := model.createLayout().Subtitle; got != want {
+			t.Errorf("%s: progress subtitle = %q, want %q", branch, got, want)
+		}
+	}
+}
+
+// `sentei create --branch <b> --base <base>` skips the options screen, so its
+// confirmation is where an unused base has to be stated.
+func TestCreateConfirm_SaysWhenTheBaseIsNotUsed(t *testing.T) {
+	for branch, want := range map[string]string{
+		"brand-new":   "Branch:      brand-new\n",
+		"local-only":  "Branch:      local-only (existing branch, not created from main)\n",
+		"remote-only": "Branch:      remote-only (tracks origin/remote-only, not created from main)\n",
+	} {
+		m := directCreateRepo(t)
+		m.SetCreateOpts(&CreateOpts{Branch: branch, Base: "main"})
+
+		view := stripANSI(m.viewCreateConfirm())
+		if m.view != createConfirmView || !strings.Contains(view, want) {
+			t.Errorf("%s: confirmation does not contain %q:\n%s", branch, want, view)
+		}
+	}
+}

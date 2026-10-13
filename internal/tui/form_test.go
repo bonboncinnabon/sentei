@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/cursor"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
@@ -139,5 +140,58 @@ func TestForms_DestinationPreviewKeepsItsTailOnANarrowTerminal(t *testing.T) {
 	header := strings.Split(stripANSI(repoForm.viewRepoOptions()), "\n")[2]
 	if !strings.HasSuffix(header, "/launch/demo") || ansi.StringWidth(header) > repoForm.width {
 		t.Errorf("options header = %q, want the destination's tail within %d cells", header, repoForm.width)
+	}
+}
+
+// A message that ends in a path keeps the end of the path: the last element
+// is the directory the message is about.
+func TestFormErrorLine_KeepsTheEndOfAPath(t *testing.T) {
+	const message = "directory already exists: /Users/someone/code/work/projects/my-new-repository"
+
+	line := stripANSI(formErrorLine(message, 60))
+	if got := lipgloss.Width(line); got > 60 {
+		t.Errorf("line is %d cells wide, want at most 60: %q", got, line)
+	}
+	if !strings.HasPrefix(line, "  directory already exists: …") || !strings.HasSuffix(line, "/projects/my-new-repository") {
+		t.Errorf("line = %q, want the message and the end of the path", line)
+	}
+
+	for name, tc := range map[string]struct {
+		message string
+		width   int
+		want    string
+	}{
+		"fits":              {message, 100, "  " + message},
+		"unknown width":     {message, 0, "  " + message},
+		"no path":           {"repository name cannot contain spaces", 20, "  repository name c…"},
+		"narrower than the": {message, 20, "  directory already…"},
+	} {
+		if got := stripANSI(formErrorLine(tc.message, tc.width)); got != tc.want {
+			t.Errorf("%s: formErrorLine = %q, want %q", name, got, tc.want)
+		}
+	}
+}
+
+// Every form renders its validation error through formErrorLine.
+func TestFormViews_ValidationErrorKeepsThePathEnd(t *testing.T) {
+	const long = "/Users/someone/code/work/a-rather-long-directory-name/projects/my-new-repository"
+	const message = "directory already exists: " + long
+	create, newRepo, clone := createBranchModel(), repoNameModel("/repo"), cloneInputModel("/repo")
+	create.create.validationErr, newRepo.repo.validationErr, clone.repo.validationErr = message, message, message
+
+	for name, view := range map[string]string{
+		"create worktree":   create.viewCreateBranch(),
+		"create repository": newRepo.viewRepoName(),
+		"clone":             clone.viewCloneInput(),
+	} {
+		view = stripANSI(view)
+		if !strings.Contains(view, "  directory already exists: …") || !strings.Contains(view, "/projects/my-new-repository\n") {
+			t.Errorf("%s: the validation error lost the end of its path:\n%s", name, view)
+		}
+		for _, line := range strings.Split(view, "\n") {
+			if strings.Contains(line, "already exists") && lipgloss.Width(line) > 80 {
+				t.Errorf("%s: the validation error is wider than the terminal: %q", name, line)
+			}
+		}
 	}
 }

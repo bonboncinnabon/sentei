@@ -89,7 +89,7 @@ func (m Model) viewCreateRepoSummary(result repo.CreateResult) string {
 			b.WriteString("    " + styleError.Width(errWidth).Render(hardErr.Error()))
 			b.WriteString("\n\n")
 		}
-		fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Path"), result.RepoPath)
+		b.WriteString(summaryPathRow("Path", result.RepoPath, m.width))
 		b.WriteString("\n")
 		b.WriteString(viewSeparator(m.width))
 		b.WriteString("\n\n")
@@ -122,12 +122,11 @@ func (m Model) viewCreateRepoSummary(result repo.CreateResult) string {
 			styleIndicatorDone.Render(indicatorDone), repoName)
 	}
 
-	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Path"), result.RepoPath)
-	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Branch"), "main")
+	b.WriteString(summaryPathRow("Path", result.RepoPath, m.width))
+	b.WriteString(summaryRow("Branch", "main"))
 
 	if result.GitHubURL != "" {
-		fmt.Fprintf(&b, "    %-10s %s %s\n", styleDim.Render("GitHub"),
-			result.GitHubURL, styleSuccess.Render("\u25cf"))
+		b.WriteString(summaryRow("GitHub", result.GitHubURL+" "+styleSuccess.Render("\u25cf")))
 	} else if ghFailed {
 		msg := "failed to publish"
 		if ghErrMsg != "" {
@@ -135,7 +134,7 @@ func (m Model) viewCreateRepoSummary(result repo.CreateResult) string {
 		}
 		errWidth := max(m.width-14, 30) // 14 chars for indentation + label
 		wrappedErr := styleError.Width(errWidth).Render(indicatorFailed + " " + msg)
-		fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("GitHub"), wrappedErr)
+		b.WriteString(summaryRow("GitHub", wrappedErr))
 	}
 
 	worktreePath := result.WorktreePath
@@ -146,7 +145,8 @@ func (m Model) viewCreateRepoSummary(result repo.CreateResult) string {
 	b.WriteString("\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	fmt.Fprintf(&b, "    cd %s\n\n", styleDim.Render(worktreePath))
+	b.WriteString(m.cdLine(worktreePath))
+	b.WriteString("\n")
 	b.WriteString(viewFooter(m.width, repoSummaryFooter))
 	b.WriteString("\n")
 
@@ -171,9 +171,9 @@ func (m Model) viewCloneRepoSummary(result repo.CloneResult) string {
 			b.WriteString("    " + styleError.Width(errWidth).Render(failErr.Error()))
 			b.WriteString("\n\n")
 		}
-		fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Path"), result.RepoPath)
+		b.WriteString(summaryPathRow("Path", result.RepoPath, m.width))
 		if result.DefaultBranch != "" {
-			fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Branch"), result.DefaultBranch)
+			b.WriteString(summaryRow("Branch", result.DefaultBranch))
 		}
 		// A failed clone never has a usable worktree (tracking-only failures are
 		// StepSkipped, not failures), so there is no cd hint to offer.
@@ -188,10 +188,10 @@ func (m Model) viewCloneRepoSummary(result repo.CloneResult) string {
 	fmt.Fprintf(&b, "  %s %s ready\n\n",
 		styleIndicatorDone.Render(indicatorDone), repoName)
 
-	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Path"), result.RepoPath)
-	fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Branch"), result.DefaultBranch)
+	b.WriteString(summaryPathRow("Path", result.RepoPath, m.width))
+	b.WriteString(summaryRow("Branch", result.DefaultBranch))
 	if result.OriginURL != "" {
-		fmt.Fprintf(&b, "    %-10s %s\n", styleDim.Render("Origin"), result.OriginURL)
+		b.WriteString(summaryPathRow("Origin", result.OriginURL, m.width))
 	}
 
 	worktreePath := result.WorktreePath
@@ -202,7 +202,8 @@ func (m Model) viewCloneRepoSummary(result repo.CloneResult) string {
 	b.WriteString("\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	fmt.Fprintf(&b, "    cd %s\n\n", styleDim.Render(worktreePath))
+	b.WriteString(m.cdLine(worktreePath))
+	b.WriteString("\n")
 	b.WriteString(viewFooter(m.width, repoSummaryFooter))
 	b.WriteString("\n")
 

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -75,8 +76,14 @@ func (m Model) createConfirmationVM() ConfirmationViewModel {
 	branch := m.create.branchInput.Value()
 	base := m.create.baseInput.Value()
 
+	// A branch that already exists is checked out as it is; the row says so,
+	// because the base below it is then not used.
+	branchValue := branch
+	if existing := m.create.existingBranch; existing != "" {
+		branchValue = fmt.Sprintf("%s (%s)", branch, branchOrigin(branch, base, existing))
+	}
 	items := []ConfirmationItem{
-		{Label: "Branch:", Value: branch},
+		{Label: "Branch:", Value: branchValue},
 		{Label: "Base:", Value: base},
 	}
 

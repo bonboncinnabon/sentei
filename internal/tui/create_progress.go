@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"fmt"
-
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
@@ -35,7 +33,7 @@ func (m Model) createLayout() ProgressLayout {
 	return m.withProgressDetails(ProgressLayout{
 		Title:     titleCreatingWorktree,
 		Completed: m.create.result != nil,
-		Subtitle:  fmt.Sprintf("%s \u2192 from %s", m.create.branchInput.Value(), m.create.baseInput.Value()),
+		Subtitle:  m.createSubtitle(),
 		Phases:    progress.Snapshot(m.create.events),
 		Width:     m.width,
 		Height:    m.progressHeight(),

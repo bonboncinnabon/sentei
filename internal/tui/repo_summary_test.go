@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/progress"
@@ -184,5 +185,50 @@ func TestViewRepoSummary_DispatchesByResultType(t *testing.T) {
 				t.Errorf("view missing %q:\n%s", tc.want, view)
 			}
 		})
+	}
+}
+
+// A path that does not fit keeps its end, which names the repository. The cd
+// line is the one thing to act on, so it wraps and loses nothing. Labels share
+// a column.
+func TestViewRepoSummary_LongPathsKeepTheirEnd(t *testing.T) {
+	const root = "/Users/someone/code/work/a-rather-long-directory-name/another-long-directory/my-project"
+	created := repo.CreateResult{RepoPath: root, WorktreePath: root + "/main"}
+	cloned := repo.CloneResult{
+		RepoPath: root, WorktreePath: root + "/main", DefaultBranch: "main",
+		OriginURL: "git@github.com:some-organisation/some-team/" + strings.Repeat("nested/", 6) + "my-project.git",
+	}
+	failedClone := cloneFailureResult()
+	failedClone.RepoPath = root
+
+	for name, tc := range map[string]struct {
+		view string
+		want []string
+	}{
+		"created":      {makeRepoSummaryModel(created).viewCreateRepoSummary(created), []string{"    Path       …", "/my-project\n", "    Branch     main\n"}},
+		"cloned":       {makeRepoSummaryModel(cloned).viewCloneRepoSummary(cloned), []string{"    Path       …", "/my-project\n", "    Branch     main\n", "    Origin     …", "nested/my-project.git\n"}},
+		"failed clone": {makeRepoSummaryModel(failedClone).viewCloneRepoSummary(failedClone), []string{"    Path       …", "/my-project\n", "    Branch     main\n"}},
+	} {
+		view := stripANSI(tc.view)
+		for _, want := range tc.want {
+			if !strings.Contains(view, want) {
+				t.Errorf("%s: missing %q:\n%s", name, want, view)
+			}
+		}
+		for _, line := range strings.Split(view, "\n") {
+			if got := lipgloss.Width(line); got > 80 {
+				t.Errorf("%s: line is %d cells on an 80-cell terminal: %q", name, got, line)
+			}
+		}
+		if name == "failed clone" {
+			continue
+		}
+		// Joined back together, the wrapped cd line is the whole command.
+		_, after, _ := strings.Cut(view, "    cd ")
+		command, _, _ := strings.Cut(after, "\n\n")
+		joined := strings.Join(strings.Fields(command), "")
+		if joined != root+"/main" {
+			t.Errorf("%s: the cd line was cut, got %q", name, joined)
+		}
 	}
 }

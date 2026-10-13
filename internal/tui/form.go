@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -45,6 +47,22 @@ func fitPathTail(path string, width int) string {
 		return ansi.TruncateLeft(path, over+1, "…")
 	}
 	return path
+}
+
+// formErrorLine renders a form's validation message on one row. A message
+// that ends in a path ("directory already exists: /a/b/c") gives up the head
+// of the path first, like destinationPreview: the last element is the
+// directory the message is about. Width 0 means unknown.
+func formErrorLine(message string, width int) string {
+	const indent = "  "
+	if room := width - len(indent); width > 0 {
+		if at := strings.LastIndex(message, ": "); at >= 0 {
+			head := message[:at+2]
+			message = head + fitPathTail(message[at+2:], room-ansi.StringWidth(head))
+		}
+		message = truncateWithEllipsis(message, room)
+	}
+	return indent + styleError.Render(message)
 }
 
 // destinationPreview is the dim line under a form that names the directory

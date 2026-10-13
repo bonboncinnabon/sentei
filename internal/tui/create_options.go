@@ -185,12 +185,9 @@ func (m Model) viewCreateOptions() string {
 	var b strings.Builder
 	items := m.buildOptionItems()
 
-	branch := m.create.branchInput.Value()
-	base := m.create.baseInput.Value()
-
 	b.WriteString(viewTitle(titleCreateWorktree))
 	b.WriteString("\n\n")
-	b.WriteString(styleAccent.Render(fmt.Sprintf("  %s \u2192 from %s", branch, base)))
+	b.WriteString(styleAccent.Render("  " + m.createSubtitle()))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")

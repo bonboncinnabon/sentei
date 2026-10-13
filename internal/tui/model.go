@@ -147,8 +147,10 @@ type createState struct {
 	ecoEnabled   map[string]bool
 	mergeBase    bool
 	copyEnvFiles bool
-	// mergeDefaultFor is the branch name mergeBase was last defaulted for.
+	// mergeDefaultFor is the branch name mergeBase was last defaulted for,
+	// and existingBranch what creator.ExistingBranch found for that name.
 	mergeDefaultFor string
+	existingBranch  string
 	optionsCursor   int
 
 	eventCh  chan progress.Event
