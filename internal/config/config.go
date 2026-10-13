@@ -188,29 +188,6 @@ func globalConfigPath() string {
 	return filepath.Join(base, "sentei", "config.yaml")
 }
 
-// repoRoot returns the directory whose .sentei.yaml belongs to the repository
-// at repoPath. For a common dir named .git or .bare, or one a .git pointer
-// file sits beside, that is its parent: the top of a regular working tree, or
-// the container of a bare layout. Any other common dir is a plain bare
-// repository and is its own root, reached from itself or from one of its
-// worktrees, because its parent may hold unrelated repositories. Outside a
-// repository the root is repoPath.
-func repoRoot(runner git.CommandRunner, repoPath string) string {
-	commonDir, err := git.CommonDir(runner, repoPath)
-	if err != nil {
-		return repoPath
-	}
-	parent := filepath.Dir(commonDir)
-	switch filepath.Base(commonDir) {
-	case ".git", ".bare":
-		return parent
-	}
-	if pointer, err := os.Lstat(filepath.Join(parent, ".git")); err == nil && pointer.Mode().IsRegular() {
-		return parent
-	}
-	return commonDir
-}
-
 // LoadOption configures optional behaviour of LoadConfig.
 type LoadOption func(*loadOptions)
 
@@ -252,7 +229,7 @@ func LoadConfig(repoPath string, opts ...LoadOption) (*Config, error) {
 		}
 	}
 
-	repoCfg, err := loadFile(filepath.Join(repoRoot(lo.runner, repoPath), ".sentei.yaml"))
+	repoCfg, err := loadFile(filepath.Join(git.RepoRoot(lo.runner, repoPath), ".sentei.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("loading repo config: %w", err)
 	}

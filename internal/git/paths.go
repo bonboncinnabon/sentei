@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -22,6 +23,48 @@ func CommonDir(runner CommandRunner, repoPath string) (string, error) {
 		return filepath.Join(repoPath, commonDir), nil
 	}
 	return filepath.Clean(commonDir), nil
+}
+
+// RepoRoot resolves the directory that stands for the whole repository holding
+// repoPath: new worktrees are created in it and .sentei.yaml is read from it.
+// One rule decides both, so they cannot disagree.
+//
+// For a common dir named .git or .bare the root is its parent: the top of a
+// regular working tree, or the container of a bare layout. A common dir under
+// any other name is a plain bare repository and is its own root, reached from
+// itself or from any of its worktrees, because its parent may hold unrelated
+// repositories. The exception is a parent whose .git pointer file leads to
+// that same common dir: that parent is a container too. Outside a repository
+// the root is repoPath.
+//
+// Callers also run git in the root. In the container of a .bare directory
+// that works only when the container has its .git pointer file.
+func RepoRoot(runner CommandRunner, repoPath string) string {
+	commonDir, err := CommonDir(runner, repoPath)
+	if err != nil {
+		return repoPath
+	}
+	parent := filepath.Dir(commonDir)
+	switch filepath.Base(commonDir) {
+	case ".git", ".bare":
+		return parent
+	}
+	// The pointer is followed, not trusted: one that leads to another
+	// repository would send every command run at the root to that repository.
+	if pointer, err := os.Lstat(filepath.Join(parent, ".git")); err == nil && pointer.Mode().IsRegular() {
+		if pointed, err := CommonDir(runner, parent); err == nil && sameDir(pointed, commonDir) {
+			return parent
+		}
+	}
+	return commonDir
+}
+
+// sameDir reports whether two paths name the same existing directory, however
+// each is spelled (symlinks, letter case on a case-insensitive volume).
+func sameDir(a, b string) bool {
+	infoA, errA := os.Stat(a)
+	infoB, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(infoA, infoB)
 }
 
 // PathContains reports whether dir is root itself or lies inside it. Symlinks
