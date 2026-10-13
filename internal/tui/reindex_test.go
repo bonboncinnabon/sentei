@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
+	"github.com/bonboncinnabon/sentei/internal/worktree"
 )
 
 func makeWorktrees() []git.Worktree {
@@ -52,7 +53,7 @@ func TestReindex_SortByBranch(t *testing.T) {
 
 	branches := make([]string, len(m.remove.visibleIndices))
 	for i, idx := range m.remove.visibleIndices {
-		branches[i] = stripBranchPrefix(m.remove.worktrees[idx].Branch)
+		branches[i] = worktree.ShortBranch(m.remove.worktrees[idx].Branch)
 	}
 	if branches[0] != "bugfix/nav" || branches[1] != "chore/deps" || branches[2] != "feature/auth" {
 		t.Errorf("expected alphabetical order, got %v", branches)

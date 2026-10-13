@@ -33,7 +33,3 @@ const (
 	portalAggressiveDetails = "Aggressive cleanup details"
 	portalProgressDetails   = "Progress details"
 )
-
-// whisperMilestone is the dim celebration line on the removal summary when
-// a lifetime power of ten is crossed. %d is the milestone (10, 100, …).
-const whisperMilestone = "that was your %dth worktree, pruned"

@@ -41,115 +41,87 @@ func (m Model) viewCleanupResult() string {
 		b.WriteString("\n\n")
 		b.WriteString(viewSeparator(m.width))
 		b.WriteString("\n\n")
-		fmt.Fprintf(&b, "  %s\n", shimmerLine(starFrame(m.motionTick)+" Running cleanup\u2026", rampAccent, m.motionTick))
+		fmt.Fprintf(&b, "  %s\n", shimmerLine(starFrame(m.motionTick)+" Running cleanup…", rampAccent, m.motionTick))
 		return b.String()
 	}
 
-	b.WriteString(viewTitle(titleCleanupComplete))
+	// A dry run changed nothing, so its result speaks the preview's
+	// vocabulary: the preview title and would-act lines, never done marks.
+	ran := m.cleanupRan()
+	did := !ran.DryRun
+	title := titleCleanupComplete
+	if ran.DryRun {
+		title = titleCleanupPreview
+	}
+
+	b.WriteString(viewTitle(title))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 
-	// Check if anything was actually done
-	totalActions := r.StaleRefsRemoved + r.ConfigDedupResult.Removed +
-		r.GoneBranchesDeleted + r.ConfigOrphanResult.Removed +
-		r.NonWtBranchesDeleted + r.WorktreesPruned
+	deleted := r.NonWtBranchesDeleted
+	skipped := len(r.BranchesSkipped)
+	totalActions := r.StaleRefsRemoved + r.GoneBranchesDeleted + r.ConfigOrphanResult.Removed +
+		r.ConfigDedupResult.Removed + len(deleted) + r.WorktreesPruned
 
 	switch {
-	case len(r.Errors) == 0 && totalActions == 0 && len(r.BranchesSkipped) > 0:
+	case ran.DryRun:
+		fmt.Fprintf(&b, "  %s\n\n", styleDim.Render("Dry run: nothing was changed"))
+	case len(r.Errors) == 0 && totalActions == 0 && skipped > 0:
 		// Nothing happened but branches were skipped: never claim clean.
-		fmt.Fprintf(&b, "  %s Nothing cleaned — %d %s remain (unmerged)\n\n",
-			styleIndicatorWarning.Render(indicatorWarning),
-			len(r.BranchesSkipped), pluralize(len(r.BranchesSkipped), "branch", "branches"))
+		fmt.Fprintf(&b, "  %s Nothing cleaned: %d %s\n\n",
+			styleIndicatorWarning.Render(indicatorWarning), skipped, pluralize(skipped, "branch remains", "branches remain"))
 	case len(r.Errors) == 0 && totalActions == 0:
 		fmt.Fprintf(&b, "  %s Repository is clean\n\n",
 			styleIndicatorDone.Render(indicatorDone))
-	case totalActions > 0 && len(r.BranchesSkipped) > 0:
-		fmt.Fprintf(&b, "  %s Cleanup complete — %d %s remain (unmerged)\n\n",
-			styleIndicatorWarning.Render(indicatorWarning),
-			len(r.BranchesSkipped), pluralize(len(r.BranchesSkipped), "branch", "branches"))
+	case totalActions > 0 && skipped > 0:
+		fmt.Fprintf(&b, "  %s Cleanup complete: %d %s\n\n",
+			styleIndicatorWarning.Render(indicatorWarning), skipped, pluralize(skipped, "branch remains", "branches remain"))
 	}
 
-	// Stale refs
-	if r.StaleRefsRemoved > 0 {
-		fmt.Fprintf(&b, "  %s Pruned %d stale remote %s\n",
-			styleIndicatorDone.Render(indicatorDone),
-			r.StaleRefsRemoved,
-			pluralize(r.StaleRefsRemoved, "ref", "refs"))
-	} else if len(r.Errors) == 0 {
-		fmt.Fprintf(&b, "  %s No stale remote refs\n",
-			styleIndicatorPending.Render(indicatorPending))
-	}
+	writeSafeChecks(&b, [...]int{r.StaleRefsRemoved, r.GoneBranchesDeleted, r.ConfigOrphanResult.Removed, r.ConfigDedupResult.Removed, r.WorktreesPruned}, did, r.Errors)
 
-	// Gone branches
-	if r.GoneBranchesDeleted > 0 {
-		fmt.Fprintf(&b, "  %s Deleted %d %s with gone upstream\n",
-			styleIndicatorDone.Render(indicatorDone),
-			r.GoneBranchesDeleted,
-			pluralize(r.GoneBranchesDeleted, "branch", "branches"))
-	} else if len(r.Errors) == 0 {
-		fmt.Fprintf(&b, "  %s No branches with gone upstream\n",
-			styleIndicatorPending.Render(indicatorPending))
+	// Aggressive deletions are named: they are the branches git cannot bring
+	// back from a remote. The names are fitted to the terminal below.
+	if len(deleted) > 0 {
+		b.WriteString(aggressiveCheck.line(len(deleted), did))
 	}
-
-	// Config dedup
-	if r.ConfigDedupResult.Removed > 0 {
-		fmt.Fprintf(&b, "  %s Removed %d config %s\n",
-			styleIndicatorDone.Render(indicatorDone),
-			r.ConfigDedupResult.Removed,
-			pluralize(r.ConfigDedupResult.Removed, "duplicate", "duplicates"))
-	} else if len(r.Errors) == 0 {
-		fmt.Fprintf(&b, "  %s No config duplicates\n",
-			styleIndicatorPending.Render(indicatorPending))
-	}
-
-	// Orphaned configs
-	if r.ConfigOrphanResult.Removed > 0 {
-		fmt.Fprintf(&b, "  %s Removed %d orphaned config %s\n",
-			styleIndicatorDone.Render(indicatorDone),
-			r.ConfigOrphanResult.Removed,
-			pluralize(r.ConfigOrphanResult.Removed, "section", "sections"))
-	} else if len(r.Errors) == 0 {
-		fmt.Fprintf(&b, "  %s No orphaned config sections\n",
-			styleIndicatorPending.Render(indicatorPending))
-	}
-
-	// Pruned worktrees
-	if r.WorktreesPruned > 0 {
-		fmt.Fprintf(&b, "  %s Pruned %d stale %s\n",
-			styleIndicatorDone.Render(indicatorDone),
-			r.WorktreesPruned,
-			pluralize(r.WorktreesPruned, "worktree", "worktrees"))
-	} else if len(r.Errors) == 0 {
-		fmt.Fprintf(&b, "  %s No stale worktrees\n",
-			styleIndicatorPending.Render(indicatorPending))
-	}
+	head := b.String()
+	b.Reset()
 
 	// Skipped branches: a confirmed aggressive run must never look like a
-	// silent success when the engine skipped unmerged branches.
-	if len(r.BranchesSkipped) > 0 {
-		fmt.Fprintf(&b, "  %s %d %s skipped (not fully merged)\n",
-			styleIndicatorWarning.Render(indicatorWarning),
-			len(r.BranchesSkipped),
-			pluralize(len(r.BranchesSkipped), "branch", "branches"))
+	// silent success when the engine skipped branches. Each one carries the
+	// reason it was left alone.
+	unmerged := 0
+	if skipped > 0 {
+		verb := "skipped"
+		if ran.DryRun {
+			verb = "would be skipped"
+		}
+		fmt.Fprintf(&b, "  %s %d %s %s\n", styleIndicatorWarning.Render(indicatorWarning),
+			skipped, pluralize(skipped, "branch", "branches"), verb)
+		// Names share one column so the reasons line up; the longest reason
+		// is 23 cells, and the column gives way before the reason is cut.
+		nameWidth := 0
 		for _, s := range r.BranchesSkipped {
-			fmt.Fprintf(&b, "      %s\n", styleDim.Render(truncateWithEllipsis(s.Name, max(m.width-8, 20))))
+			nameWidth = max(nameWidth, len([]rune(s.Name)))
+		}
+		nameWidth = min(nameWidth, max(m.width-36, 20))
+		for _, s := range r.BranchesSkipped {
+			if s.Reason == cleanup.SkipUnmerged {
+				unmerged++
+			}
+			fmt.Fprintf(&b, "      %-*s  %s\n", nameWidth, truncateWithEllipsis(s.Name, nameWidth), styleDim.Render(string(s.Reason)))
 		}
 	}
 
-	// Errors
-	for _, e := range r.Errors {
-		fmt.Fprintf(&b, "  %s %s: %s\n",
-			styleIndicatorFailed.Render(indicatorFailed),
-			e.Step,
-			styleError.Render(e.Err.Error()))
-	}
+	writeCleanupErrors(&b, r.Errors, m.width)
 
-	// Tip: after a safe run, point at aggressive mode; after an aggressive
-	// run that skipped unmerged branches, point at --force instead of
-	// re-recommending the mode that just ran.
-	if m.cleanupRanMode == cleanup.ModeAggressive {
-		if len(r.BranchesSkipped) > 0 {
+	// Tip: after an aggressive run that left unmerged branches, point at
+	// --force; otherwise point at aggressive mode when branches remain. Never
+	// recommend the command that just ran.
+	if ran.Mode == cleanup.ModeAggressive {
+		if unmerged > 0 && !ran.Force {
 			b.WriteString("\n")
 			b.WriteString(styleDim.Render("  Tip: run `sentei cleanup --mode aggressive --force` to delete unmerged branches."))
 			b.WriteString("\n")
@@ -164,9 +136,9 @@ func (m Model) viewCleanupResult() string {
 		b.WriteString("\n")
 	}
 
-	if m.cleanupRanMode != "" {
+	if ran.Mode != "" {
 		b.WriteString("\n")
-		b.WriteString(styleDim.Render("  ran: " + BuildCLICommand("cleanup", map[string]string{"mode": string(m.cleanupRanMode)})))
+		b.WriteString(styleDim.Render("  ran: " + cleanupCLICommand(ran)))
 		b.WriteString("\n")
 	}
 
@@ -175,6 +147,33 @@ func (m Model) viewCleanupResult() string {
 	b.WriteString("\n\n")
 	b.WriteString(viewFooter(m.width, cleanupDoneFooter))
 	b.WriteString("\n")
+	tail := b.String()
 
+	// What follows the names must stay on screen. An unknown terminal height
+	// (no size message yet) leaves the list unbounded.
+	budget := len(deleted)
+	if m.windowHeight > 0 {
+		budget = m.windowHeight - strings.Count(head, "\n") - strings.Count(tail, "\n")
+	}
+	return head + fitBranchNames(deleted, budget, m.width) + tail
+}
+
+// fitBranchNames lists names one per row in at most budget rows, the last of
+// which counts the names that did not fit.
+func fitBranchNames(names []string, budget, width int) string {
+	hidden := 0
+	if len(names) > budget {
+		keep := max(budget-1, 0)
+		hidden = len(names) - keep
+		names = names[:keep]
+	}
+
+	var b strings.Builder
+	for _, name := range names {
+		fmt.Fprintf(&b, "      %s\n", styleDim.Render(truncateWithEllipsis(name, max(width-8, 20))))
+	}
+	if hidden > 0 {
+		b.WriteString(styleDim.Render(fmt.Sprintf("      and %d more", hidden)) + "\n")
+	}
 	return b.String()
 }

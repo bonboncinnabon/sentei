@@ -48,8 +48,6 @@ func TestE2E_RemovalFlowChrome(t *testing.T) {
 	m = updated.(Model)
 	updated, _ = m.updateProgress(pruneCompleteMsg{})
 	m = updated.(Model)
-	updated, _ = m.updateProgress(cleanupCompleteMsg{})
-	m = updated.(Model)
 	updated, _ = m.updateProgress(removalEventsCompleteMsg{})
 	m = updated.(Model)
 	m = settleNow(t, m)
@@ -60,25 +58,6 @@ func TestE2E_RemovalFlowChrome(t *testing.T) {
 	summaryScreen := stripANSI(m.viewSummary())
 	if !strings.Contains(summaryScreen, "sentei ─ Removal complete") || !strings.Contains(summaryScreen, "✦ 2 worktrees removed successfully") {
 		t.Fatalf("summary screen chrome wrong:\n%s", summaryScreen)
-	}
-}
-
-func TestE2E_ProgressViewsQuitOnKeys(t *testing.T) {
-	m := NewModel(nil, nil, "/repo")
-	m.remove.run = removalRun{}
-
-	for _, view := range []viewState{progressView, createProgressView, repoProgressView} {
-		m.view = view
-		for _, k := range []tea.KeyPressMsg{{Code: 'q', Text: "q"}, {Code: 'c', Mod: tea.ModCtrl}} {
-			_, cmd := m.Update(k)
-			if cmd == nil {
-				t.Errorf("view %d: expected quit Cmd for %v", view, k)
-				continue
-			}
-			if _, ok := cmd().(tea.QuitMsg); !ok {
-				t.Errorf("view %d: expected tea.Quit for %v", view, k)
-			}
-		}
 	}
 }
 

@@ -11,17 +11,11 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
-)
-
-const (
-	unlockPhaseID  progress.PhaseID = "unlock-worktrees"
-	cleanupPhaseID progress.PhaseID = "prune-and-cleanup"
-	pruneStepID    progress.StepID  = "prune-worktree-metadata"
-	cleanupStepID  progress.StepID  = "repository-cleanup"
 )
 
 func (m Model) updateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -55,7 +49,7 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 		m.view = summaryView
 		return m, nil
 	}
-	ch := make(chan progress.Event, (len(prepared.targets)+len(prepared.unlockOps)+2)*5)
+	ch := make(chan progress.Event, (len(prepared.targets)+len(prepared.plan.Phases))*5)
 	execution, err := progress.Start(prepared.plan, func(event progress.Event) { ch <- event })
 	if err != nil {
 		close(ch)
@@ -66,15 +60,9 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 	m.remove.run.execution = execution
 	m.remove.run.progressCh = ch
 	m.remove.run.targets = prepared.targets
-	declarationEvents := len(prepared.unlockOps) + len(prepared.targets) + 2 + len(prepared.plan.Phases)
+	declarationEvents := len(prepared.targets) + len(prepared.plan.Phases)
 	for range declarationEvents {
 		m.remove.run.events = append(m.remove.run.events, <-ch)
-	}
-	for _, operation := range prepared.unlockOps {
-		_, transitionErr := execution.Run(unlockPhaseID, operation.stepID, func() (string, error) {
-			return "", worktree.UnlockWorktree(m.runner, m.repoPath, operation.worktree.Path)
-		})
-		m.remove.run.result.Err = errors.Join(m.remove.run.result.Err, transitionErr)
 	}
 
 	updated, cmd := m.startDeletions()
@@ -84,7 +72,6 @@ func (m Model) beginRemoval() (tea.Model, tea.Cmd) {
 func prepareRemoval(worktrees []git.Worktree) (removalPreparation, error) {
 	prepared := removalPreparation{}
 	seenWorktrees := map[string]bool{}
-	unlock := progress.PlannedPhase{ID: unlockPhaseID, Label: "Unlock"}
 	removal := progress.PlannedPhase{ID: worktree.RemovalPhaseID, Label: worktree.RemovalPhaseName}
 
 	for _, wt := range worktrees {
@@ -93,22 +80,11 @@ func prepareRemoval(worktrees []git.Worktree) (removalPreparation, error) {
 			return removalPreparation{}, fmt.Errorf("preparing removal: duplicate worktree identity %q", identity)
 		}
 		seenWorktrees[identity] = true
-		if wt.IsLocked {
-			stepID := removalSemanticStepID("unlock", identity)
-			prepared.unlockOps = append(prepared.unlockOps, unlockOperation{stepID: stepID, worktree: wt})
-			unlock.Steps = append(unlock.Steps, progress.PlannedStep{ID: stepID, Label: worktreeLabel(wt)})
-		}
 		stepID := removalSemanticStepID("remove", identity)
 		prepared.targets = append(prepared.targets, worktree.RemovalTarget{Worktree: wt, StepID: stepID})
-		removal.Steps = append(removal.Steps, progress.PlannedStep{ID: stepID, Label: worktreeLabel(wt), Checkpoints: 2})
+		removal.Steps = append(removal.Steps, progress.PlannedStep{ID: stepID, Label: worktree.Label(wt), Checkpoints: 2})
 	}
-	if len(unlock.Steps) > 0 {
-		prepared.plan.Phases = append(prepared.plan.Phases, unlock)
-	}
-	prepared.plan.Phases = append(prepared.plan.Phases, removal, progress.PlannedPhase{
-		ID: cleanupPhaseID, Label: "Prune & cleanup",
-		Steps: []progress.PlannedStep{{ID: pruneStepID, Label: "Prune worktree metadata"}, {ID: cleanupStepID, Label: "Repository cleanup"}},
-	})
+	prepared.plan.Phases = []progress.PlannedPhase{removal}
 	return prepared, nil
 }
 
@@ -148,13 +124,19 @@ func (m Model) startDeletions() (tea.Model, tea.Cmd) {
 // and it is left alone if it has gained work since.
 //
 // Removal always passes --force: without it git refuses every worktree that
-// contains submodules, clean or not.
+// contains submodules, clean or not. A target that was locked when it was
+// confirmed gets --force twice, which is how git removes a locked worktree.
+// Nothing is unlocked first, so a removal that fails or never starts leaves
+// the lock and its reason in place, and a lock placed after the list loaded
+// is still refused.
 func worktreeRemover(runner git.CommandRunner, repoPath string, targets []worktree.RemovalTarget) func(path string) error {
 	unconfirmed := make(map[string]git.Worktree, len(targets))
+	locked := make(map[string]bool)
 	for _, target := range targets {
 		if !worktreeAtRisk(target.Worktree) {
 			unconfirmed[target.Worktree.Path] = target.Worktree
 		}
+		locked[target.Worktree.Path] = target.Worktree.IsLocked
 	}
 	return func(path string) error {
 		if wt, ok := unconfirmed[path]; ok {
@@ -163,9 +145,41 @@ func worktreeRemover(runner git.CommandRunner, repoPath string, targets []worktr
 				return errors.New("changed since the list loaded: reopen the list to review it")
 			}
 		}
-		_, err := runner.Run(repoPath, "worktree", "remove", "--force", path)
+		args := []string{"worktree", "remove", "--force"}
+		if locked[path] {
+			args = append(args, "--force")
+		}
+		_, err := runner.Run(repoPath, append(args, path)...)
 		return err
 	}
+}
+
+// confirmRisk is the badge and note the confirm screen shows for wt. A
+// worktree with nothing at risk has no note.
+func confirmRisk(wt git.Worktree) (badge, note string) {
+	switch {
+	case wt.IsLocked:
+		return "[L]", "locked — will force-remove"
+	case wt.HasUncommittedChanges:
+		return "[~]", "uncommitted changes — will be lost"
+	case wt.HasUntrackedFiles:
+		return "[!]", "untracked files — will be lost"
+	case wt.HasUnpushedCommits:
+		return "[^]", "commits not on any remote"
+	case wt.EnrichmentError != "":
+		return "[?]", "status could not be read"
+	}
+	return "[ok]", ""
+}
+
+// confirmTotals are the warnings under the rows, one per kind of risk
+// present, in this order. Each completes "⚠ N worktrees ...".
+var confirmTotals = []struct{ badge, text string }{
+	{"[~]", "with uncommitted changes that will be lost"},
+	{"[!]", "with untracked files that will be lost"},
+	{"[L]", "locked and will be force-removed"},
+	{"[^]", "with commits not pushed to any remote"},
+	{"[?]", "whose status could not be read and may hold uncommitted work"},
 }
 
 func (m Model) viewConfirm() string {
@@ -181,46 +195,41 @@ func (m Model) viewConfirm() string {
 
 	// Columnar rows: badge gutter first so one vertical sweep answers
 	// "anything risky?", names aligned after it, notes only on at-risk rows.
-	nameWidth := 0
+	nameWidth, noteWidth := 0, 0
 	for _, wt := range selected {
-		nameWidth = max(nameWidth, len([]rune(worktreeLabel(wt))))
+		_, note := confirmRisk(wt)
+		nameWidth = max(nameWidth, lipgloss.Width(worktree.Label(wt)))
+		noteWidth = max(noteWidth, lipgloss.Width(note))
 	}
 	nameWidth = min(nameWidth, confirmNameWidthCap)
+	// A narrow terminal takes the room from the name column first. When not
+	// even a short name fits beside the notes, the notes go: the badge and
+	// the totals below still state every risk.
+	showNotes := m.width == 0 || m.width-confirmRowLead-2-noteWidth >= min(nameWidth, confirmNameWidthMin)
+	if m.width > 0 {
+		room := m.width - confirmRowLead
+		if showNotes && noteWidth > 0 {
+			room -= 2 + noteWidth
+		}
+		nameWidth = min(nameWidth, max(room, 1))
+	}
 
 	var rows []confirmRow
-	var dirtyCount, untrackedCount, lockedCount, unpushedCount, unknownCount int
+	counts := map[string]int{}
 	for _, wt := range selected {
-		var badge, note string
-		risky := true
-		switch {
-		case wt.IsLocked:
-			badge, note = "[L]", "locked — will force-remove"
-			lockedCount++
-		case wt.HasUncommittedChanges:
-			badge, note = "[~]", "uncommitted changes — will be lost"
-			dirtyCount++
-		case wt.HasUntrackedFiles:
-			badge, note = "[!]", "untracked files — will be lost"
-			untrackedCount++
-		case wt.HasUnpushedCommits:
-			badge, note = "[^]", "commits not on any remote"
-			unpushedCount++
-		case wt.EnrichmentError != "":
-			badge, note = "[?]", "status could not be read"
-			unknownCount++
-		default:
-			badge, risky = "[ok]", false
-		}
+		badge, note := confirmRisk(wt)
+		risky := note != ""
+		counts[badge]++
 
 		badgeStyle := styleStatusClean
 		if risky {
 			badgeStyle = styleWarning
 		}
-		name := truncateWithEllipsis(worktreeLabel(wt), nameWidth)
-		// Pad by rune count: fmt's %-*s pads by bytes and drifts on …
-		pad := strings.Repeat(" ", max(nameWidth-len([]rune(name)), 0))
+		name := truncateWithEllipsis(worktree.Label(wt), nameWidth)
+		// Pad by display width: fmt's %-*s pads by bytes and drifts on …
+		pad := strings.Repeat(" ", max(nameWidth-lipgloss.Width(name), 0))
 		line := fmt.Sprintf("    %s  %s%s", badgeStyle.Render(fmt.Sprintf("%-4s", badge)), name, pad)
-		if risky {
+		if risky && showNotes {
 			line += "  " + styleWarning.Render(note)
 		}
 		rows = append(rows, confirmRow{line: strings.TrimRight(line, " "), risky: risky})
@@ -230,35 +239,11 @@ func (m Model) viewConfirm() string {
 	b.Reset()
 	b.WriteString("\n")
 
-	if dirtyCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s with uncommitted changes that will be lost", dirtyCount, pluralize(dirtyCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
-	}
-	if untrackedCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s with untracked files that will be lost", untrackedCount, pluralize(untrackedCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
-	}
-	if lockedCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s locked and will be force-removed", lockedCount, pluralize(lockedCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
-	}
-	if unpushedCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s with commits not pushed to any remote", unpushedCount, pluralize(unpushedCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
-	}
-	if unknownCount > 0 {
-		b.WriteString(styleWarning.Render(
-			fmt.Sprintf("  ⚠ %d %s whose status could not be read and may hold uncommitted work", unknownCount, pluralize(unknownCount, "worktree", "worktrees")),
-		))
-		b.WriteString("\n")
+	for _, total := range confirmTotals {
+		if n := counts[total.badge]; n > 0 {
+			b.WriteString(styleWarning.Render(fmt.Sprintf("  ⚠ %d %s %s", n, pluralize(n, "worktree", "worktrees"), total.text)))
+			b.WriteString("\n")
+		}
 	}
 
 	b.WriteString("\n")
@@ -273,7 +258,7 @@ func (m Model) viewConfirm() string {
 	if m.windowHeight > 0 {
 		budget = m.windowHeight - strings.Count(head, "\n") - strings.Count(tail, "\n")
 	}
-	return head + fitConfirmRows(rows, budget) + tail
+	return fitLines(head+fitConfirmRows(rows, budget)+tail, m.width)
 }
 
 type confirmRow struct {

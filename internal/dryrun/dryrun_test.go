@@ -148,7 +148,7 @@ func TestPrint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			if err := Print(tt.worktrees, &buf); err != nil {
+			if err := Print(tt.worktrees, "", &buf); err != nil {
 				t.Fatalf("Print() error: %v", err)
 			}
 			output := buf.String()
@@ -176,7 +176,7 @@ func TestPrintSortOrder(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Print(worktrees, &buf); err != nil {
+	if err := Print(worktrees, "", &buf); err != nil {
 		t.Fatalf("Print() error: %v", err)
 	}
 	output := buf.String()
@@ -206,12 +206,38 @@ func TestPrintNoAnsi(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Print(worktrees, &buf); err != nil {
+	if err := Print(worktrees, "", &buf); err != nil {
 		t.Fatalf("Print() error: %v", err)
 	}
 	output := buf.String()
 
 	if strings.Contains(output, "\x1b[") {
 		t.Errorf("output contains ANSI escape codes:\n%s", output)
+	}
+}
+
+// The [P] mark has to agree with what removal protects: the built-in names
+// and the repository's own default branch, whatever it is called.
+func TestPrint_MarksTheDetectedDefaultBranchAsProtected(t *testing.T) {
+	worktrees := []git.Worktree{
+		{Branch: "refs/heads/trunk"},
+		{Branch: "refs/heads/feature/x"},
+		{Branch: "refs/heads/main"},
+	}
+	var buf bytes.Buffer
+	if err := Print(worktrees, "trunk", &buf); err != nil {
+		t.Fatal(err)
+	}
+
+	protected := map[string]bool{}
+	for _, line := range strings.Split(buf.String(), "\n") {
+		if fields := strings.Fields(line); len(fields) >= 2 {
+			protected[fields[1]] = strings.Contains(line, "[P]")
+		}
+	}
+	for branch, want := range map[string]bool{"trunk": true, "main": true, "feature/x": false} {
+		if protected[branch] != want {
+			t.Errorf("%s marked protected = %v, want %v\n%s", branch, protected[branch], want, buf.String())
+		}
 	}
 }

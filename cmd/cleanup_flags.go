@@ -7,19 +7,24 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
 )
 
-// ParseCleanupFlags parses cleanup-specific flags and returns CleanupOptions.
-// Returns an error if validation fails (e.g., invalid mode).
-func ParseCleanupFlags(args []string) (*cleanup.Options, error) {
+// ParseCleanupFlags parses the cleanup flags and the optional positional
+// repository path, which defaults to the current directory. It returns an
+// error for an invalid mode or an argument after the path.
+func ParseCleanupFlags(args []string) (*cleanup.Options, string, error) {
 	fs := flag.NewFlagSet("cleanup", flag.ContinueOnError)
 	mode := fs.String("mode", "", "Cleanup mode: safe or aggressive")
 	force := fs.Bool("force", false, "Force-delete unmerged branches (aggressive mode)")
 	dryRun := fs.Bool("dry-run", false, "Show what would be done without making changes")
 
 	if err := fs.Parse(args); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	if _, err := repoPathArg(fs); err != nil {
-		return nil, err
+	repoPath, err := repoPathArg(fs)
+	if err != nil {
+		return nil, "", err
+	}
+	if repoPath == "" {
+		repoPath = "."
 	}
 
 	opts := &cleanup.Options{
@@ -30,25 +35,12 @@ func ParseCleanupFlags(args []string) (*cleanup.Options, error) {
 	if *mode != "" {
 		m := cleanup.Mode(*mode)
 		if m != cleanup.ModeSafe && m != cleanup.ModeAggressive {
-			return nil, fmt.Errorf("invalid value for --mode: must be 'safe' or 'aggressive'")
+			return nil, "", fmt.Errorf("invalid value for --mode: must be 'safe' or 'aggressive'")
 		}
 		opts.Mode = m
 	}
 
-	return opts, nil
-}
-
-// ParseCleanupRepoPath extracts the positional repo path from cleanup args.
-func ParseCleanupRepoPath(args []string) string {
-	fs := flag.NewFlagSet("cleanup", flag.ContinueOnError)
-	fs.String("mode", "", "")
-	fs.Bool("force", false, "")
-	fs.Bool("dry-run", false, "")
-	_ = fs.Parse(args)
-	if fs.NArg() > 0 {
-		return fs.Arg(0)
-	}
-	return "."
+	return opts, repoPath, nil
 }
 
 // ValidateCleanupForNonInteractive checks that all required flags are present

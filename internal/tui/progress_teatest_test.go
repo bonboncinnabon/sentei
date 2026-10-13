@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/teatest/v2"
 
-	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
 
@@ -118,8 +117,7 @@ func TestTeatestProgressFramesStayTruthfulAndBounded(t *testing.T) {
 	tm.Send(tea.WindowSizeMsg{Width: 80, Height: 24})
 	tm.Send(progressScenarioMsg(func(m *Model) {
 		m.remove.run.events = removalProgressEvents(progress.StepDone, progress.StepDone)
-		result := cleanup.Result{}
-		m.remove.run.cleanupResult = &result
+		m.remove.run.pruned = true
 	}))
 	recorder.waitFor(t, func(frames []progressRecordedFrame) bool {
 		return frameContains(frames, "100%") && frameWithSize(frames, 80, 24)
