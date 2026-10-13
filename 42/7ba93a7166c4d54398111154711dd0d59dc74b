@@ -1,0 +1,25 @@
+README.md
+  s_b5d41ab2ae0f4c::t_f8567004204fbe 189-191,196-200
+internal/config/config.go
+  s_b5d41ab2ae0f4c::t_95e3f1208bd4e7 39-64,67,73,75,88,90,122-124,154-155
+internal/config/overlay_clear_test.go
+  s_b5d41ab2ae0f4c::t_c3fca8d0b96efc 107-173
+internal/config/types.go
+  s_b5d41ab2ae0f4c::t_e7bed55d33db18 38-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "427ba93a7166c4d54398111154711dd0d59dc74b",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
