@@ -1,0 +1,23 @@
+README.md
+  s_b5d41ab2ae0f4c::t_7b3749a1f23b07 142-179
+  s_b5d41ab2ae0f4c::t_74f16c4ed39cfd 118-141
+  s_b5d41ab2ae0f4c::t_142a0b91962baa 95-117
+  s_b5d41ab2ae0f4c::t_9b086d02b5422c 53-68
+  s_b5d41ab2ae0f4c::t_5e7283670a5663 180,237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e250c4e2f97153ac623f7a3242bb81a5b616111f",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
