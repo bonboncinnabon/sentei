@@ -1,7 +1,9 @@
 package git
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -335,5 +337,65 @@ func TestGitRunner_MessagesStayEnglishUnderGermanLocale(t *testing.T) {
 	_, err := runner.Run(repo, unlock[2:]...)
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("error = %v, want it to contain %q", err, want)
+	}
+}
+
+func TestGitRunner_TimeoutLetsGitCleanUp(t *testing.T) {
+	// A server that accepts and never answers, so the clone blocks after git
+	// has created its destination directory.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	released := make(chan struct{})
+	t.Cleanup(func() {
+		close(released)
+		_ = listener.Close()
+	})
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		<-released
+		_ = conn.Close()
+	}()
+
+	destination := filepath.Join(t.TempDir(), "clone")
+	runner := &GitRunner{timeout: 500 * time.Millisecond}
+	_, err = runner.Run(t.TempDir(), "clone", "git://"+listener.Addr().String()+"/repo.git", destination)
+	if err == nil || !strings.Contains(err.Error(), "timed out after 500ms") {
+		t.Fatalf("error = %v, want a timeout error", err)
+	}
+
+	// git removes a partial clone when it is asked to stop. Killed outright it
+	// leaves the directory behind, and the next clone into it fails.
+	if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the partial clone at %s was left behind (stat error: %v)", destination, err)
+	}
+}
+
+func TestGitRunner_ChildReadsNoInput(t *testing.T) {
+	// Input that never ends: a child that inherited it would wait forever,
+	// the way git waits on a terminal for an answer nobody can type.
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdin := os.Stdin
+	os.Stdin = reader
+	t.Cleanup(func() {
+		os.Stdin = stdin
+		_ = writer.Close()
+		_ = reader.Close()
+	})
+
+	runner := &GitRunner{timeout: 2 * time.Second, waitDelay: 100 * time.Millisecond}
+	out, err := runner.Run(t.TempDir(), "-c", "alias.read-input=!cat", "read-input")
+	if err != nil {
+		t.Fatalf("a git child that reads input must see the end of it at once: %v", err)
+	}
+	if out != "" {
+		t.Errorf("the child read %q from sentei's input, want nothing", out)
 	}
 }
