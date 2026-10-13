@@ -480,6 +480,37 @@ func TestMigrate_BrokenEventStreamStillRollsBack(t *testing.T) {
 	assertSameSnapshot(t, before, snapshot(t, base))
 }
 
+// Besides the index, a checkout keeps a few files of its own in .git: the
+// message a squash or cherry-pick prepared for the next commit, ORIG_HEAD, the
+// shared half of a split index. A linked worktree reads them from its own
+// admin directory, so they have to move there with the index.
+func TestMigrate_CarriesTheCheckoutsOwnGitStateIntoTheWorktree(t *testing.T) {
+	_, root := newCheckout(t)
+	mustGit(t, root, "checkout", "-q", "-b", "other")
+	mustWrite(t, filepath.Join(root, "other.txt"), "other\n")
+	mustGit(t, root, "add", ".")
+	mustGit(t, root, "commit", "-qm", "work to squash")
+	mustGit(t, root, "checkout", "-q", "main")
+	mustGit(t, root, "update-index", "--split-index")
+	mustGit(t, root, "merge", "-q", "--squash", "other")
+	origHead := mustGit(t, root, "rev-parse", "ORIG_HEAD")
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	worktree := result.WorktreePath
+	if got := mustGit(t, worktree, "rev-parse", "ORIG_HEAD"); got != origHead {
+		t.Errorf("ORIG_HEAD = %q, want %q", got, origHead)
+	}
+	// The squash left its message for the next commit to pick up.
+	mustGit(t, worktree, "commit", "-q", "--no-edit")
+	if message := mustGit(t, worktree, "log", "-1", "--format=%B"); !strings.Contains(message, "work to squash") {
+		t.Errorf("the squash commit lost its prepared message:\n%s", message)
+	}
+}
+
 // The last step compares git status in the new worktree with the status taken
 // before the conversion. A difference means the working tree did not arrive
 // as it left, so the conversion must not stand.

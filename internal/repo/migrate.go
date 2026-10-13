@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
@@ -60,8 +61,15 @@ var migrateBlockers = []struct{ path, reason string }{
 }
 
 // perWorktreeFiles live in .git for a normal checkout and in the worktree's
-// own admin directory for a linked worktree. They follow the working tree.
-var perWorktreeFiles = []string{"index", filepath.Join("logs", "HEAD")}
+// own admin directory for a linked worktree (`git rev-parse --git-path <name>`
+// says which). They follow the working tree: left behind in .bare, the next
+// commit would lose the message a squash or cherry-pick prepared for it, and
+// ORIG_HEAD and FETCH_HEAD would stop resolving.
+var perWorktreeFiles = []string{
+	"index", filepath.Join("logs", "HEAD"),
+	"ORIG_HEAD", "FETCH_HEAD", "AUTO_MERGE",
+	"MERGE_MSG", "SQUASH_MSG", "COMMIT_EDITMSG",
+}
 
 // PlanMigrate checks that the repository at repoPath can be converted in
 // place and reports what the conversion will do. It changes nothing.
@@ -202,7 +210,13 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			if err != nil {
 				return "", err
 			}
-			for _, name := range perWorktreeFiles {
+			names := slices.Clone(perWorktreeFiles)
+			// A split index keeps most of its entries in sharedindex.<hash>.
+			shared, _ := filepath.Glob(filepath.Join(barePath, "sharedindex.*"))
+			for _, path := range shared {
+				names = append(names, filepath.Base(path))
+			}
+			for _, name := range names {
 				from := filepath.Join(barePath, name)
 				if !exists(from) {
 					continue
