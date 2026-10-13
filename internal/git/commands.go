@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -56,10 +57,29 @@ func inheritedEnv() []string {
 	})
 }
 
+// batchSSH is the ssh command git children get when the user has chosen none.
+// ssh opens the terminal itself to confirm a host key or read a passphrase,
+// where GIT_TERMINAL_PROMPT has no say. In batch mode it fails instead.
+const batchSSH = "GIT_SSH_COMMAND=ssh -oBatchMode=yes"
+
+// sshUsers lists the git commands that can end up running ssh: those that
+// connect to a remote, and those that check files out, where a filter such as
+// git-lfs or a lazy fetch in a partial clone connects on their behalf.
+var sshUsers = []string{
+	"clone", "fetch", "ls-remote", "pull", "push", "remote", "submodule",
+	"checkout", "merge", "worktree",
+}
+
+// sshChoices holds, per directory, whether the user's git config names an ssh
+// command there. It is read once per directory for the life of the process,
+// so a run of commands in one repository costs one config read, not one each.
+var sshChoices sync.Map // directory -> func() (chosen, conditional bool)
+
 // GitRunner runs git against the repository named by dir and nothing else:
 // the child cannot prompt on the terminal, reads no input, ignores an
 // inherited GIT_DIR, prints untranslated messages, takes no optional locks,
-// and is stopped after gitTimeout.
+// runs ssh in batch mode unless the user chose an ssh command, and is stopped
+// after gitTimeout.
 type GitRunner struct {
 	// Env holds extra NAME=value entries for the child, such as GIT_AUTHOR_DATE.
 	Env []string
@@ -69,6 +89,51 @@ type GitRunner struct {
 }
 
 func (r *GitRunner) Run(dir string, args ...string) (string, error) {
+	env := append(inheritedEnv(), r.Env...)
+	if r.sshIsUnchosen(dir, env, args) {
+		env = append(env, batchSSH)
+	}
+	return r.run(dir, env, args...)
+}
+
+// sshIsUnchosen reports whether a command in dir may run ssh and the user has
+// left the choice of ssh command to git: neither GIT_SSH nor GIT_SSH_COMMAND
+// is in env and core.sshCommand is not configured. GIT_SSH_COMMAND outranks
+// the other two, so setting it over a choice the user made would replace
+// their key or proxy.
+func (r *GitRunner) sshIsUnchosen(dir string, env, args []string) bool {
+	// Any argument counts, so options before the command name do not hide it.
+	// A branch that shares a name with a command costs one config read.
+	if !slices.ContainsFunc(args, func(arg string) bool { return slices.Contains(sshUsers, arg) }) {
+		return false
+	}
+	if slices.ContainsFunc(env, func(entry string) bool {
+		name, _, _ := strings.Cut(entry, "=")
+		return name == "GIT_SSH" || name == "GIT_SSH_COMMAND"
+	}) {
+		return false
+	}
+	read, _ := sshChoices.LoadOrStore(dir, sync.OnceValues(func() (chosen, conditional bool) {
+		keys, err := r.run(dir, env, "config", "--name-only", "--get-regexp", `^(core\.sshcommand$|includeif\.)`)
+		if err != nil {
+			// Exit status 1 is "no such key". After any other failure the
+			// answer is unknown, and ssh is left as the user has it.
+			var exit *exec.ExitError
+			return !errors.As(err, &exit) || exit.ExitCode() != 1, false
+		}
+		return strings.Contains(keys, "core.sshcommand"), strings.Contains(keys, "includeif.")
+	}))
+	chosen, conditional := read.(func() (bool, bool))()
+	// git clone reads config again once the new repository exists. A
+	// conditional include can then name an ssh command for it (includeIf
+	// "gitdir:..." or "hasconfig:remote.*.url:...") that no read made
+	// beforehand can see, so any conditional include counts as a choice.
+	return !chosen && (!conditional || !slices.Contains(args, "clone"))
+}
+
+// run starts git with env, plus the settings every git child gets, and
+// returns its trimmed output.
+func (r *GitRunner) run(dir string, env []string, args ...string) (string, error) {
 	timeout := cmp.Or(r.timeout, gitTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -80,7 +145,7 @@ func (r *GitRunner) Run(dir string, args ...string) (string, error) {
 	// child reads the null device. GIT_OPTIONAL_LOCKS=0 keeps read-only
 	// commands read-only: a background status must not rewrite the index and
 	// hold index.lock under the user's own git command.
-	cmd.Env = append(append(inheritedEnv(), r.Env...), "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0", "LC_ALL=C")
+	cmd.Env = append(slices.Clip(env), "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0", "LC_ALL=C")
 	// SIGTERM lets git remove its lock files. A git that ignores it, or a
 	// helper it left behind holding the output pipes, is cut off by WaitDelay.
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
@@ -101,16 +166,31 @@ func (r *GitRunner) Run(dir string, args ...string) (string, error) {
 		// killed by a signal), fall back to the exec error so the cause is not
 		// erased into an empty message.
 		if stderrMsg := strings.TrimSpace(stderr.String()); stderrMsg != "" {
-			// What GIT_TERMINAL_PROMPT=0 turns a username or password prompt into.
-			if strings.Contains(stderrMsg, "terminal prompts disabled") {
-				stderrMsg += "; sentei does not ask for credentials: store them with a git credential helper or use an SSH remote, then run it again"
-			}
-			return "", fmt.Errorf("%s: %s", command, stderrMsg)
+			return "", fmt.Errorf("%s: %s%s", command, stderrMsg, promptHint(stderrMsg, slices.Contains(env, batchSSH)))
 		}
 		return "", fmt.Errorf("%s: %w", command, err)
 	}
 
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+// promptHint returns what to do about a failure that a prompt would have
+// prevented, or "" for any other failure. batch says ssh ran under batchSSH:
+// the ssh messages mean something else under a command the user chose.
+func promptHint(stderrMsg string, batch bool) string {
+	switch {
+	// What GIT_TERMINAL_PROMPT=0 turns a username or password prompt into.
+	case strings.Contains(stderrMsg, "terminal prompts disabled"):
+		return "; sentei does not ask for credentials: store them with a git credential helper or use an SSH remote, then run it again"
+	case !batch:
+		return ""
+	case strings.Contains(stderrMsg, "Host key verification failed"):
+		return "; sentei runs ssh without prompts: connect to the host once by hand (for example `ssh -T git@<host>`) and accept its key, then run it again"
+	// Also what a key that the server does not know ends in, hence the "if".
+	case strings.Contains(stderrMsg, "Permission denied ("):
+		return "; sentei runs ssh without prompts: if the key has a passphrase, load it into an agent with ssh-add, then run it again"
+	}
+	return ""
 }
 
 // ShellRunner executes arbitrary shell commands (not git-specific).

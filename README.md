@@ -203,6 +203,16 @@ otherwise the command fails with a message saying so. git output is read with
 finished after an hour is stopped. Hooks that git starts inherit that
 environment.
 
+ssh runs in batch mode (`GIT_SSH_COMMAND="ssh -oBatchMode=yes"`), so it fails
+instead of asking you to confirm a host key or type a key's passphrase. When
+that happens, connect to the host once by hand (`ssh -T git@github.com`) to
+accept its key, or load the key into an agent with `ssh-add`, and run the
+command again. If you have configured your own ssh command with `GIT_SSH`,
+`GIT_SSH_COMMAND` or `core.sshCommand`, sentei runs it unchanged: add
+`-oBatchMode=yes` to it if it should never prompt. `sentei clone` also leaves
+ssh alone when your git config has an `includeIf` section, because the include
+may set `core.sshCommand` for the new repository.
+
 ### Layouts and platforms
 
 - sentei can be started from the container, from any worktree inside it, or
