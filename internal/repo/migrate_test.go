@@ -173,13 +173,45 @@ func dirtySubmodules(t *testing.T, root string) {
 	mustWrite(t, filepath.Join(root, "vendor", "library", "deps", "inner", "untracked.txt"), "new\n")
 }
 
-// everythingCheckout is a checkout with all of it at once: submodules,
-// uncommitted state and linked worktrees, one of them with the submodules
-// checked out too.
+// makeSparse commits two more directories and narrows the checkout so that
+// docs/ is no longer in the working tree.
+func makeSparse(t *testing.T, root string, narrow func(t *testing.T, root string)) {
+	t.Helper()
+	mustWrite(t, filepath.Join(root, "docs", "guide.md"), "guide\n")
+	mustWrite(t, filepath.Join(root, "tools", "run.sh"), "run\n")
+	commitAll(t, root, "docs and tools")
+	narrow(t, root)
+	if exists(filepath.Join(root, "docs")) || !exists(filepath.Join(root, "tools", "run.sh")) {
+		t.Fatal("fixture: the sparse checkout was meant to drop docs/ and keep tools/")
+	}
+}
+
+// sparseSet narrows a checkout with git sparse-checkout, which turns on
+// per-worktree config and keeps the settings there.
+func sparseSet(args ...string) func(t *testing.T, root string) {
+	return func(t *testing.T, root string) {
+		t.Helper()
+		mustGit(t, root, append([]string{"sparse-checkout", "set"}, args...)...)
+	}
+}
+
+// sparseByHand narrows a checkout the way it was done before git had the
+// command: the setting in the shared config and a pattern file.
+func sparseByHand(t *testing.T, root string) {
+	t.Helper()
+	mustGit(t, root, "config", "core.sparseCheckout", "true")
+	mustWrite(t, filepath.Join(root, ".git", "info", "sparse-checkout"), "/*\n!/docs/\n")
+	mustGit(t, root, "read-tree", "-mu", "HEAD")
+}
+
+// everythingCheckout is a checkout with all of it at once: submodules, a
+// sparse working tree, uncommitted state and linked worktrees, one of them
+// with the submodules checked out too.
 func everythingCheckout(t *testing.T) (base, root string) {
 	t.Helper()
 	base, root = newCheckout(t)
 	addSubmodules(t, base, root)
+	makeSparse(t, root, sparseSet("src", "tools", "vendor"))
 	dirty(t, base, root)
 	dirtySubmodules(t, root)
 	addLinkedWorktrees(t, base, root)
@@ -254,7 +286,7 @@ func assertSameSnapshot(t *testing.T, before, after map[string]string) {
 }
 
 // gitOrNone is for questions git answers with an error when there is nothing
-// to report, such as the submodules when .gitmodules does not name a gitlink.
+// to report, such as the patterns of a checkout that is not sparse.
 func gitOrNone(dir string, args ...string) string {
 	out, err := realGit.Run(dir, args...)
 	if err != nil {
@@ -281,6 +313,8 @@ func gitState(t *testing.T, worktree string) map[string]string {
 		"included":     mustGit(t, worktree, "config", "sentei.included"),
 		"head":         mustGit(t, worktree, "symbolic-ref", "HEAD"),
 		"submodules":   gitOrNone(worktree, "submodule", "status", "--recursive"),
+
+		"sparse patterns": gitOrNone(worktree, "sparse-checkout", "list"),
 	}
 }
 
@@ -483,17 +517,18 @@ func TestMigrate_RefusalsLeaveTheRepositoryUntouched(t *testing.T) {
 			want: "already has a .bare entry",
 		},
 		{
-			name: "sparse checkout",
-			setup: func(t *testing.T, base, root string) string {
-				mustGit(t, root, "sparse-checkout", "set", "src")
-				return root
-			},
-			want: "sparse checkout or per-worktree config is enabled",
-		},
-		{
 			name: "core.worktree",
 			setup: func(t *testing.T, base, root string) string {
 				mustGit(t, root, "config", "core.worktree", root)
+				return root
+			},
+			want: "core.worktree is set",
+		},
+		{
+			name: "core.worktree in the checkout's own config",
+			setup: func(t *testing.T, base, root string) string {
+				mustGit(t, root, "config", "extensions.worktreeConfig", "true")
+				mustGit(t, root, "config", "--worktree", "core.worktree", root)
 				return root
 			},
 			want: "core.worktree is set",
@@ -1368,6 +1403,65 @@ func TestMigrate_InterruptedSubmoduleAbsorbRollsBack(t *testing.T) {
 		t.Fatalf("Failure() = %v, want the interruption reported as rolled back", failure)
 	}
 	assertSameSnapshot(t, before, snapshot(t, base))
+}
+
+// A sparse checkout stays sparse: the same files, the same patterns. With
+// per-worktree config the bare flag must not land in the shared config, where
+// it would tell every worktree that it is not a working tree.
+func TestMigrate_KeepsASparseCheckoutSparse(t *testing.T) {
+	tests := []struct {
+		name   string
+		narrow func(t *testing.T, root string)
+		// ownSettings: git keeps the sparse settings per worktree, so a
+		// worktree added later starts out with every file.
+		ownSettings bool
+	}{
+		{"cone mode", sparseSet("src", "tools"), true},
+		{"pattern mode", sparseSet("--no-cone", "/*", "!/docs/"), true},
+		{"switched on by hand in the shared config", sparseByHand, false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			base, root := newCheckout(t)
+			makeSparse(t, root, test.narrow)
+			dirty(t, base, root)
+			gitBefore := gitState(t, root)
+			filesBefore := checkoutFiles(t, root)
+			if gitBefore["sparse patterns"] == "none" {
+				t.Fatal("fixture: the checkout is not sparse")
+			}
+
+			result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+			if err := result.Failure(); err != nil {
+				t.Fatalf("migrate failed: %v", err)
+			}
+			worktree := result.WorktreePath
+			assertSameSnapshot(t, filesBefore, checkoutFiles(t, worktree))
+			assertSameGitState(t, gitBefore, gitState(t, worktree))
+			if bare := mustGit(t, root, "rev-parse", "--is-bare-repository"); bare != "true" {
+				t.Errorf("the container reports bare = %s", bare)
+			}
+			if DetectContext(realGit, root) != ContextBareRepo || DetectContext(realGit, worktree) != ContextBareRepo {
+				t.Error("the migrated repository is not detected as a bare layout")
+			}
+			// The worktree takes a commit, and the files outside the
+			// patterns stay out of it.
+			mustGit(t, worktree, "stash", "drop")
+			mustGit(t, worktree, "commit", "-qm", "after migrate")
+			if exists(filepath.Join(worktree, "docs")) {
+				t.Error("docs/ appeared in the sparse worktree")
+			}
+			if test.ownSettings {
+				other := filepath.Join(root, "other")
+				mustGit(t, root, "worktree", "add", "-q", "-b", "other", other)
+				if !exists(filepath.Join(other, "docs", "guide.md")) {
+					t.Error("a new worktree came up sparse: the settings stayed with the bare repository")
+				}
+			}
+		})
+	}
 }
 
 // All of it in one repository: each part has to work beside the others.

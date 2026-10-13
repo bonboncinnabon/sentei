@@ -27,6 +27,9 @@ type MigratePlan struct {
 	kept       []string // those inside the root, relative to it
 	relinks    []relink
 	submodules []submodule
+	// worktreeConfig is extensions.worktreeConfig: each worktree reads a
+	// config.worktree of its own on top of the shared config.
+	worktreeConfig bool
 	// state is what git reported for the checkout before the conversion. The
 	// new worktree must report the same, or the conversion is rolled back.
 	state []string
@@ -98,17 +101,19 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 			return MigratePlan{}, errors.New(blocker.reason)
 		}
 	}
-	for _, key := range []string{"extensions.worktreeConfig", "core.sparseCheckout"} {
-		// A linked worktree reads these from its own admin directory, and
-		// core.bare would have to move with them.
-		if value, _ := runner.Run(root, "config", "--type=bool", "--get", key); value == "true" {
-			return MigratePlan{}, fmt.Errorf("sparse checkout or per-worktree config is enabled (%s), which migrate cannot carry over; disable it, or clone the remote with `sentei clone` instead", key)
+	plan := MigratePlan{RepoPath: root}
+	worktreeConfig, _ := runner.Run(root, "config", "--type=bool", "--get", "extensions.worktreeConfig")
+	plan.worktreeConfig = worktreeConfig == "true"
+	// With per-worktree config git keeps core.worktree in config.worktree.
+	scopes := []string{"--local"}
+	if plan.worktreeConfig {
+		scopes = append(scopes, "--worktree")
+	}
+	for _, scope := range scopes {
+		if worktree, _ := runner.Run(root, "config", scope, "--get", "core.worktree"); worktree != "" {
+			return MigratePlan{}, fmt.Errorf("core.worktree is set (%s), which a bare repository cannot have; if the working tree is this directory, unset it (git config %s --unset core.worktree), then retry", worktree, scope)
 		}
 	}
-	if worktree, _ := runner.Run(root, "config", "--local", "--get", "core.worktree"); worktree != "" {
-		return MigratePlan{}, fmt.Errorf("core.worktree is set (%s), which a bare repository cannot have; if the working tree is this directory, unset it (git config --unset core.worktree), then retry", worktree)
-	}
-	plan := MigratePlan{RepoPath: root}
 	if included := includedFromWorkingTree(runner, root); included != "" {
 		return MigratePlan{}, fmt.Errorf("the repository config includes %s, which moves with the working tree, and git skips an include it cannot find; remove the include from .git/config, migrate, then add it back with the new path", included)
 	}
@@ -328,8 +333,8 @@ func readSubmodule(runner git.CommandRunner, root, gitDir string) (sub submodule
 
 // checkoutProbes are the questions whose answers must be the same for the new
 // worktree as they were for the checkout. An optional one fails when there is
-// nothing to ask about (a gitlink that .gitmodules does not name stops the
-// submodule listing), and is only asked again when it had an answer.
+// nothing to ask about (a checkout that is not sparse has no pattern list),
+// and is only asked again when it had an answer.
 var checkoutProbes = []struct {
 	name     string
 	args     []string
@@ -340,6 +345,7 @@ var checkoutProbes = []struct {
 	// Without the optional index lock, so a check never rewrites the index.
 	{name: "git status", args: []string{"--no-optional-locks", "status", "--porcelain", "--"}, excludes: true},
 	{name: "git submodule status", args: []string{"submodule", "status", "--recursive"}, optional: true},
+	{name: "git sparse-checkout list", args: []string{"sparse-checkout", "list"}, optional: true},
 }
 
 // checkoutState answers checkoutProbes for the checkout at path. The kept

@@ -36,13 +36,14 @@ const (
 // own admin directory for a linked worktree (`git rev-parse --git-path <name>`
 // says which). They follow the working tree: left behind in .bare, the next
 // commit would lose the message a squash or cherry-pick prepared for it,
-// ORIG_HEAD and FETCH_HEAD would stop resolving, and git would clone a
-// submodule again instead of using the repository it has.
+// ORIG_HEAD and FETCH_HEAD would stop resolving, a sparse checkout would lose
+// its patterns and settings, and git would clone a submodule again instead of
+// using the repository it has.
 var perWorktreeFiles = []string{
 	"index", filepath.Join("logs", "HEAD"),
 	"ORIG_HEAD", "FETCH_HEAD", "AUTO_MERGE",
 	"MERGE_MSG", "SQUASH_MSG", "COMMIT_EDITMSG",
-	"modules",
+	"config.worktree", filepath.Join("info", "sparse-checkout"), "modules",
 }
 
 // Migrate converts a normal checkout into sentei's layout without copying or
@@ -193,6 +194,8 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 					continue
 				}
 				// Not every git version creates logs/ for a fresh worktree.
+				// Where git copied the sparse settings into the worktree
+				// itself, the originals replace the copies.
 				to := filepath.Join(adminDir, name)
 				if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
 					return "", err
@@ -224,12 +227,29 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			return err
 		},
 	})
-	// No undo of its own: the config goes back as a whole with the .git
-	// pointer.
-	migrate.add(migrateConvertPhaseID, "Convert", step{id: "mark-bare", label: "Mark repository as bare", run: func() (string, error) {
-		_, err := runner.Run(root, "config", "core.bare", "true")
-		return "", err
-	}})
+	// With per-worktree config every worktree reads the shared file, and a
+	// shared core.bare=true would leave none of them a working tree. It goes
+	// into .bare/config.worktree, which only the bare repository reads. The
+	// checkout's own config.worktree moved into the worktree a step ago, so
+	// that file is new.
+	bareConfig := []string{"config", "core.bare", "true"}
+	if plan.worktreeConfig {
+		bareConfig = []string{"config", "--worktree", "core.bare", "true"}
+	}
+	migrate.add(migrateConvertPhaseID, "Convert", step{
+		id: "mark-bare", label: "Mark repository as bare",
+		run: func() (string, error) {
+			_, err := runner.Run(root, bareConfig...)
+			return "", err
+		},
+		undo: func() error {
+			if plan.worktreeConfig {
+				return removeFile(filepath.Join(barePath, "config.worktree"))
+			}
+			// The shared config goes back as a whole with the .git pointer.
+			return nil
+		},
+	})
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "move-files", label: "Move working tree",
 		run: func() (string, error) {
