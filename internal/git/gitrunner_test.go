@@ -268,7 +268,9 @@ func TestGitRunner_SucceedsWhenABackgroundProcessHoldsTheOutput(t *testing.T) {
 	// A hook that starts a daemon without redirecting its output keeps the
 	// pipes open after git has exited successfully.
 	installScriptGit(t, "echo done\nsleep 3600 &\necho $! > \"$0.pid\"")
-	runner := &GitRunner{waitDelay: 50 * time.Millisecond}
+	// Output still unread when the delay ends is dropped with the pipe, so the
+	// delay is long enough for a loaded machine to schedule the read.
+	runner := &GitRunner{waitDelay: time.Second}
 
 	out, err := runner.Run(t.TempDir(), "worktree", "add", "x")
 	if err != nil {
