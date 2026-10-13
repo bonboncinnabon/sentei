@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -199,5 +200,34 @@ func TestRunCreate_ExistingBranchSaysBaseWasNotApplied(t *testing.T) {
 	}
 	if !strings.Contains(out, "checked out existing branch feature/existing; base main was not applied") {
 		t.Errorf("output does not say the existing branch was used:\n%s", out)
+	}
+}
+
+// The header is printed before git says whether the branch already exists, so
+// it must not promise the base: for an existing branch, local or only on
+// origin, "from main" was false. The create step says what happened.
+func TestRunCreate_HeaderDoesNotClaimTheBase(t *testing.T) {
+	bareRepo := setupBareRepo(t)
+	seed := filepath.Join(filepath.Dir(bareRepo), "clone")
+	mustGit(t, bareRepo, "branch", "feature/local", "main")
+	mustGit(t, seed, "branch", "feature/remote", "main")
+	mustGit(t, bareRepo, "remote", "add", "origin", seed)
+	mustGit(t, bareRepo, "fetch", "-q", "origin")
+
+	for _, branch := range []string{"feature/new", "feature/local", "feature/remote"} {
+		var err error
+		out := captureStdout(t, func() {
+			err = RunCreate([]string{"--branch", branch, "--base", "main", bareRepo})
+		})
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", branch, err)
+		}
+		header, _, _ := strings.Cut(out, "\n")
+		if want := fmt.Sprintf("Creating worktree %q...", branch); header != want {
+			t.Errorf("%s: header = %q, want %q", branch, header, want)
+		}
+		if existed := branch != "feature/new"; strings.Contains(out, "base main was not applied") != existed {
+			t.Errorf("%s: output must say the base was not applied exactly when the branch existed:\n%s", branch, out)
+		}
 	}
 }
