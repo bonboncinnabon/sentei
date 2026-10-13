@@ -12,10 +12,9 @@ import (
 // boolPtr is a helper to get a pointer to a bool literal.
 func boolPtr(b bool) *bool { return &b }
 
-// minimalRegistry returns a Registry with three ecosystems in priority order:
-// pnpm, npm, go.
-func minimalRegistry() *Registry {
-	return NewRegistry([]config.EcosystemConfig{
+// minimalEcosystems returns three ecosystems in priority order: pnpm, npm, go.
+func minimalEcosystems() []config.EcosystemConfig {
+	return []config.EcosystemConfig{
 		{
 			Name:    "pnpm",
 			Detect:  config.DetectConfig{Files: []string{"pnpm-lock.yaml"}},
@@ -31,7 +30,7 @@ func minimalRegistry() *Registry {
 			Detect:  config.DetectConfig{Files: []string{"go.mod"}},
 			Install: config.InstallConfig{Command: "go mod download"},
 		},
-	})
+	}
 }
 
 // createFiles creates the given file names (with empty content) inside dir.
@@ -78,17 +77,14 @@ func TestDetect(t *testing.T) {
 		},
 	}
 
-	reg := minimalRegistry()
+	ecosystems := minimalEcosystems()
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			createFiles(t, dir, tc.files)
 
-			got, err := reg.Detect(dir)
-			if err != nil {
-				t.Fatalf("Detect returned unexpected error: %v", err)
-			}
+			got := Detect(ecosystems, dir)
 
 			if len(got) != len(tc.wantNames) {
 				t.Fatalf("got %d ecosystems %v, want %d %v", len(got), namesOf(got), len(tc.wantNames), tc.wantNames)
@@ -106,19 +102,14 @@ func TestDetect_DisabledEcosystem(t *testing.T) {
 	dir := t.TempDir()
 	createFiles(t, dir, []string{"go.mod"})
 
-	reg := NewRegistry([]config.EcosystemConfig{
+	got := Detect([]config.EcosystemConfig{
 		{
 			Name:    "go",
 			Enabled: boolPtr(false),
 			Detect:  config.DetectConfig{Files: []string{"go.mod"}},
 			Install: config.InstallConfig{Command: "go mod download"},
 		},
-	})
-
-	got, err := reg.Detect(dir)
-	if err != nil {
-		t.Fatalf("Detect returned unexpected error: %v", err)
-	}
+	}, dir)
 	if len(got) != 0 {
 		t.Errorf("expected no ecosystems for disabled entry, got %v", namesOf(got))
 	}
@@ -128,39 +119,20 @@ func TestDetect_GlobPattern(t *testing.T) {
 	dir := t.TempDir()
 	createFiles(t, dir, []string{"MyApp.sln"})
 
-	reg := NewRegistry([]config.EcosystemConfig{
+	got := Detect([]config.EcosystemConfig{
 		{
 			Name:    "dotnet",
 			Detect:  config.DetectConfig{Files: []string{"*.sln", "*.csproj"}},
 			Install: config.InstallConfig{Command: "dotnet restore"},
 		},
-	})
-
-	got, err := reg.Detect(dir)
-	if err != nil {
-		t.Fatalf("Detect returned unexpected error: %v", err)
-	}
+	}, dir)
 	if len(got) != 1 || got[0].Name != "dotnet" {
 		t.Errorf("expected [dotnet], got %v", namesOf(got))
 	}
 }
 
-func TestRegistryAll(t *testing.T) {
-	reg := minimalRegistry()
-	all := reg.All()
-	if len(all) != 3 {
-		t.Errorf("All() returned %d ecosystems, want 3", len(all))
-	}
-	wantOrder := []string{"pnpm", "npm", "go"}
-	for i, want := range wantOrder {
-		if all[i].Name != want {
-			t.Errorf("All()[%d]: got %q, want %q", i, all[i].Name, want)
-		}
-	}
-}
-
-// namesOf extracts the Name field from a slice of Ecosystem values.
-func namesOf(ecosystems []Ecosystem) []string {
+// namesOf extracts the names from a slice of ecosystems.
+func namesOf(ecosystems []config.EcosystemConfig) []string {
 	names := make([]string, len(ecosystems))
 	for i, e := range ecosystems {
 		names[i] = e.Name
@@ -169,12 +141,12 @@ func namesOf(ecosystems []Ecosystem) []string {
 }
 
 func TestDetect_GlobCharactersInDirectoryPath(t *testing.T) {
-	reg := NewRegistry([]config.EcosystemConfig{
+	ecosystems := []config.EcosystemConfig{
 		{Name: "go", Detect: config.DetectConfig{Files: []string{"go.mod"}}},
 		{Name: "dotnet", Detect: config.DetectConfig{Files: []string{"*.csproj"}}},
 		{Name: "pnpm", Detect: config.DetectConfig{Files: []string{"./pnpm-lock.yaml"}}},
 		{Name: "absent", Detect: config.DetectConfig{Files: []string{"*.sln"}}},
-	})
+	}
 
 	// Worktree directories take their name from the branch, and "[", "*" and
 	// "?" are all legal there.
@@ -186,10 +158,7 @@ func TestDetect_GlobCharactersInDirectoryPath(t *testing.T) {
 			}
 			createFiles(t, dir, []string{"go.mod", "app.csproj", "pnpm-lock.yaml"})
 
-			detected, err := reg.Detect(dir)
-			if err != nil {
-				t.Fatalf("Detect() error: %v", err)
-			}
+			detected := Detect(ecosystems, dir)
 			if want := []string{"go", "dotnet", "pnpm"}; !slices.Equal(namesOf(detected), want) {
 				t.Errorf("Detect(%q) = %v, want %v", name, namesOf(detected), want)
 			}

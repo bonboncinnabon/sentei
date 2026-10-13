@@ -73,9 +73,8 @@ func RunCreate(args []string) error {
 			creatorOpts.SourceWorktree = creator.SourceWorktree(worktrees)
 		}
 		if creatorOpts.SourceWorktree != "" {
-			detected, _ := ecosystem.NewRegistry(cfg.Ecosystems).Detect(creatorOpts.SourceWorktree)
-			for _, eco := range detected {
-				creatorOpts.EnvFiles = append(creatorOpts.EnvFiles, eco.Config.EnvFiles...)
+			for _, eco := range ecosystem.Detect(cfg.Ecosystems, creatorOpts.SourceWorktree) {
+				creatorOpts.EnvFiles = append(creatorOpts.EnvFiles, eco.EnvFiles...)
 			}
 		}
 	}

@@ -144,9 +144,8 @@ func (m *Model) prepareCreateOptions() {
 	if m.cfg == nil || sourceWT == "" {
 		return
 	}
-	detected, _ := ecosystem.NewRegistry(m.cfg.Ecosystems).Detect(sourceWT)
-	for _, eco := range detected {
-		m.create.ecosystems = append(m.create.ecosystems, eco.Config)
+	m.create.ecosystems = ecosystem.Detect(m.cfg.Ecosystems, sourceWT)
+	for _, eco := range m.create.ecosystems {
 		if _, chosen := m.create.ecoEnabled[eco.Name]; !chosen {
 			m.create.ecoEnabled[eco.Name] = true
 		}
