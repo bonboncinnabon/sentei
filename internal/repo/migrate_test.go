@@ -59,6 +59,12 @@ func newCheckout(t *testing.T) (base, root string) {
 func dirtyCheckout(t *testing.T) (base, root string) {
 	t.Helper()
 	base, root = newCheckout(t)
+	dirty(t, base, root)
+	return base, root
+}
+
+func dirty(t *testing.T, base, root string) {
+	t.Helper()
 	mustGit(t, root, "checkout", "-q", "-b", "feature/x")
 	mustWrite(t, filepath.Join(root, "b.txt"), "b\n")
 	mustGit(t, root, "add", ".")
@@ -96,6 +102,58 @@ func dirtyCheckout(t *testing.T) (base, root string) {
 	if err := os.Chmod(hook, 0o755); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// commitAll commits everything in dir.
+func commitAll(t *testing.T, dir, message string) {
+	t.Helper()
+	mustGit(t, dir, "add", ".")
+	mustGit(t, dir, "commit", "-qm", message)
+}
+
+// addSubmodules commits three submodules to the checkout: vendor/library,
+// which has a submodule of its own, vendor/plain, and tools/tool, which is
+// deinitialised again so that only its repository under .git/modules is left.
+func addSubmodules(t *testing.T, base, root string) {
+	t.Helper()
+	repository := func(name string) string {
+		dir := filepath.Join(base, name)
+		mustGit(t, base, "init", "-q", "-b", "main", dir)
+		mustWrite(t, filepath.Join(dir, name+".txt"), name+"\n")
+		commitAll(t, dir, name)
+		return dir
+	}
+	// git only clones a submodule from a local path when told it may.
+	submodule := func(dir string, args ...string) {
+		mustGit(t, dir, append([]string{"-c", "protocol.file.allow=always", "submodule"}, args...)...)
+	}
+	inner, library, plain, tool := repository("inner"), repository("library"), repository("plain"), repository("tool")
+	submodule(library, "add", "-q", inner, "deps/inner")
+	commitAll(t, library, "add inner")
+	submodule(root, "add", "-q", library, "vendor/library")
+	submodule(root, "add", "-q", plain, "vendor/plain")
+	submodule(root, "add", "-q", tool, "tools/tool")
+	commitAll(t, root, "add submodules")
+	submodule(root, "update", "-q", "--init", "--recursive")
+	submodule(root, "deinit", "-q", "-f", "tools/tool")
+}
+
+// dirtySubmodules leaves local changes in a submodule and in the submodule
+// nested in it.
+func dirtySubmodules(t *testing.T, root string) {
+	t.Helper()
+	mustWrite(t, filepath.Join(root, "vendor", "library", "library.txt"), "edited\n")
+	mustWrite(t, filepath.Join(root, "vendor", "library", "deps", "inner", "untracked.txt"), "new\n")
+}
+
+// submoduleCheckout is a checkout with submodules and uncommitted state, of
+// its own and inside the submodules.
+func submoduleCheckout(t *testing.T) (base, root string) {
+	t.Helper()
+	base, root = newCheckout(t)
+	addSubmodules(t, base, root)
+	dirty(t, base, root)
+	dirtySubmodules(t, root)
 	return base, root
 }
 
@@ -107,6 +165,13 @@ func snapshot(t *testing.T, dir string) map[string]string {
 	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		// Some development machines run git through a wrapper (git-ai) that
+		// keeps its own notes in an ai directory inside the repository,
+		// written behind git's back. They are no part of what a migration
+		// moves or has to put back.
+		if entry.IsDir() && entry.Name() == "ai" && exists(filepath.Join(filepath.Dir(path), "HEAD")) {
+			return filepath.SkipDir
 		}
 		info, err := entry.Info()
 		if err != nil {
@@ -157,6 +222,16 @@ func assertSameSnapshot(t *testing.T, before, after map[string]string) {
 	}
 }
 
+// gitOrNone is for questions git answers with an error when there is nothing
+// to report, such as the submodules when .gitmodules does not name a gitlink.
+func gitOrNone(dir string, args ...string) string {
+	out, err := realGit.Run(dir, args...)
+	if err != nil {
+		return "none"
+	}
+	return out
+}
+
 // gitState is what git itself reports for a working tree. It must read the
 // same through the migrated worktree as it did through the original checkout.
 func gitState(t *testing.T, worktree string) map[string]string {
@@ -174,18 +249,37 @@ func gitState(t *testing.T, worktree string) map[string]string {
 		"config":       mustGit(t, worktree, "config", "sentei.test"),
 		"included":     mustGit(t, worktree, "config", "sentei.included"),
 		"head":         mustGit(t, worktree, "symbolic-ref", "HEAD"),
+		"submodules":   gitOrNone(worktree, "submodule", "status", "--recursive"),
 	}
+}
+
+// assertSameGitState compares what git reports with what it reported before.
+func assertSameGitState(t *testing.T, before, after map[string]string) {
+	t.Helper()
+	for key, state := range before {
+		if after[key] != state {
+			t.Errorf("%s changed:\n--- before\n%s\n--- after\n%s", key, state, after[key])
+		}
+	}
+}
+
+// checkoutFiles is the snapshot of a working tree without the .git entries of
+// the checkout and of its submodules.
+func checkoutFiles(t *testing.T, worktree string) map[string]string {
+	t.Helper()
+	files := snapshot(t, worktree)
+	for path := range files {
+		if slices.Contains(strings.Split(path, string(filepath.Separator)), ".git") {
+			delete(files, path)
+		}
+	}
+	return files
 }
 
 func TestMigrate_MovesTheCheckoutIntoAWorktreeWithoutLosingAnything(t *testing.T) {
 	_, root := dirtyCheckout(t)
 	gitBefore := gitState(t, root)
-	filesBefore := snapshot(t, root)
-	for path := range filesBefore {
-		if path == ".git" || strings.HasPrefix(path, ".git"+string(filepath.Separator)) {
-			delete(filesBefore, path)
-		}
-	}
+	filesBefore := checkoutFiles(t, root)
 	hookBefore := snapshot(t, filepath.Join(root, ".git", "hooks"))
 
 	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
@@ -218,18 +312,11 @@ func TestMigrate_MovesTheCheckoutIntoAWorktreeWithoutLosingAnything(t *testing.T
 	}
 
 	// Every file is where it was, one directory down, byte for byte.
-	filesAfter := snapshot(t, worktree)
-	delete(filesAfter, ".git")
-	assertSameSnapshot(t, filesBefore, filesAfter)
+	assertSameSnapshot(t, filesBefore, checkoutFiles(t, worktree))
 
 	// Git reports the same staged, unstaged, untracked and ignored state,
 	// the same stash, reflog, branches, remotes and config.
-	gitAfter := gitState(t, worktree)
-	for key, before := range gitBefore {
-		if gitAfter[key] != before {
-			t.Errorf("%s changed:\n--- before\n%s\n--- after\n%s", key, before, gitAfter[key])
-		}
-	}
+	assertSameGitState(t, gitBefore, gitState(t, worktree))
 	assertSameSnapshot(t, hookBefore, snapshot(t, filepath.Join(root, ".bare", "hooks")))
 
 	// The worktree is a working one: the stash applies and a commit lands.
@@ -343,20 +430,6 @@ func TestMigrate_RefusalsLeaveTheRepositoryUntouched(t *testing.T) {
 			want: "already has a .bare entry",
 		},
 		{
-			name: "submodules",
-			setup: func(t *testing.T, base, root string) string {
-				library := filepath.Join(base, "library")
-				mustGit(t, base, "init", "-q", "-b", "main", library)
-				mustWrite(t, filepath.Join(library, "lib.txt"), "lib\n")
-				mustGit(t, library, "add", ".")
-				mustGit(t, library, "commit", "-qm", "lib")
-				mustGit(t, root, "-c", "protocol.file.allow=always", "submodule", "add", "-q", library, "vendor/library")
-				mustGit(t, root, "commit", "-qm", "add submodule")
-				return root
-			},
-			want: "submodules",
-		},
-		{
 			name: "sparse checkout",
 			setup: func(t *testing.T, base, root string) string {
 				mustGit(t, root, "sparse-checkout", "set", "src")
@@ -424,40 +497,51 @@ func TestMigrate_RefusalsLeaveTheRepositoryUntouched(t *testing.T) {
 }
 
 // Every step does its work and then reports a failure. Whatever the step, the
-// rollback must hand back the original repository, byte for byte.
+// rollback must hand back the original repository, byte for byte: the plain
+// checkout, and the one that has every optional step in its flow.
 func TestMigrate_FailureAtAnyStepRestoresTheOriginalLayout(t *testing.T) {
-	probe, _ := prepareMigrate(realGit, MigrateOptions{RepoPath: t.TempDir()})
-	for index, target := range probe.steps {
-		if target.id == "preflight" {
-			continue
-		}
-		t.Run(target.id, func(t *testing.T) {
-			base, root := dirtyCheckout(t)
-			before := snapshot(t, base)
-			gitBefore := gitState(t, root)
-			migrate, finish := prepareMigrate(realGit, MigrateOptions{RepoPath: root})
-			work := migrate.steps[index].run
-			migrate.steps[index].run = func() (string, error) {
-				if _, err := work(); err != nil {
-					t.Fatalf("fixture: %s failed on its own: %v", target.id, err)
-				}
-				return "", errors.New("injected")
-			}
+	fixtures := []struct {
+		name  string
+		build func(t *testing.T) (base, root string)
+		steps []progress.StepID
+	}{
+		{"checkout", dirtyCheckout, []progress.StepID{
+			"preflight", "move-git", "git-pointer", "worktree", "mark-bare", "move-files", "default-branch", "verify",
+		}},
+		{"submodules", submoduleCheckout, []progress.StepID{
+			"preflight", "detach-submodules", "move-git", "git-pointer", "worktree", "mark-bare",
+			"move-files", "attach-submodules", "default-branch", "verify",
+		}},
+	}
+	for _, fixture := range fixtures {
+		t.Run(fixture.name, func(t *testing.T) {
+			for _, stepID := range fixture.steps[1:] {
+				t.Run(stepID, func(t *testing.T) {
+					t.Parallel()
+					base, root := fixture.build(t)
+					before := snapshot(t, base)
+					gitBefore := gitState(t, root)
+					migrate, finish := failingAt(t, root, stepID)
+					var declared []progress.StepID
+					for _, step := range migrate.steps {
+						declared = append(declared, step.id)
+					}
+					if !slices.Equal(declared, fixture.steps) {
+						t.Fatalf("the flow has the steps %v, want %v", declared, fixture.steps)
+					}
 
-			result := finish(migrate.run(nil))
+					result := finish(migrate.run(nil))
 
-			failure := result.Failure()
-			if failure == nil || !strings.Contains(failure.Error(), "injected") || !strings.Contains(failure.Error(), "the repository is unchanged") {
-				t.Fatalf("Failure() = %v, want the injected failure reported as rolled back", failure)
-			}
-			if rollback := stepResult(result.Phases, migrateRollbackPhaseID, migrateRollbackStepID); rollback.Status != progress.StepDone {
-				t.Errorf("rollback = %#v, want done", rollback)
-			}
-			assertSameSnapshot(t, before, snapshot(t, base))
-			for key, state := range gitState(t, root) {
-				if state != gitBefore[key] {
-					t.Errorf("%s changed:\n--- before\n%s\n--- after\n%s", key, gitBefore[key], state)
-				}
+					failure := result.Failure()
+					if failure == nil || !strings.Contains(failure.Error(), "injected") || !strings.Contains(failure.Error(), "the repository is unchanged") {
+						t.Fatalf("Failure() = %v, want the injected failure reported as rolled back", failure)
+					}
+					if rollback := stepResult(result.Phases, migrateRollbackPhaseID, migrateRollbackStepID); rollback.Status != progress.StepDone {
+						t.Errorf("rollback = %#v, want done", rollback)
+					}
+					assertSameSnapshot(t, before, snapshot(t, base))
+					assertSameGitState(t, gitBefore, gitState(t, root))
+				})
 			}
 		})
 	}
@@ -932,4 +1016,155 @@ func TestMigrate_SplitIndexUnderAPathWithPatternCharacters(t *testing.T) {
 	if got := mustGit(t, result.WorktreePath, "status", "--porcelain"); got != status {
 		t.Errorf("status = %q, want %q", got, status)
 	}
+}
+
+// Submodules keep their checked-out commits and local changes. Their
+// repositories end up where git keeps them for a linked worktree, nested ones
+// included, and a repository kept for a deinitialised submodule is still used.
+func TestMigrate_CarriesSubmodulesIntoTheWorktree(t *testing.T) {
+	t.Parallel()
+	_, root := submoduleCheckout(t)
+	gitBefore := gitState(t, root)
+	filesBefore := checkoutFiles(t, root)
+	if !strings.Contains(gitBefore["submodules"], "vendor/library/deps/inner") || gitBefore["status"] == "" {
+		t.Fatalf("fixture: want a nested submodule and local changes, got\n%s\n%s", gitBefore["submodules"], gitBefore["status"])
+	}
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	worktree := result.WorktreePath
+	assertSameSnapshot(t, filesBefore, checkoutFiles(t, worktree))
+	assertSameGitState(t, gitBefore, gitState(t, worktree))
+
+	modules := filepath.Join(mustGit(t, worktree, "rev-parse", "--absolute-git-dir"), "modules")
+	for _, path := range []string{"vendor/library", "vendor/library/deps/inner", "vendor/plain"} {
+		dir := filepath.Join(worktree, path)
+		if info, err := os.Lstat(filepath.Join(dir, ".git")); err != nil || !info.Mode().IsRegular() {
+			t.Errorf("%s: .git is not a file again (err %v)", path, err)
+		}
+		if gitDir := mustGit(t, dir, "rev-parse", "--absolute-git-dir"); !git.PathContains(modules, gitDir) {
+			t.Errorf("%s: repository at %s, want it under %s", path, gitDir, modules)
+		}
+	}
+	if exists(filepath.Join(root, ".bare", "modules")) {
+		t.Error(".bare/modules was left behind, where no worktree looks for it")
+	}
+
+	// The submodules are working ones: a commit lands, and the superproject
+	// sees it.
+	mustGit(t, filepath.Join(worktree, "vendor", "library"), "commit", "-qam", "edit in the submodule")
+	if status := mustGit(t, worktree, "status", "--porcelain", "vendor/library"); !strings.HasPrefix(status, "M ") {
+		t.Errorf("status of vendor/library = %q, want it modified", status)
+	}
+	// The deinitialised one comes back from the repository git kept for it:
+	// cloning from a path is not allowed here.
+	mustGit(t, worktree, "-c", "protocol.file.allow=never", "submodule", "update", "-q", "--init", "tools/tool")
+	if !exists(filepath.Join(worktree, "tools", "tool", "tool.txt")) {
+		t.Error("tools/tool was not checked out again")
+	}
+}
+
+// git absorbs the submodules the superproject tracks by name. A repository
+// added without one, and one left behind by a branch that does not have it,
+// keep their repository inside them and work as before.
+func TestMigrate_LeavesRepositoriesGitDoesNotAbsorbInPlace(t *testing.T) {
+	t.Parallel()
+	base, root := newCheckout(t)
+	addSubmodules(t, base, root)
+	embedded := filepath.Join(root, "embedded")
+	mustGit(t, root, "init", "-q", "-b", "main", embedded)
+	mustWrite(t, filepath.Join(embedded, "e.txt"), "e\n")
+	commitAll(t, embedded, "embedded")
+	commitAll(t, root, "a repository without an entry in .gitmodules")
+	mustGit(t, root, "checkout", "-q", "-b", "without")
+	mustGit(t, root, "rm", "-q", "--cached", "vendor/plain")
+	mustGit(t, root, "commit", "-qm", "a branch without vendor/plain")
+	status := mustGit(t, root, "status", "--porcelain")
+	if status != "?? vendor/plain/" {
+		t.Fatalf("fixture: status = %q, want vendor/plain left behind untracked", status)
+	}
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	if err := result.Failure(); err != nil {
+		t.Fatalf("migrate failed: %v", err)
+	}
+	worktree := result.WorktreePath
+	if got := mustGit(t, worktree, "status", "--porcelain"); got != status {
+		t.Errorf("status = %q, want %q", got, status)
+	}
+	for path, wantDirectory := range map[string]bool{"embedded": true, "vendor/plain": true, "vendor/library": false} {
+		info, err := os.Lstat(filepath.Join(worktree, path, ".git"))
+		if err != nil || info.IsDir() != wantDirectory {
+			t.Errorf("%s: .git is a directory = %v (err %v), want %v", path, err == nil && info.IsDir(), err, wantDirectory)
+		}
+		if got := mustGit(t, filepath.Join(worktree, path), "status", "--porcelain"); got != "" {
+			t.Errorf("%s: status = %q, want it clean", path, got)
+		}
+	}
+}
+
+// A submodule directory that cannot be written keeps its .git file. That
+// stops the conversion after the repositories of other submodules have moved
+// into their directories, and they have to come back.
+func TestMigrate_SubmoduleThatCannotBeDetachedRollsBackTheOthers(t *testing.T) {
+	t.Parallel()
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	base, root := newCheckout(t)
+	addSubmodules(t, base, root)
+	library := filepath.Join(root, "vendor", "library")
+	if err := os.Chmod(library, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(library, 0o755) })
+	before := snapshot(t, base)
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	failure := result.Failure()
+	if failure == nil || !strings.Contains(failure.Error(), "moving the repository of submodule "+filepath.Join("vendor", "library")) {
+		t.Fatalf("Failure() = %v, want the submodule named", failure)
+	}
+	if !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Errorf("Failure() = %v, want it reported as rolled back", failure)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
+}
+
+// gitFunc stands in for git where a test needs one command to go wrong.
+type gitFunc func(dir string, args ...string) (string, error)
+
+func (run gitFunc) Run(dir string, args ...string) (string, error) { return run(dir, args...) }
+
+// If git stops between two submodules, one repository is in the worktree's
+// modules directory and the other still inside its submodule. The rollback
+// has to return both.
+func TestMigrate_InterruptedSubmoduleAbsorbRollsBack(t *testing.T) {
+	t.Parallel()
+	base, root := newCheckout(t)
+	addSubmodules(t, base, root)
+	dirtySubmodules(t, root)
+	before := snapshot(t, base)
+	absorbOne := gitFunc(func(dir string, args ...string) (string, error) {
+		if len(args) > 4 && args[1] == "absorbgitdirs" {
+			if _, err := realGit.Run(dir, args[:4]...); err != nil {
+				return "", err
+			}
+			return "", errors.New("interrupted")
+		}
+		return realGit.Run(dir, args...)
+	})
+
+	result := Migrate(absorbOne, MigrateOptions{RepoPath: root}, nil)
+
+	failure := result.Failure()
+	if failure == nil || !strings.Contains(failure.Error(), "interrupted") || !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Fatalf("Failure() = %v, want the interruption reported as rolled back", failure)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
 }

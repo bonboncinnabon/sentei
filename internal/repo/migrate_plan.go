@@ -18,9 +18,27 @@ type MigratePlan struct {
 	WorktreePath  string // directory the working tree moves into
 	DefaultBranch string // branch the bare HEAD will name
 
-	// status is `git status --porcelain` before the conversion. The new
-	// worktree must report the same, or the conversion is rolled back.
-	status string
+	// Submodules is the number of submodules checked out in the working
+	// tree, which the conversion carries over.
+	Submodules int
+
+	submodules []submodule
+	// state is what git reported for the checkout before the conversion. The
+	// new worktree must report the same, or the conversion is rolled back.
+	state []string
+}
+
+// submodule is a submodule whose working directory points at a repository
+// under .git/modules. Everything the rollback puts back is read up front.
+type submodule struct {
+	work   string      // working directory, relative to the repository root
+	gitDir string      // its repository
+	link   []byte      // content of the .git file in the working directory
+	mode   fs.FileMode // and its permissions
+	config []byte      // content of the repository's config
+	// absorb marks a submodule the superproject tracks: git moves its
+	// repository into the new worktree's own modules directory.
+	absorb bool
 }
 
 // migrateBlockers are entries under .git that hold state the conversion
@@ -35,7 +53,6 @@ var migrateBlockers = []struct{ path, reason string }{
 	{"rebase-merge", "a rebase is in progress; finish or abort it (git rebase --abort), then retry"},
 	{"rebase-apply", "a rebase or git am is in progress; finish or abort it (git rebase --abort or git am --abort), then retry"},
 	{"BISECT_LOG", "a bisect is in progress; end it (git bisect reset), then retry"},
-	{"modules", "the repository has submodules checked out, which migrate cannot relocate; clone the remote with `sentei clone` instead"},
 	{"worktrees", "the repository already has linked worktrees; remove them (git worktree remove <path>, or git worktree prune for deleted ones), migrate, then recreate them"},
 }
 
@@ -79,32 +96,36 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 	if worktree, _ := runner.Run(root, "config", "--local", "--get", "core.worktree"); worktree != "" {
 		return MigratePlan{}, fmt.Errorf("core.worktree is set (%s), which a bare repository cannot have; if the working tree is this directory, unset it (git config --unset core.worktree), then retry", worktree)
 	}
+	plan := MigratePlan{RepoPath: root}
 	if included := includedFromWorkingTree(runner, root); included != "" {
 		return MigratePlan{}, fmt.Errorf("the repository config includes %s, which moves with the working tree, and git skips an include it cannot find; remove the include from .git/config, migrate, then add it back with the new path", included)
 	}
 
-	branch, err := runner.Run(root, "branch", "--show-current")
+	plan.Branch, err = runner.Run(root, "branch", "--show-current")
 	if err != nil {
 		return MigratePlan{}, fmt.Errorf("reading the current branch: %w", err)
 	}
-	if branch == "" {
+	if plan.Branch == "" {
 		return MigratePlan{}, errors.New("HEAD is detached; check out a branch first (git switch <branch>), then retry")
 	}
 	if _, err := runner.Run(root, "rev-parse", "--verify", "--quiet", "HEAD"); err != nil {
-		return MigratePlan{}, fmt.Errorf("branch %q has no commits yet; make a first commit, then retry", branch)
+		return MigratePlan{}, fmt.Errorf("branch %q has no commits yet; make a first commit, then retry", plan.Branch)
 	}
-	worktreePath := git.WorktreePath(root, branch)
-	if exists(worktreePath) {
-		return MigratePlan{}, fmt.Errorf("%s already exists and is where the %q worktree goes; rename it or switch to another branch, then retry", worktreePath, branch)
+	plan.WorktreePath = git.WorktreePath(root, plan.Branch)
+	plan.DefaultBranch = migrateDefaultBranch(runner, root, plan.Branch)
+
+	if exists(plan.WorktreePath) {
+		return MigratePlan{}, fmt.Errorf("%s already exists and is where the %q worktree goes; rename it or switch to another branch, then retry", plan.WorktreePath, plan.Branch)
 	}
-	status, err := worktreeStatus(runner, root)
-	if err != nil {
+	if plan.submodules, err = submodulesUnder(runner, root, filepath.Join(gitDir, "modules"), false); err != nil {
+		return MigratePlan{}, err
+	}
+	if plan.state, err = checkoutState(runner, root, nil); err != nil {
 		return MigratePlan{}, fmt.Errorf("reading the working tree status: %w", err)
 	}
-	return MigratePlan{
-		RepoPath: root, Branch: branch, WorktreePath: worktreePath,
-		DefaultBranch: migrateDefaultBranch(runner, root, branch), status: status,
-	}, nil
+
+	plan.Submodules = len(plan.submodules)
+	return plan, nil
 }
 
 // includedFromWorkingTree returns a config file that .git/config includes
@@ -143,10 +164,148 @@ func migrateDefaultBranch(runner git.CommandRunner, root, current string) string
 	return current
 }
 
-// worktreeStatus reads the status without taking the optional index lock, so
-// the index file is never rewritten by a check.
-func worktreeStatus(runner git.CommandRunner, path string) (string, error) {
-	return runner.Run(path, "--no-optional-locks", "status", "--porcelain")
+// submodulesUnder finds the repositories under a modules directory whose
+// working directory points back at them, parents before the submodules
+// nested in them. A repository without such a working directory (a submodule
+// that was deinitialised, or belongs to another branch) is left out: it moves
+// with the modules directory and git links it again when it is checked out.
+func submodulesUnder(runner git.CommandRunner, root, modules string, nested bool) ([]submodule, error) {
+	entries, err := os.ReadDir(modules)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("reading the submodule repositories: %w", err)
+	}
+	var found []submodule
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join(modules, entry.Name())
+		below, belowNested := dir, nested
+		if head, err := os.Lstat(filepath.Join(dir, "HEAD")); err == nil && head.Mode().IsRegular() {
+			sub, active, err := readSubmodule(runner, root, dir)
+			if err != nil {
+				return nil, err
+			}
+			if !active {
+				continue
+			}
+			// git absorbs a nested repository together with its parent.
+			sub.absorb = sub.absorb && !nested
+			found = append(found, sub)
+			below, belowNested = filepath.Join(dir, "modules"), true
+		}
+		// Without a HEAD the directory is part of a submodule name that has
+		// a slash in it, and the repositories are further down.
+		inner, err := submodulesUnder(runner, root, below, belowNested)
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, inner...)
+	}
+	return found, nil
+}
+
+// readSubmodule describes the submodule whose repository is gitDir. It is
+// active when the working directory the repository names has a .git file
+// that points back.
+func readSubmodule(runner git.CommandRunner, root, gitDir string) (sub submodule, active bool, err error) {
+	configPath := filepath.Join(gitDir, "config")
+	work, err := runner.Run(root, "config", "--file", configPath, "--get", "core.worktree")
+	if err != nil {
+		return submodule{}, false, nil
+	}
+	if !filepath.IsAbs(work) {
+		work = filepath.Join(gitDir, work)
+	}
+	gitfile := filepath.Join(work, ".git")
+	link, target, err := readGitfile(gitfile)
+	if err != nil || !sameFile(target, gitDir) {
+		return submodule{}, false, nil
+	}
+	inside, ok := pathInside(root, work)
+	if !ok {
+		return submodule{}, false, fmt.Errorf("the submodule repository %s has its working directory at %s, outside the repository; remove that submodule (git submodule deinit), then retry", gitDir, work)
+	}
+	info, err := os.Lstat(gitfile)
+	if err != nil {
+		return submodule{}, false, fmt.Errorf("reading %s: %w", gitfile, err)
+	}
+	config, err := os.ReadFile(configPath)
+	if err != nil {
+		return submodule{}, false, fmt.Errorf("reading %s: %w", configPath, err)
+	}
+	// A submodule the index does not list (left behind by a branch switch)
+	// is not git's to absorb: it keeps its repository inside it.
+	entry, _ := runner.Run(root, "ls-files", "--stage", "--", ":(literal)"+filepath.ToSlash(inside))
+	return submodule{
+		work: inside, gitDir: gitDir, link: link, mode: info.Mode().Perm(), config: config,
+		absorb: strings.HasPrefix(entry, "160000 "),
+	}, true, nil
+}
+
+// checkoutProbes are the questions whose answers must be the same for the new
+// worktree as they were for the checkout. An optional one fails when there is
+// nothing to ask about (a gitlink that .gitmodules does not name stops the
+// submodule listing), and is only asked again when it had an answer.
+var checkoutProbes = []struct {
+	name     string
+	args     []string
+	optional bool
+}{
+	// Without the optional index lock, so a check never rewrites the index.
+	{name: "git status", args: []string{"--no-optional-locks", "status", "--porcelain"}},
+	{name: "git submodule status", args: []string{"submodule", "status", "--recursive"}, optional: true},
+}
+
+// checkoutState answers checkoutProbes for the checkout at path. With before,
+// the answers of an earlier call, an optional probe that had none is skipped.
+func checkoutState(runner git.CommandRunner, path string, before []string) ([]string, error) {
+	state := make([]string, len(checkoutProbes))
+	for index, probe := range checkoutProbes {
+		if probe.optional && before != nil && before[index] == "" {
+			continue
+		}
+		answer, err := runner.Run(path, probe.args...)
+		if err != nil && !probe.optional {
+			return nil, err
+		}
+		state[index] = answer
+	}
+	return state, nil
+}
+
+// readGitfile reads a .git file and returns its content and the directory it
+// points at. A relative path counts from the directory that holds the file.
+func readGitfile(path string) (content []byte, target string, err error) {
+	content, err = os.ReadFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+	pointer, ok := strings.CutPrefix(strings.TrimRight(string(content), "\r\n"), "gitdir: ")
+	if !ok {
+		return nil, "", fmt.Errorf("%s is not a .git file", path)
+	}
+	if !filepath.IsAbs(pointer) {
+		pointer = filepath.Join(filepath.Dir(path), pointer)
+	}
+	return content, filepath.Clean(pointer), nil
+}
+
+// pathInside returns dir relative to root when it lies inside root. Symlinks
+// are resolved first: git records resolved paths, and the root may have been
+// reached through a symlink.
+func pathInside(root, dir string) (string, bool) {
+	root, rootErr := filepath.EvalSymlinks(root)
+	dir, dirErr := filepath.EvalSymlinks(dir)
+	inside, err := filepath.Rel(root, dir)
+	return inside, rootErr == nil && dirErr == nil && err == nil && inside != "." && filepath.IsLocal(inside)
+}
+
+// sameFile reports whether two paths lead to the same file or directory.
+func sameFile(left, right string) bool {
+	leftInfo, leftErr := os.Stat(left)
+	rightInfo, rightErr := os.Stat(right)
+	return leftErr == nil && rightErr == nil && os.SameFile(leftInfo, rightInfo)
 }
 
 func exists(path string) bool {

@@ -249,12 +249,13 @@ What a caller can rely on:
 - **`migrate` converts in place and never copies or deletes.** `.git` becomes
   `.bare` and the working tree moves, with its index, into a worktree named
   after the current branch, so staged, unstaged, untracked and ignored files,
-  stashes, remotes, config and hooks all stay. It refuses before touching
-  anything when the conversion cannot be done safely (detached or unborn
-  `HEAD`, a merge or rebase in progress, submodules, linked worktrees, sparse
-  checkout, `core.worktree`, a config include that points into the working
-  tree, a directory already named like the worktree), and a step that fails
-  midway is rolled back to the original layout.
+  stashes, remotes, config and hooks all stay. Submodules keep their commits
+  and local changes. It refuses before touching anything when the conversion
+  cannot be done safely (detached or unborn `HEAD`, a merge or rebase in
+  progress, linked worktrees, sparse checkout, `core.worktree`, a config
+  include that points into the working tree, a directory already named like
+  the worktree), and a step that fails midway is rolled back to the original
+  layout.
 - **`--copy-env` is independent of `--ecosystems`.** The files come from the
   ecosystems detected in the source worktree; `--ecosystems` only selects
   which installs run.
@@ -267,7 +268,7 @@ What a caller can rely on:
   folders are left where they are.
 - **`migrate` converts in place.** It makes no backup because it copies and
   deletes nothing, so `--delete-backup` is removed. It refuses repositories
-  with submodules, linked worktrees or sparse checkout.
+  with linked worktrees or sparse checkout.
 - **Config is strict.** An unknown key is an error, and a config file that
   fails to load stops the run. Installs run once at the root of the new
   worktree; the per-workspace install keys are accepted and ignored.

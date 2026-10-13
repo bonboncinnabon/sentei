@@ -35,12 +35,14 @@ const (
 // perWorktreeFiles live in .git for a normal checkout and in the worktree's
 // own admin directory for a linked worktree (`git rev-parse --git-path <name>`
 // says which). They follow the working tree: left behind in .bare, the next
-// commit would lose the message a squash or cherry-pick prepared for it, and
-// ORIG_HEAD and FETCH_HEAD would stop resolving.
+// commit would lose the message a squash or cherry-pick prepared for it,
+// ORIG_HEAD and FETCH_HEAD would stop resolving, and git would clone a
+// submodule again instead of using the repository it has.
 var perWorktreeFiles = []string{
 	"index", filepath.Join("logs", "HEAD"),
 	"ORIG_HEAD", "FETCH_HEAD", "AUTO_MERGE",
 	"MERGE_MSG", "SQUASH_MSG", "COMMIT_EDITMSG",
+	"modules",
 }
 
 // Migrate converts a normal checkout into sentei's layout without copying or
@@ -56,7 +58,9 @@ func Migrate(runner git.CommandRunner, opts MigrateOptions, emit func(progress.E
 // prepareMigrate declares the migrate flow and returns the function that
 // turns its outcome into a MigrateResult.
 func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([]progress.Phase, error) MigrateResult) {
-	var plan MigratePlan
+	// The plan is made first because it decides which steps there are. The
+	// pre-flight step reports it, so a refusal is the first thing that fails.
+	plan, planErr := PlanMigrate(runner, opts.RepoPath)
 	// The paths below hang off the absolute root. PlanMigrate resolves the
 	// same path and refuses first if that fails.
 	root, _ := filepath.Abs(opts.RepoPath)
@@ -69,10 +73,33 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 
 	migrate := flow{name: "repository migration"}
 	migrate.add(migrateValidatePhaseID, "Validate", step{id: "preflight", label: "Check repository", run: func() (string, error) {
-		var err error
-		plan, err = PlanMigrate(runner, opts.RepoPath)
-		return plan.Branch, err
+		return plan.Branch, planErr
 	}})
+	if len(plan.submodules) > 0 {
+		// A submodule's repository and working directory name each other by
+		// relative path, and both move. A repository inside its working
+		// directory holds no such path, so it travels with the tree, and git
+		// puts it where the new worktree keeps its submodules afterwards.
+		migrate.add(migrateConvertPhaseID, "Convert", step{
+			id: "detach-submodules", label: "Detach submodule repositories",
+			run: func() (string, error) {
+				// Innermost first: a nested repository sits inside its parent's.
+				for _, sub := range slices.Backward(plan.submodules) {
+					if err := embedSubmodule(runner, root, filepath.Join(root, sub.work)); err != nil {
+						return "", fmt.Errorf("moving the repository of submodule %s: %w", sub.work, err)
+					}
+				}
+				return "", nil
+			},
+			undo: func() error {
+				var undoErr error
+				for _, sub := range plan.submodules {
+					undoErr = errors.Join(undoErr, sub.restore(root))
+				}
+				return undoErr
+			},
+		})
+	}
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "move-git", label: "Move .git to .bare",
 		run:  func() (string, error) { return "", gitMoved.move(gitDir, barePath) },
@@ -199,6 +226,38 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 		},
 		undo: filesMoved.undo,
 	})
+	if len(plan.submodules) > 0 {
+		migrate.add(migrateConvertPhaseID, "Convert", step{
+			id: "attach-submodules", label: "Reattach submodule repositories",
+			run: func() (string, error) {
+				// git moves each repository under the worktree's own modules
+				// directory and writes both paths, nested submodules included.
+				var tracked []string
+				for _, sub := range plan.submodules {
+					if sub.absorb {
+						tracked = append(tracked, filepath.ToSlash(sub.work))
+					}
+				}
+				if len(tracked) == 0 {
+					return "", nil
+				}
+				_, err := runner.Run(plan.WorktreePath, append([]string{"submodule", "absorbgitdirs", "--"}, tracked...)...)
+				return "", err
+			},
+			undo: func() error {
+				// Whatever git absorbed goes back into its directory, so the
+				// tree returns to the root as the first step left it.
+				var undoErr error
+				for _, sub := range slices.Backward(plan.submodules) {
+					work := filepath.Join(plan.WorktreePath, sub.work)
+					if info, err := os.Lstat(filepath.Join(work, ".git")); err == nil && info.Mode().IsRegular() {
+						undoErr = errors.Join(undoErr, embedSubmodule(runner, root, work))
+					}
+				}
+				return undoErr
+			},
+		})
+	}
 	// The checkout's HEAD reflog moved into the worktree. Git would start a
 	// new one in .bare for these switches, which the rollback would then find
 	// in the place the original has to return to.
@@ -217,12 +276,14 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 		undo: func() error { return pointHEAD(plan.Branch) },
 	})
 	migrate.add(migrateConvertPhaseID, "Convert", step{id: "verify", label: "Verify working tree", run: func() (string, error) {
-		status, err := worktreeStatus(runner, plan.WorktreePath)
+		state, err := checkoutState(runner, plan.WorktreePath, plan.state)
 		if err != nil {
 			return "", err
 		}
-		if status != plan.status {
-			return "", errors.New("git status in the new worktree differs from before the conversion; make sure nothing else is writing to the repository, then retry")
+		for index, reported := range state {
+			if reported != plan.state[index] {
+				return "", fmt.Errorf("%s in the new worktree differs from before the conversion; make sure nothing else is writing to the repository, then retry", checkoutProbes[index].name)
+			}
 		}
 		return "", nil
 	}})
@@ -252,6 +313,54 @@ func (r MigrateResult) Failure() error {
 		return fmt.Errorf("%w; restoring the original layout also failed: %w. Nothing was deleted: the repository data is in .git or .bare under %s, and the files are there or in the worktree directory beside them", failed.Error, rollback.Error, r.BareRoot)
 	}
 	return fmt.Errorf("%w (the repository is unchanged)", failed.Error)
+}
+
+// embedSubmodule moves the repository that a submodule's .git file points at
+// into the place of that file. git reads a repository inside its working
+// directory wherever the two are, which a pair of relative paths does not
+// survive. root is any directory git can run in.
+func embedSubmodule(runner git.CommandRunner, root, work string) error {
+	gitfile := filepath.Join(work, ".git")
+	_, gitDir, err := readGitfile(gitfile)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(gitfile); err != nil {
+		return err
+	}
+	if err := os.Rename(gitDir, gitfile); err != nil {
+		return err
+	}
+	// The setting names the working directory from where the repository
+	// was. The file is named outright: git cannot open this repository
+	// while the setting is wrong.
+	_, err = runner.Run(root, "config", "--file", filepath.Join(gitfile, "config"), "--unset", "core.worktree")
+	return err
+}
+
+// restore puts the submodule's repository, its config and the .git file back
+// as the plan read them, from wherever embedSubmodule stopped.
+func (s submodule) restore(root string) error {
+	gitfile := filepath.Join(root, s.work, ".git")
+	if info, err := os.Lstat(gitfile); err == nil && info.IsDir() {
+		if err := os.WriteFile(filepath.Join(gitfile, "config"), s.config, 0o644); err != nil {
+			return err
+		}
+		if exists(s.gitDir) {
+			return fmt.Errorf("%s exists again, so %s was not moved back over it", s.gitDir, gitfile)
+		}
+		if err := os.Rename(gitfile, s.gitDir); err != nil {
+			return err
+		}
+	}
+	if exists(gitfile) {
+		return nil
+	}
+	if err := os.WriteFile(gitfile, s.link, s.mode); err != nil {
+		return err
+	}
+	// The file was created anew, and the umask may have taken bits off.
+	return os.Chmod(gitfile, s.mode)
 }
 
 // renames records completed renames so they can be reversed exactly.
