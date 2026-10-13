@@ -329,7 +329,7 @@ func setupBareRepoWithMergedBranch(t *testing.T) string {
 
 	// Merge the feature branch into main.
 	runGitCmd(t, cloneDir, "checkout", "main")
-	runGitCmd(t, cloneDir, "merge", "feature/merged-branch")
+	runGitCmd(t, cloneDir, "merge", "--no-ff", "-m", "merge feature", "feature/merged-branch")
 	runGitCmd(t, cloneDir, "push", "origin", "main")
 
 	// Create a worktree in the bare repo for the merged branch.

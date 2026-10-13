@@ -59,7 +59,7 @@ func ParseStaleDuration(s string) (time.Duration, error) {
 func ParseRemoveFlags(args []string) (*RemoveOptions, error) {
 	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
 	stale := fs.String("stale", "", "Remove worktrees older than duration (e.g., 30d, 2w, 3m)")
-	merged := fs.Bool("merged", false, "Remove worktrees whose branches are fully merged")
+	merged := fs.Bool("merged", false, "Remove worktrees whose branches are merged into the default branch (a branch still at its tip counts as new)")
 	all := fs.Bool("all", false, "Remove all non-protected worktrees")
 	dryRun := fs.Bool("dry-run", false, "Show what would be removed without deleting")
 	force := fs.Bool("force", false, "Remove at-risk worktrees (locked, or with uncommitted, untracked, or unpushed work)")
