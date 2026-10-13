@@ -41,7 +41,9 @@ func enrichWorktree(runner git.CommandRunner, wt *git.Worktree, repoHasRemotes b
 		return
 	}
 
-	dateOutput, err := runner.Run(wt.Path, "log", "-1", "--format=%ai")
+	// Committer date, not author date: a rebase or amend keeps the author
+	// date, so a branch reworked today would look as old as its first draft.
+	dateOutput, err := runner.Run(wt.Path, "log", "-1", "--format=%ci")
 	if err != nil {
 		wt.EnrichmentError = err.Error()
 		return
