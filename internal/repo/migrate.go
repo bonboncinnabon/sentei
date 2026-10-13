@@ -88,6 +88,9 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 	case err != nil:
 		return MigratePlan{}, fmt.Errorf("reading %s: %w", gitDir, err)
 	case !info.IsDir():
+		if exists(filepath.Join(root, ".bare")) {
+			return MigratePlan{}, fmt.Errorf("%s already uses the bare layout (its .git points at .bare); there is nothing to migrate", root)
+		}
 		return MigratePlan{}, fmt.Errorf("%s is a linked worktree or submodule (its .git is a file, not a directory); migrate the main checkout instead", root)
 	}
 	if exists(filepath.Join(root, ".bare")) {
@@ -104,6 +107,12 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 		if value, _ := runner.Run(root, "config", "--type=bool", "--get", key); value == "true" {
 			return MigratePlan{}, fmt.Errorf("sparse checkout or per-worktree config is enabled (%s), which migrate cannot carry over; disable it, or clone the remote with `sentei clone` instead", key)
 		}
+	}
+	if worktree, _ := runner.Run(root, "config", "--local", "--get", "core.worktree"); worktree != "" {
+		return MigratePlan{}, fmt.Errorf("core.worktree is set (%s), which a bare repository cannot have; if the working tree is this directory, unset it (git config --unset core.worktree), then retry", worktree)
+	}
+	if included := includedFromWorkingTree(runner, root); included != "" {
+		return MigratePlan{}, fmt.Errorf("the repository config includes %s, which moves with the working tree, and git skips an include it cannot find; remove the include from .git/config, migrate, then add it back with the new path", included)
 	}
 
 	branch, err := runner.Run(root, "branch", "--show-current")
@@ -128,6 +137,26 @@ func PlanMigrate(runner git.CommandRunner, repoPath string) (MigratePlan, error)
 		RepoPath: root, Branch: branch, WorktreePath: worktreePath,
 		DefaultBranch: migrateDefaultBranch(runner, root, branch), status: status,
 	}, nil
+}
+
+// includedFromWorkingTree returns a config file that .git/config includes
+// from inside the working tree, or "" when there is none. An include that
+// resolves into .git or outside the repository keeps resolving from .bare.
+func includedFromWorkingTree(runner git.CommandRunner, root string) string {
+	// With -z the output is origin, NUL, key, NUL, repeated, and paths are
+	// not quoted.
+	entries, _ := runner.Run(root, "config", "--local", "--includes", "--show-origin", "--name-only", "--list", "-z")
+	fields := strings.Split(entries, "\x00")
+	for index := 0; index+1 < len(fields); index += 2 {
+		origin := strings.TrimPrefix(fields[index], "file:")
+		if !filepath.IsAbs(origin) {
+			origin = filepath.Join(root, origin)
+		}
+		if git.PathContains(root, origin) && !git.PathContains(filepath.Join(root, ".git"), origin) {
+			return filepath.Clean(origin)
+		}
+	}
+	return ""
 }
 
 // migrateDefaultBranch picks the branch the bare HEAD should name: the

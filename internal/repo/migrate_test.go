@@ -55,7 +55,7 @@ func newCheckout(t *testing.T) (base, root string) {
 // dirtyCheckout is newCheckout on a feature branch carrying every kind of
 // state a migration could lose: a stash, staged and unstaged edits and
 // deletions, untracked and ignored files, a symlink, a FIFO, an extra remote,
-// repository config and a hook.
+// repository config with an include and a hook.
 func dirtyCheckout(t *testing.T) (base, root string) {
 	t.Helper()
 	base, root = newCheckout(t)
@@ -88,6 +88,9 @@ func dirtyCheckout(t *testing.T) (base, root string) {
 	mustGit(t, root, "remote", "add", "origin", "https://example.invalid/proj.git")
 	mustGit(t, root, "remote", "add", "upstream", "https://example.invalid/upstream.git")
 	mustGit(t, root, "config", "sentei.test", "kept")
+	// An included file outside the working tree stays where it is.
+	mustWrite(t, filepath.Join(base, "shared.gitconfig"), "[sentei]\n\tincluded = kept too\n")
+	mustGit(t, root, "config", "include.path", filepath.Join(base, "shared.gitconfig"))
 	hook := filepath.Join(root, ".git", "hooks", "pre-push")
 	mustWrite(t, hook, "#!/bin/sh\nexit 0\n")
 	if err := os.Chmod(hook, 0o755); err != nil {
@@ -169,6 +172,7 @@ func gitState(t *testing.T, worktree string) map[string]string {
 		"branches":     mustGit(t, worktree, "branch", "--format=%(refname) %(objectname)"),
 		"remotes":      mustGit(t, worktree, "remote", "-v"),
 		"config":       mustGit(t, worktree, "config", "sentei.test"),
+		"included":     mustGit(t, worktree, "config", "sentei.included"),
 		"head":         mustGit(t, worktree, "symbolic-ref", "HEAD"),
 	}
 }
@@ -359,6 +363,33 @@ func TestMigrate_RefusalsLeaveTheRepositoryUntouched(t *testing.T) {
 				return root
 			},
 			want: "sparse checkout or per-worktree config is enabled",
+		},
+		{
+			name: "core.worktree",
+			setup: func(t *testing.T, base, root string) string {
+				mustGit(t, root, "config", "core.worktree", root)
+				return root
+			},
+			want: "core.worktree is set",
+		},
+		{
+			name: "config included from the working tree",
+			setup: func(t *testing.T, base, root string) string {
+				mustWrite(t, filepath.Join(root, ".gitconfig"), "[alias]\n\tst = status\n")
+				mustGit(t, root, "config", "include.path", "../.gitconfig")
+				return root
+			},
+			want: ".gitconfig, which moves with the working tree",
+		},
+		{
+			name: "already converted",
+			setup: func(t *testing.T, base, root string) string {
+				if err := Migrate(realGit, MigrateOptions{RepoPath: root}, nil).Failure(); err != nil {
+					t.Fatalf("fixture: the first migration failed: %v", err)
+				}
+				return root
+			},
+			want: "already uses the bare layout",
 		},
 	}
 	for _, test := range tests {
