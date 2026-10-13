@@ -5,7 +5,44 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/bonboncinnabon/sentei/internal/testtmp"
 )
+
+// buildSentei compiles the binary into a temp dir and returns its path.
+func buildSentei(t *testing.T) string {
+	t.Helper()
+	bin := filepath.Join(t.TempDir(), "sentei")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build failed: %v\n%s", err, out)
+	}
+	return bin
+}
+
+// The playground's temp repo is removed by a deferred cleanup, which os.Exit
+// skips: every exit path after setup has to return instead.
+func TestPlaygroundDryRun_RemovesTempRepo(t *testing.T) {
+	bin := buildSentei(t)
+	tmp := t.TempDir()
+
+	cmd := exec.Command(bin, "--playground", "--dry-run")
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(testtmp.HermeticGitEnv(), "TMPDIR="+tmp)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sentei --playground --dry-run failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "feature/wip") {
+		t.Errorf("expected the playground worktree summary, got:\n%s", out)
+	}
+	leftovers, err := filepath.Glob(filepath.Join(tmp, "sentei-playground-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leftovers) != 0 {
+		t.Errorf("playground repo left behind: %v", leftovers)
+	}
+}
 
 // Interactive decision commands used to detect the repository from the
 // current directory and ignore the positional path, so
