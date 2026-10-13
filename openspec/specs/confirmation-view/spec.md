@@ -8,6 +8,10 @@ The TUI SHALL provide a reusable confirmation view component that renders using 
 - **WHEN** the confirmation view is shown for a create operation with Branch="feature/foo", Base="main"
 - **THEN** the view SHALL display `viewTitle("Create Worktree")` followed by a separator, then each option as a labeled row, without any border wrapping
 
+#### Scenario: Create worktree confirmation for a branch that already exists
+- **WHEN** the confirmation view is shown for a create operation whose branch exists locally or only on origin
+- **THEN** the Base row SHALL say that the base is not used and why (`main (not used: the branch already exists)`, `main (not used: the branch exists on origin)`)
+
 #### Scenario: Cleanup confirmation
 - **WHEN** the confirmation view is shown for a cleanup operation with Mode="aggressive"
 - **THEN** the view SHALL display `viewTitle("Confirm Cleanup")` with Mode="aggressive" as a labeled row, using standard chrome
@@ -36,7 +40,7 @@ The confirmation view SHALL use `viewKeyHints` to render consistent key hints an
 
 #### Scenario: User confirms
 - **WHEN** the user presses Enter on the confirmation view
-- **THEN** the TUI SHALL transition to the progress/execution view in that same update
+- **THEN** the TUI SHALL transition to the progress/execution view
 
 #### Scenario: Escape on a confirmation opened by flags
 - **WHEN** the user entered the confirmation view via flags (`sentei cleanup`, `sentei create --branch --base`, `sentei clone --url`, `sentei migrate`) and presses Escape

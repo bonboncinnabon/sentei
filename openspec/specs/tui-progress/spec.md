@@ -105,7 +105,15 @@ The create worktree progress view SHALL use the shared `ProgressLayout` renderer
 
 #### Scenario: Create progress uses standard title
 - **WHEN** the create progress view is rendered
-- **THEN** the title SHALL use `viewTitle("Creating Worktree")` with the subtitle showing branch and base
+- **THEN** the title SHALL use `viewTitle("Creating Worktree")` with the subtitle showing the branch and where it comes from
+
+#### Scenario: Subtitle says where the branch comes from
+- **WHEN** the create options view or the create progress view is rendered
+- **THEN** the subtitle SHALL read `<branch> → from <base>` for a branch that exists nowhere, `<branch> → existing branch, not created from <base>` for a local branch, and `<branch> → tracks origin/<branch>, not created from <base>` for a branch that only origin has
+
+#### Scenario: Subtitle wider than the terminal
+- **WHEN** the subtitle does not fit the terminal width
+- **THEN** the branch name SHALL give up its head so that the statement after the arrow stays visible, and the line SHALL never run past the terminal edge
 
 ### Requirement: Repo operations progress uses shared layout
 The repo operations progress view (create, clone, migrate) SHALL use the shared `ProgressLayout` renderer with operation-specific title, phases, overall progress bar, and standard chrome.
