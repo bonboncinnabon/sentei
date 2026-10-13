@@ -628,6 +628,37 @@ func TestMigrateResult_FailureNamesAFailedRollback(t *testing.T) {
 	}
 }
 
+// os.Rename replaces an existing file. If something writes a path again after
+// it was moved away, the rollback must not put the old file on top of it.
+func TestRenames_UndoDoesNotOverwriteAPathThatReappeared(t *testing.T) {
+	dir := t.TempDir()
+	kept, reappeared := filepath.Join(dir, "kept.txt"), filepath.Join(dir, "reappeared.txt")
+	mustWrite(t, kept, "kept\n")
+	mustWrite(t, reappeared, "original\n")
+	var moved renames
+	for _, path := range []string{kept, reappeared} {
+		if err := moved.move(path, path+".moved"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite(t, reappeared, "written since\n")
+
+	err := moved.undo()
+
+	if err == nil || !strings.Contains(err.Error(), reappeared) {
+		t.Fatalf("undo() = %v, want it to name the path it would have overwritten", err)
+	}
+	for path, want := range map[string]string{
+		reappeared:            "written since\n",
+		reappeared + ".moved": "original\n",
+		kept:                  "kept\n", // the other renames are still undone
+	} {
+		if content, _ := os.ReadFile(path); string(content) != want {
+			t.Errorf("%s = %q, want %q", path, content, want)
+		}
+	}
+}
+
 // The bare HEAD names the default branch: sentei protects it and measures
 // "merged" against it. After a migration it must not simply be whatever
 // branch happened to be checked out.

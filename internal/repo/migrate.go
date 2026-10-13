@@ -302,19 +302,22 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 		},
 		undo: filesMoved.undo,
 	})
+	// The checkout's HEAD reflog moved into the worktree. Git would start a
+	// new one in .bare for these switches, which the rollback would then find
+	// in the place the original has to return to.
+	pointHEAD := func(branch string) error {
+		_, err := runner.Run(barePath, "-c", "core.logAllRefUpdates=false", "symbolic-ref", "HEAD", "refs/heads/"+branch)
+		return err
+	}
 	migrate.add(migrateConvertPhaseID, "Convert", step{
 		id: "default-branch", label: "Point HEAD at the default branch",
 		run: func() (string, error) {
 			// Until now HEAD was the checkout's. In the bare repository it
 			// names the default branch, which sentei protects and measures
 			// "merged" against. The worktree keeps its own HEAD.
-			_, err := runner.Run(barePath, "symbolic-ref", "HEAD", "refs/heads/"+plan.DefaultBranch)
-			return plan.DefaultBranch, err
+			return plan.DefaultBranch, pointHEAD(plan.DefaultBranch)
 		},
-		undo: func() error {
-			_, err := runner.Run(barePath, "symbolic-ref", "HEAD", "refs/heads/"+plan.Branch)
-			return err
-		},
+		undo: func() error { return pointHEAD(plan.Branch) },
 	})
 	migrate.add(migrateConvertPhaseID, "Convert", step{id: "verify", label: "Verify working tree", run: func() (string, error) {
 		status, err := worktreeStatus(runner, plan.WorktreePath)
@@ -371,11 +374,18 @@ func (r *renames) move(from, to string) error {
 	return nil
 }
 
-// undo puts everything back, newest first.
+// undo puts everything back, newest first. os.Rename replaces an existing
+// file, so a path that something has written again since it was moved away is
+// left alone and reported: both versions stay on disk.
 func (r *renames) undo() error {
 	var undoErr error
 	for index := len(*r) - 1; index >= 0; index-- {
-		undoErr = errors.Join(undoErr, os.Rename((*r)[index].to, (*r)[index].from))
+		from, to := (*r)[index].from, (*r)[index].to
+		if exists(from) {
+			undoErr = errors.Join(undoErr, fmt.Errorf("%s exists again, so %s was not moved back over it", from, to))
+			continue
+		}
+		undoErr = errors.Join(undoErr, os.Rename(to, from))
 	}
 	return undoErr
 }
