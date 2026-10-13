@@ -6,7 +6,6 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"github.com/bonboncinnabon/sentei/internal/cli"
 )
 
 // ConfirmProceedMsg is sent when the user presses Enter to confirm.
@@ -94,10 +93,4 @@ func (c ConfirmationViewModel) View() string {
 	b.WriteString(viewFooter(c.Width, confirmationFooter) + "\n")
 
 	return b.String()
-}
-
-// BuildCLICommand constructs a CLI command string from a command name and flags.
-// Delegates to cli.BuildFlagString for consistent flag formatting.
-func BuildCLICommand(command string, flags map[string]string) string {
-	return cli.BuildFlagString("sentei "+command, flags)
 }

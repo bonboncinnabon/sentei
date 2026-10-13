@@ -85,7 +85,7 @@ func (m Model) migrateConfirmationVM() ConfirmationViewModel {
 		Items: []ConfirmationItem{
 			{Label: "Repo path:", Value: m.repoPath},
 		},
-		CLICommand: BuildCLICommand("migrate", nil),
+		CLICommand: "sentei migrate",
 	}
 }
 

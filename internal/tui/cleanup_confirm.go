@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
+	"github.com/bonboncinnabon/sentei/internal/cli"
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
 
@@ -30,7 +31,7 @@ func cleanupCLICommand(opts cleanup.Options) string {
 	if opts.Force {
 		flags["force"] = "true"
 	}
-	return BuildCLICommand("cleanup", flags)
+	return cli.BuildFlagString("sentei cleanup", flags)
 }
 
 // cleanupConfirmationVM builds the ConfirmationViewModel for the cleanup flow.

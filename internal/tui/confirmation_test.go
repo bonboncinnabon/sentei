@@ -166,45 +166,6 @@ func TestUpdateConfirmation_NonKeyMsgReturnsNil(t *testing.T) {
 	}
 }
 
-func TestBuildCLICommand_NoFlags(t *testing.T) {
-	result := BuildCLICommand("cleanup", nil)
-	expected := "sentei cleanup"
-	if result != expected {
-		t.Errorf("got %q, want %q", result, expected)
-	}
-}
-
-func TestBuildCLICommand_EmptyFlags(t *testing.T) {
-	result := BuildCLICommand("cleanup", map[string]string{})
-	expected := "sentei cleanup"
-	if result != expected {
-		t.Errorf("got %q, want %q", result, expected)
-	}
-}
-
-func TestBuildCLICommand_WithFlags(t *testing.T) {
-	result := BuildCLICommand("cleanup", map[string]string{
-		"mode":  "aggressive",
-		"force": "true",
-	})
-	expected := "sentei cleanup --force --mode aggressive"
-	if result != expected {
-		t.Errorf("got %q, want %q", result, expected)
-	}
-}
-
-func TestBuildCLICommand_FlagsSortedAlphabetically(t *testing.T) {
-	result := BuildCLICommand("run", map[string]string{
-		"zebra": "z",
-		"alpha": "a",
-		"mid":   "m",
-	})
-	expected := "sentei run --alpha a --mid m --zebra z"
-	if result != expected {
-		t.Errorf("flags should be sorted alphabetically: got %q, want %q", result, expected)
-	}
-}
-
 // The confirmation a launch with flags opens acts on the key itself. Enter
 // starts the operation in that same update, and esc and q quit: nothing is
 // behind the screen to go back to.
