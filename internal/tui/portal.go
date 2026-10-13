@@ -118,12 +118,12 @@ func (p DetailPortal) View(background string) string {
 		return background
 	}
 	if p.height < 7 {
-		lines := []string{fitProgressLine("  "+styleTitle.Render(p.title), p.width)}
+		lines := []string{truncateWithEllipsis("  "+styleTitle.Render(p.title), p.width)}
 		if p.height > 1 {
-			lines = append(lines, fitProgressLine(p.viewport.View(), p.width))
+			lines = append(lines, truncateWithEllipsis(p.viewport.View(), p.width))
 		}
 		if p.height > 2 {
-			lines = append(lines, fitProgressLine(viewFooter(p.width, portalFooterStatic), p.width))
+			lines = append(lines, truncateWithEllipsis(viewFooter(p.width, portalFooterStatic), p.width))
 		}
 		return compositeOverlay(strings.Join(lines[:min(len(lines), p.height)], "\n"), background)
 	}
@@ -131,7 +131,7 @@ func (p DetailPortal) View(background string) string {
 
 	// The brand is already on screen behind the box; the portal carries
 	// just its own name.
-	b.WriteString(fitProgressLine("  "+styleTitle.Render(p.title), p.contentWidth()))
+	b.WriteString(truncateWithEllipsis("  "+styleTitle.Render(p.title), p.contentWidth()))
 	b.WriteString("\n")
 	b.WriteString(viewSeparator(p.contentWidth()))
 	b.WriteString("\n")
@@ -148,7 +148,7 @@ func (p DetailPortal) View(background string) string {
 	if !p.viewport.AtBottom() {
 		hintLine += styleDim.Render("  ↓ more")
 	}
-	b.WriteString(fitProgressLine(hintLine, p.contentWidth()))
+	b.WriteString(truncateWithEllipsis(hintLine, p.contentWidth()))
 
 	// lipgloss v2 Width spans the whole block including border and padding,
 	// so the box adds its full frame (2 border + 2 padding) to the content.

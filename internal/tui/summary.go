@@ -80,60 +80,22 @@ func (m Model) renderRemovalSummary() string {
 		}
 	}
 
-	b.WriteString("\n")
-	if m.remove.run.pruneErr != nil && *m.remove.run.pruneErr != nil {
-		b.WriteString(styleWarning.Render(fmt.Sprintf("  Warning: failed to prune worktree metadata: %s", *m.remove.run.pruneErr)))
+	switch err := m.remove.run.pruneErr; {
+	case err != nil:
 		b.WriteString("\n")
-	} else {
+		b.WriteString(styleWarning.Render(fmt.Sprintf("  Warning: failed to prune worktree metadata: %s", err)))
+		b.WriteString("\n")
+		b.WriteString(styleDim.Render("  Run `git worktree prune` in the repository to retry."))
+		b.WriteString("\n")
+	case m.remove.run.pruned:
+		b.WriteString("\n")
 		b.WriteString(styleDim.Render("  Pruned orphaned worktree metadata"))
 		b.WriteString("\n")
-	}
-
-	if cr := m.remove.run.cleanupResult; cr != nil {
-		if len(cr.Errors) > 0 {
-			b.WriteString("\n")
-			b.WriteString(styleError.Render("  Cleanup failures:"))
-			b.WriteString("\n")
-			for _, operationErr := range cr.Errors {
-				fmt.Fprintf(&b, "    %s %s: %s\n", styleIndicatorFailed.Render(indicatorFailed), operationErr.Step, operationErr.Err)
-			}
-		}
-		cleanupActions := cr.StaleRefsRemoved + cr.GoneBranchesDeleted + cr.ConfigOrphanResult.Removed + cr.ConfigDedupResult.Removed
-		if cleanupActions > 0 {
-			b.WriteString("\n")
-			b.WriteString(styleDim.Render("  Cleanup:"))
-			b.WriteString("\n")
-			if cr.StaleRefsRemoved > 0 {
-				fmt.Fprintf(&b, "    %s Pruned %d remote %s\n", styleIndicatorDone.Render(indicatorDone), cr.StaleRefsRemoved, pluralize(cr.StaleRefsRemoved, "ref", "refs"))
-			}
-			if cr.GoneBranchesDeleted > 0 {
-				fmt.Fprintf(&b, "    %s Deleted %d %s with gone upstream\n", styleIndicatorDone.Render(indicatorDone), cr.GoneBranchesDeleted, pluralize(cr.GoneBranchesDeleted, "branch", "branches"))
-			}
-			if cr.ConfigOrphanResult.Removed > 0 {
-				fmt.Fprintf(&b, "    %s Removed %d orphaned config %s\n", styleIndicatorDone.Render(indicatorDone), cr.ConfigOrphanResult.Removed, pluralize(cr.ConfigOrphanResult.Removed, "section", "sections"))
-			}
-			if cr.ConfigDedupResult.Removed > 0 {
-				fmt.Fprintf(&b, "    %s Removed %d duplicate config %s\n", styleIndicatorDone.Render(indicatorDone), cr.ConfigDedupResult.Removed, pluralize(cr.ConfigDedupResult.Removed, "line", "lines"))
-			}
-		}
-		if cr.NonWtBranchesRemaining > 0 {
-			b.WriteString("\n")
-			b.WriteString(styleDim.Render(fmt.Sprintf("  Tip: %d local %s not in any worktree.", cr.NonWtBranchesRemaining, pluralize(cr.NonWtBranchesRemaining, "branch", "branches"))))
-			b.WriteString("\n")
-			b.WriteString(styleDim.Render("       Run `sentei cleanup --mode aggressive` to remove them (unmerged branches need --force)."))
-			b.WriteString("\n")
-		}
 	}
 
 	if m.remove.cliCommand != "" {
 		b.WriteString("\n")
 		b.WriteString(styleDim.Render("  " + m.remove.cliCommand))
-		b.WriteString("\n")
-	}
-
-	if m.remove.milestone > 0 {
-		b.WriteString("\n")
-		b.WriteString(styleDim.Render("  " + fmt.Sprintf(whisperMilestone, m.remove.milestone)))
 		b.WriteString("\n")
 	}
 
@@ -158,7 +120,7 @@ func boundRemovalSummary(summary string, width, height int) string {
 	lines := strings.Split(strings.TrimSuffix(summary, "\n"), "\n")
 	widthOmitted := false
 	for i, line := range lines {
-		if fit := fitProgressLine(line, width); fit != line {
+		if fit := truncateWithEllipsis(line, width); fit != line {
 			widthOmitted = true
 			lines[i] = fit
 		}
@@ -166,7 +128,7 @@ func boundRemovalSummary(summary string, width, height int) string {
 	if widthOmitted {
 		const footerRows = 4
 		at := max(len(lines)-footerRows, 0)
-		hint := fitProgressLine("  ? details for omitted text", width)
+		hint := truncateWithEllipsis("  ? details for omitted text", width)
 		lines = append(lines, "")
 		copy(lines[at+1:], lines[at:])
 		lines[at] = hint
@@ -184,7 +146,7 @@ func boundRemovalSummary(summary string, width, height int) string {
 	previewRows := height - footerRows - 1
 	omitted := len(lines) - previewRows - footerRows
 	visible := append([]string(nil), lines[:previewRows]...)
-	visible = append(visible, fitProgressLine(fmt.Sprintf("  ? details for %d omitted %s", omitted, pluralize(omitted, "line", "lines")), width))
+	visible = append(visible, truncateWithEllipsis(fmt.Sprintf("  ? details for %d omitted %s", omitted, pluralize(omitted, "line", "lines")), width))
 	visible = append(visible, lines[len(lines)-footerRows:]...)
 	return strings.Join(visible, "\n")
 }
@@ -194,7 +156,7 @@ func (m Model) removalSummaryDetailContent() (string, string) {
 	lines := strings.Split(strings.TrimSuffix(full, "\n"), "\n")
 	omitted := m.progressHeight() > 0 && len(lines) > m.progressHeight()
 	for _, line := range lines {
-		omitted = omitted || fitProgressLine(line, m.width) != line
+		omitted = omitted || truncateWithEllipsis(line, m.width) != line
 	}
 	if !omitted {
 		return "", ""

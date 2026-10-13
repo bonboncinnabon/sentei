@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
+	"github.com/bonboncinnabon/sentei/internal/repo"
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
 
@@ -55,15 +57,26 @@ func TestShimmerLine_PreservesContentAndMoves(t *testing.T) {
 	}
 }
 
-func TestLerpHex_Endpoints(t *testing.T) {
-	if got := lerpHex("#000000", "#ffffff", 0); got != "#000000" {
-		t.Errorf("t=0 = %q", got)
+// The band blends each ramp from its base to its peak: text away from the
+// band stays at the base color and only the band moves off it.
+func TestShimmerLine_BlendsFromTheRampBase(t *testing.T) {
+	ramp := shimmerRamp{base: "#5f5fd7", peak: "#d3d3ff"}
+	baseRune := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ramp.base)).Render("x")
+	text := strings.Repeat("x", 60)
+
+	// A quarter of the way through its sweep the band sits inside the text.
+	quarter := int(shimmerPeriod / motionResolution / 4)
+	out := shimmerLine(text, ramp, quarter)
+
+	if got := stripANSI(out); got != text {
+		t.Fatalf("stripped shimmer = %q, want the input", got)
 	}
-	if got := lerpHex("#000000", "#ffffff", 1); got != "#ffffff" {
-		t.Errorf("t=1 = %q", got)
+	atBase := strings.Count(out, baseRune)
+	if atBase == 0 || atBase == len(text) {
+		t.Errorf("%d of %d runes are at the base color, want most but not all", atBase, len(text))
 	}
-	if got := lerpHex("#202020", "#404040", 0.5); got != "#303030" {
-		t.Errorf("midpoint = %q", got)
+	if atBase < len(text)-2*int(shimmerBandHalf) {
+		t.Errorf("only %d of %d runes are at the base color: the band is wider than %v cells either side", atBase, len(text), shimmerBandHalf)
 	}
 }
 
@@ -148,8 +161,8 @@ func TestMotionClock_StartsOnFlowEntry(t *testing.T) {
 	if !ok || len(batch) != 2 {
 		t.Fatalf("entering a progress view must append one motion command, got %T with %d commands", batch, len(batch))
 	}
-	if msg := batch[len(batch)-1](); msg != (motionTickMsg{}) {
-		t.Errorf("appended command = %T, want motionTickMsg", msg)
+	if msg := batch[len(batch)-1](); msg != (motionTickMsg{chain: model.motionChain}) {
+		t.Errorf("appended command = %#v, want a tick of the model's current chain %d", msg, model.motionChain)
 	}
 }
 
@@ -233,5 +246,41 @@ func TestCompletedBar_SettlesGreen(t *testing.T) {
 	}
 	if !strings.Contains(dOut, "0;135;95") {
 		t.Errorf("completed bar must settle to the done-green fill:\n%q", dOut)
+	}
+}
+
+// Leaving a working view while a tick is in flight, then entering another
+// within the tick period, starts a new chain while the old tick is still on
+// its way. That tick must die on arrival, or two chains run and every
+// animation moves at twice its speed.
+func TestMotionTicks_TickFromAnEarlierChainIsDropped(t *testing.T) {
+	m := NewMenuModel(nil, nil, "/repo", nil, repo.ContextBareRepo)
+	updated, _ := m.Update(worktreeContextMsg{worktrees: []git.Worktree{{Path: "/repo/a", Branch: "refs/heads/a"}}, generation: m.worktreeGeneration})
+	m = updated.(Model)
+	m.menuCursor = 2 // Cleanup & exit
+
+	enterScan := func(m Model) Model {
+		updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		m = updated.(Model)
+		if m.view != cleanupPreviewView || !m.motionActive() {
+			t.Fatalf("enter did not start the cleanup scan: view=%d", m.view)
+		}
+		return m
+	}
+
+	m = enterScan(m)
+	inFlight := motionTickMsg{chain: m.motionChain}
+
+	// Back to the menu before that tick lands, and straight into a new scan.
+	updated, _ = m.Update(keyEsc())
+	m = enterScan(updated.(Model))
+
+	updated, cmd := m.Update(inFlight)
+	if cmd != nil || updated.(Model).motionTick != m.motionTick {
+		t.Error("a tick from the chain that was left kept ticking beside the new chain")
+	}
+	updated, cmd = m.Update(motionTickMsg{chain: m.motionChain})
+	if cmd == nil || updated.(Model).motionTick != m.motionTick+1 {
+		t.Error("the tick of the current chain did not advance the clock")
 	}
 }

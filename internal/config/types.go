@@ -2,10 +2,9 @@ package config
 
 import "github.com/bonboncinnabon/sentei/internal/worktreefile"
 
-// Config is the top-level configuration for sentei. Keys that earlier versions
-// parsed but never acted on (protected_branches, integrations_enabled,
-// post_install) are no longer fields; a file that still carries them loads,
-// and they are ignored.
+// Config is the top-level configuration for sentei. A key with no field here
+// is an error when a file is loaded, except the retired keys listed in
+// retiredKeys.
 type Config struct {
 	Ecosystems    []EcosystemConfig   `yaml:"ecosystems"`
 	WorktreeFiles []worktreefile.Rule `yaml:"worktree_files"`

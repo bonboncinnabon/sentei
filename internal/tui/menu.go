@@ -92,7 +92,7 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case menuRemoveWorktrees:
 					m.view = listView
 					m.remove.selected = make(map[string]bool)
-					if len(m.remove.worktrees) == 0 {
+					if len(m.remove.worktrees) == 0 || m.remove.loadErr != nil {
 						m.worktreeGeneration++
 						return m, loadWorktreeContext(m.runner, m.repoPath, m.worktreeGeneration)
 					}
@@ -132,13 +132,16 @@ func (m *Model) updateMenuHints() {
 		if item.label != menuRemoveWorktrees {
 			continue
 		}
-		count := len(m.remove.worktrees)
-		item.hint = "none"
-		if count > 0 {
-			item.hint = fmt.Sprintf("%d available", count)
-		}
-		item.enabled = count > 0
 		item.loading = false
+		switch count := len(m.remove.worktrees); {
+		case m.remove.loadErr != nil:
+			// Selectable on purpose: entering the list loads again.
+			item.hint, item.enabled = "could not load, enter to retry", true
+		case count > 0:
+			item.hint, item.enabled = fmt.Sprintf("%d available", count), true
+		default:
+			item.hint, item.enabled = "none", false
+		}
 	}
 }
 

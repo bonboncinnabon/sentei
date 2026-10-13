@@ -378,7 +378,7 @@ func runRoot(args []string) {
 			os.Exit(0)
 		}
 
-		if err := dryrun.Print(filtered, os.Stdout); err != nil {
+		if err := dryrun.Print(filtered, git.DetectDefaultBranch(runner, repoPath), os.Stdout); err != nil {
 			log.Error(err)
 			os.Exit(1)
 		}

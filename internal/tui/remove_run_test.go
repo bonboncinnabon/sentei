@@ -7,7 +7,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 	"github.com/bonboncinnabon/sentei/internal/worktree"
@@ -20,7 +19,6 @@ func keyRune(r rune) tea.KeyPressMsg {
 // pollutedRun returns run state as a completed previous deletion left it:
 // two outcomes, done statuses, prune and cleanup results all set.
 func pollutedRun() removalRun {
-	pruneErr := error(nil)
 	return removalRun{
 		result: worktree.DeletionResult{
 			SuccessCount: 2,
@@ -29,8 +27,8 @@ func pollutedRun() removalRun {
 				{Path: "/work/b", Success: true},
 			},
 		},
-		pruneErr:      &pruneErr,
-		cleanupResult: &cleanup.Result{},
+		pruned:   true,
+		pruneErr: errors.New("prune failed last time"),
 	}
 }
 
@@ -57,11 +55,8 @@ func TestConfirmYes_SecondRunStartsFresh(t *testing.T) {
 	if got := len(run.targets); got != 1 || run.targets[0].Worktree.Path != "/work/c" {
 		t.Errorf("expected the fresh run to target only /work/c, got %+v", run.targets)
 	}
-	if run.pruneErr != nil {
-		t.Error("expected pruneErr cleared in fresh run")
-	}
-	if run.cleanupResult != nil {
-		t.Error("expected cleanupResult cleared in fresh run")
+	if run.pruned || run.pruneErr != nil {
+		t.Errorf("expected the prune outcome cleared in a fresh run, got pruned=%v pruneErr=%v", run.pruned, run.pruneErr)
 	}
 
 	view := model.viewProgress()
@@ -71,10 +66,9 @@ func TestConfirmYes_SecondRunStartsFresh(t *testing.T) {
 	if !strings.Contains(view, "0%") {
 		t.Errorf("expected fresh run to start at 0%%, view:\n%s", view)
 	}
-	phases := model.buildRemovalPhases()
-	cleanupPhase := phases[len(phases)-1]
-	if cleanupPhase.Name != "Prune & cleanup" || cleanupPhase.Done != 0 {
-		t.Errorf("expected prune phase pending on fresh run, got %+v", cleanupPhase)
+	phases := progress.Snapshot(model.remove.run.events)
+	if len(phases) != 1 || phases[0].Name != worktree.RemovalPhaseName || phases[0].Done != 0 {
+		t.Errorf("expected only a pending removal phase on a fresh run, got %+v", phases)
 	}
 }
 
@@ -118,14 +112,14 @@ func TestUpdateProgress_TerminalDeletionResultIsNotDoubleCountedByTrailingEvents
 	}
 }
 
-func TestUpdateProgress_CleanupComplete_ClearsSelection(t *testing.T) {
+func TestUpdateProgress_EventsComplete_ClearsSelection(t *testing.T) {
 	m := NewModel([]git.Worktree{
 		{Path: "/work/a", Branch: "refs/heads/a"},
 	}, nil, "/repo")
 	m.remove.selected = map[string]bool{"/work/a": true}
 	m.view = progressView
 
-	updated, _ := m.updateProgress(cleanupCompleteMsg{})
+	updated, _ := m.updateProgress(removalEventsCompleteMsg{})
 	model := updated.(Model)
 
 	if got := len(model.remove.selected); got != 0 {

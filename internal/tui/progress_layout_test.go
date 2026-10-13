@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"errors"
 	"strings"
 	"testing"
+
+	"charm.land/lipgloss/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
@@ -136,10 +139,18 @@ func TestProgressLayout_OverallBarAggregatesPhases(t *testing.T) {
 	}
 	view := stripANSI(l.View())
 
-	barWidth := 80 - 2 - progressBarPercentReserve
-	want := strings.Repeat("█", barWidth/2) + strings.Repeat("░", barWidth-barWidth/2) + " 50%"
-	if !strings.Contains(view, want) {
-		t.Errorf("expected aggregated 50%% bar, view:\n%s", view)
+	var bar string
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "█") {
+			bar = line
+		}
+	}
+	filled, empty := strings.Count(bar, "█"), strings.Count(bar, "░")
+	if !strings.HasSuffix(bar, " 50%") || filled-empty > 1 || empty-filled > 1 {
+		t.Errorf("expected an aggregated bar half full and labelled 50%%, got %d filled and %d empty cells in %q", filled, empty, bar)
+	}
+	if width := lipgloss.Width(bar); width != 80 {
+		t.Errorf("bar row is %d cells wide, want it to fill the 80-cell layout", width)
 	}
 }
 
@@ -186,5 +197,40 @@ func TestProgressLayout_HintsRendered(t *testing.T) {
 
 	if !strings.Contains(view, "  q quit") {
 		t.Errorf("expected key hints, view:\n%s", view)
+	}
+}
+
+// A git error is usually several lines. A failed step that printed all of
+// them made the frame taller than the terminal and pushed the bar and the
+// footer off screen.
+func TestProgressLayout_MultiLineStepErrorKeepsTheFrameHeight(t *testing.T) {
+	gitErr := errors.New("git worktree remove --force /repo/a: fatal: validation failed\r\nerror: \x1b[31munable to unlink\x1b[0m\n\nhint: close the editor\nfatal: could not remove the working tree")
+	for _, height := range []int{6, 14, 24} {
+		l := ProgressLayout{
+			Title: "Removing worktrees", Width: 80, Height: height,
+			Hints: progressFooter,
+			Phases: []progress.PhaseState{{Name: "Removing worktrees", Total: 2, Done: 1, Failed: 1, Steps: []progress.StepState{
+				{Name: "feature/a", Status: progress.StepFailed, Error: gitErr},
+				{Name: "feature/b", Status: progress.StepDone},
+			}}},
+		}
+		view := l.View()
+		lines := strings.Split(stripANSI(view), "\n")
+		if len(lines) != height {
+			t.Fatalf("height %d: frame has %d rows:\n%s", height, len(lines), strings.Join(lines, "\n"))
+		}
+		if last := lines[len(lines)-1]; !strings.Contains(last, "q quit") {
+			t.Errorf("height %d: footer is not the last row: %q", height, last)
+		}
+		if strings.ContainsAny(view, "\r") {
+			t.Errorf("height %d: frame carries a carriage return from the error", height)
+		}
+	}
+
+	// The row keeps the line that says what went wrong; ? has the rest.
+	l := ProgressLayout{Width: 80, Height: 24}
+	row := stripANSI(l.stepLine(progress.StepState{Name: "feature/a", Status: progress.StepFailed, Error: gitErr}))
+	if want := "feature/a: fatal: could not remove the working tree"; !strings.Contains(row, want) || strings.Contains(row, "\n") {
+		t.Errorf("failed step row = %q, want one line containing %q", row, want)
 	}
 }

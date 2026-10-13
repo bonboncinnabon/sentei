@@ -6,8 +6,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 func TestLoadEmbeddedDefaults(t *testing.T) {
@@ -189,11 +187,11 @@ ecosystems:
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var got Config
-			if err := yaml.Unmarshal([]byte(tc.input), &got); err != nil {
-				t.Fatalf("yaml.Unmarshal error: %v", err)
+			got, err := parse([]byte(tc.input))
+			if err != nil {
+				t.Fatalf("parse error: %v", err)
 			}
-			assertConfigEqual(t, got, tc.want)
+			assertConfigEqual(t, *got, tc.want)
 		})
 	}
 }

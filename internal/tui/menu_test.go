@@ -138,12 +138,12 @@ func TestInit_NonBareRepo_NoWorktreeLoad(t *testing.T) {
 	}
 }
 
-func TestUpdateProgress_CleanupComplete_IncrementsGeneration(t *testing.T) {
+func TestUpdateProgress_EventsComplete_IncrementsGeneration(t *testing.T) {
 	m := NewModel([]git.Worktree{}, nil, "/repo")
 	m.view = progressView
 	m.worktreeGeneration = 1
 
-	updated, cmd := m.updateProgress(cleanupCompleteMsg{})
+	updated, cmd := m.updateProgress(removalEventsCompleteMsg{})
 	model := updated.(Model)
 
 	if model.worktreeGeneration != 2 {
