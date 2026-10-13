@@ -323,3 +323,26 @@ func TestDefaultGhRunner_PrefersStderr(t *testing.T) {
 		t.Errorf("err = %v, want gh's own message", err)
 	}
 }
+
+// A hook or a git alias that starts sentei exports GIT_DIR to it. gh runs git
+// to find the repository it works on, and has to find the one in its
+// directory.
+func TestDefaultGhRunner_DropsInheritedGitDir(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\necho \"GIT_DIR=${GIT_DIR-unset} GIT_WORK_TREE=${GIT_WORK_TREE-unset}\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	foreign := t.TempDir()
+	t.Setenv("GIT_DIR", filepath.Join(foreign, ".git"))
+	t.Setenv("GIT_WORK_TREE", foreign)
+
+	got, err := (&DefaultGhRunner{}).RunGh(t.TempDir(), "repo", "create", "project", "--private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "GIT_DIR=unset GIT_WORK_TREE=unset"; got != want {
+		t.Errorf("gh saw %q, want %q: an inherited GIT_DIR names another repository", got, want)
+	}
+}

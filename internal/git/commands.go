@@ -49,8 +49,10 @@ var repositoryEnv = []string{
 	"GIT_WORK_TREE",
 }
 
-// inheritedEnv returns the process environment without repositoryEnv.
-func inheritedEnv() []string {
+// Environ returns the process environment without repositoryEnv. Every
+// process sentei starts gets it, so a GIT_DIR exported to sentei cannot point
+// a child at another repository.
+func Environ() []string {
 	return slices.DeleteFunc(os.Environ(), func(entry string) bool {
 		name, _, _ := strings.Cut(entry, "=")
 		return slices.Contains(repositoryEnv, name)
@@ -89,7 +91,7 @@ type GitRunner struct {
 }
 
 func (r *GitRunner) Run(dir string, args ...string) (string, error) {
-	env := append(inheritedEnv(), r.Env...)
+	env := append(Environ(), r.Env...)
 	if r.sshIsUnchosen(dir, env, args) {
 		env = append(env, batchSSH)
 	}
@@ -203,7 +205,7 @@ type DefaultShellRunner struct{}
 func (r *DefaultShellRunner) RunShell(dir string, command string) (string, error) {
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = dir
-	cmd.Env = inheritedEnv()
+	cmd.Env = Environ()
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
