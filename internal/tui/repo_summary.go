@@ -26,26 +26,77 @@ func cloneFailed(result repo.CloneResult) (bool, error) {
 	return true, step.Error
 }
 
-func (m Model) updateRepoSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyPressMsg:
-		var repoPath string
-		canRelaunch := false
-		switch r := m.repo.result.(type) {
-		case repo.CreateResult:
-			repoPath = r.RepoPath
-			hardFailed, _ := r.SetupFailed()
-			canRelaunch = !hardFailed
-		case repo.CloneResult:
-			repoPath = r.RepoPath
-			canRelaunch = !r.HasFailures()
-		}
+// repoOutcome is what the summary of a create-repository or a clone run shows
+// and acts on. The two flows differ in these values and in nothing else.
+type repoOutcome struct {
+	title    string
+	verb     string // names the flow on the failure line: "<verb> failed"
+	repoPath string
+	branch   string // the default branch, "" when it is not known
+	worktree string
+	// failed means the run left no usable repository: the summary is a
+	// failure screen, and enter must not open sentei in it.
+	failed bool
+	err    error
+	ready  string // follows the repository name on the success line
+	rows   string // the rows after Branch: GitHub or Origin
+}
 
+func (m Model) repoOutcome() (repoOutcome, bool) {
+	switch result := m.repo.result.(type) {
+	case repo.CreateResult:
+		outcome := repoOutcome{title: titleRepoCreated, verb: "create", repoPath: result.RepoPath, worktree: result.WorktreePath}
+		// A Setup-phase failure means the local repository is broken (for
+		// example the initial commit could not be made).
+		if outcome.failed, outcome.err = result.SetupFailed(); !outcome.failed {
+			outcome.branch = "main"
+			outcome.ready, outcome.rows = m.githubOutcome(result)
+		}
+		return outcome, true
+	case repo.CloneResult:
+		outcome := repoOutcome{
+			title: titleRepoCloned, verb: "clone", ready: "ready",
+			repoPath: result.RepoPath, worktree: result.WorktreePath, branch: result.DefaultBranch,
+		}
+		outcome.failed, outcome.err = cloneFailed(result)
+		if result.OriginURL != "" {
+			outcome.rows = summaryPathRow("Origin", result.OriginURL, m.width)
+		}
+		return outcome, true
+	}
+	return repoOutcome{}, false
+}
+
+// githubOutcome describes the publish step of a created repository: what
+// follows its name on the success line, and the GitHub row. A failed publish
+// is a soft failure: the local repository is fine, only unpublished.
+func (m Model) githubOutcome(result repo.CreateResult) (ready, row string) {
+	ready = "ready"
+	failure := ""
+	for _, phase := range result.Phases {
+		if phase.Name == repo.PhaseGitHub && phase.HasFailures() {
+			ready, failure = "ready (local only)", "failed to publish"
+			if _, step, _ := progress.FirstFailure([]progress.Phase{phase}); step.Error != nil {
+				failure = step.Error.Error()
+			}
+		}
+	}
+	switch {
+	case result.GitHubURL != "":
+		row = summaryRow("GitHub", result.GitHubURL+" "+styleSuccess.Render("\u25cf"))
+	case failure != "":
+		row = summaryRow("GitHub", styleError.Width(max(m.width-16, 30)).Render(indicatorFailed+" "+failure))
+	}
+	return ready, row
+}
+
+func (m Model) updateRepoSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if msg, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
 		case key.Matches(msg, keys.Confirm):
 			// Never relaunch into a repo whose worktree was never created.
-			if canRelaunch && repoPath != "" {
-				return m, relaunchSentei(repoPath)
+			if outcome, _ := m.repoOutcome(); !outcome.failed && outcome.repoPath != "" {
+				return m, relaunchSentei(outcome.repoPath)
 			}
 			return m, tea.Quit
 		case key.Matches(msg, keys.Quit):
@@ -56,40 +107,29 @@ func (m Model) updateRepoSummary(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) viewRepoSummary() string {
-	var b strings.Builder
-
-	switch result := m.repo.result.(type) {
-	case repo.CreateResult:
-		return m.viewCreateRepoSummary(result)
-	case repo.CloneResult:
-		return m.viewCloneRepoSummary(result)
+	outcome, ok := m.repoOutcome()
+	if !ok {
+		return "  Operation complete.\n"
 	}
-
-	b.WriteString("  Operation complete.\n")
-	return b.String()
-}
-
-func (m Model) viewCreateRepoSummary(result repo.CreateResult) string {
 	var b strings.Builder
 
-	repoName := filepath.Base(result.RepoPath)
-
-	b.WriteString(viewTitle(titleRepoCreated))
+	b.WriteString(viewTitle(outcome.title))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
 
-	// A Setup-phase failure means the local repo is broken (e.g. the initial
-	// commit could not be made). Render a failure screen, not "ready".
-	if hardFailed, hardErr := result.SetupFailed(); hardFailed {
-		fmt.Fprintf(&b, "  %s create failed\n\n",
-			styleIndicatorFailed.Render(indicatorFailed))
-		if hardErr != nil {
-			errWidth := max(m.width-8, 30)
-			b.WriteString("    " + styleError.Width(errWidth).Render(hardErr.Error()))
+	if outcome.failed {
+		fmt.Fprintf(&b, "  %s %s failed\n\n", styleIndicatorFailed.Render(indicatorFailed), outcome.verb)
+		if outcome.err != nil {
+			b.WriteString("    " + styleError.Width(max(m.width-8, 30)).Render(outcome.err.Error()))
 			b.WriteString("\n\n")
 		}
-		b.WriteString(summaryPathRow("Path", result.RepoPath, m.width))
+		b.WriteString(summaryPathRow("Path", outcome.repoPath, m.width))
+		if outcome.branch != "" {
+			b.WriteString(summaryRow("Branch", outcome.branch))
+		}
+		// A failed run leaves no usable worktree, so there is no cd line to
+		// offer and nothing to open.
 		b.WriteString("\n")
 		b.WriteString(viewSeparator(m.width))
 		b.WriteString("\n\n")
@@ -98,111 +138,20 @@ func (m Model) viewCreateRepoSummary(result repo.CreateResult) string {
 		return b.String()
 	}
 
-	// GitHub publish is a soft failure: the local repo is fine, just unpublished.
-	ghFailed := false
-	var ghErrMsg string
-	for _, phase := range result.Phases {
-		if phase.Name == repo.PhaseGitHub && phase.HasFailures() {
-			ghFailed = true
-			for _, step := range phase.Steps {
-				if step.Error != nil {
-					ghErrMsg = step.Error.Error()
-					break
-				}
-			}
-			break
-		}
-	}
+	fmt.Fprintf(&b, "  %s %s %s\n\n", styleIndicatorDone.Render(indicatorDone), filepath.Base(outcome.repoPath), outcome.ready)
+	b.WriteString(summaryPathRow("Path", outcome.repoPath, m.width))
+	b.WriteString(summaryRow("Branch", outcome.branch))
+	b.WriteString(outcome.rows)
 
-	if ghFailed {
-		fmt.Fprintf(&b, "  %s %s ready (local only)\n\n",
-			styleIndicatorDone.Render(indicatorDone), repoName)
-	} else {
-		fmt.Fprintf(&b, "  %s %s ready\n\n",
-			styleIndicatorDone.Render(indicatorDone), repoName)
-	}
-
-	b.WriteString(summaryPathRow("Path", result.RepoPath, m.width))
-	b.WriteString(summaryRow("Branch", "main"))
-
-	if result.GitHubURL != "" {
-		b.WriteString(summaryRow("GitHub", result.GitHubURL+" "+styleSuccess.Render("\u25cf")))
-	} else if ghFailed {
-		msg := "failed to publish"
-		if ghErrMsg != "" {
-			msg = ghErrMsg
-		}
-		errWidth := max(m.width-14, 30) // 14 chars for indentation + label
-		wrappedErr := styleError.Width(errWidth).Render(indicatorFailed + " " + msg)
-		b.WriteString(summaryRow("GitHub", wrappedErr))
-	}
-
-	worktreePath := result.WorktreePath
-	if worktreePath == "" && result.RepoPath != "" {
-		worktreePath = git.WorktreePath(result.RepoPath, "main")
+	worktree := outcome.worktree
+	if worktree == "" && outcome.repoPath != "" && outcome.branch != "" {
+		worktree = git.WorktreePath(outcome.repoPath, outcome.branch)
 	}
 
 	b.WriteString("\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	b.WriteString(m.cdLine(worktreePath))
-	b.WriteString("\n")
-	b.WriteString(viewFooter(m.width, repoSummaryFooter))
-	b.WriteString("\n")
-
-	return b.String()
-}
-
-func (m Model) viewCloneRepoSummary(result repo.CloneResult) string {
-	var b strings.Builder
-
-	repoName := filepath.Base(result.RepoPath)
-
-	b.WriteString(viewTitle(titleRepoCloned))
-	b.WriteString("\n\n")
-	b.WriteString(viewSeparator(m.width))
-	b.WriteString("\n\n")
-
-	if failed, failErr := cloneFailed(result); failed {
-		fmt.Fprintf(&b, "  %s clone failed\n\n",
-			styleIndicatorFailed.Render(indicatorFailed))
-		if failErr != nil {
-			errWidth := max(m.width-8, 30)
-			b.WriteString("    " + styleError.Width(errWidth).Render(failErr.Error()))
-			b.WriteString("\n\n")
-		}
-		b.WriteString(summaryPathRow("Path", result.RepoPath, m.width))
-		if result.DefaultBranch != "" {
-			b.WriteString(summaryRow("Branch", result.DefaultBranch))
-		}
-		// A failed clone never has a usable worktree (tracking-only failures are
-		// StepSkipped, not failures), so there is no cd hint to offer.
-		b.WriteString("\n")
-		b.WriteString(viewSeparator(m.width))
-		b.WriteString("\n\n")
-		b.WriteString(viewFooter(m.width, quitOnlyFooter))
-		b.WriteString("\n")
-		return b.String()
-	}
-
-	fmt.Fprintf(&b, "  %s %s ready\n\n",
-		styleIndicatorDone.Render(indicatorDone), repoName)
-
-	b.WriteString(summaryPathRow("Path", result.RepoPath, m.width))
-	b.WriteString(summaryRow("Branch", result.DefaultBranch))
-	if result.OriginURL != "" {
-		b.WriteString(summaryPathRow("Origin", result.OriginURL, m.width))
-	}
-
-	worktreePath := result.WorktreePath
-	if worktreePath == "" && result.RepoPath != "" && result.DefaultBranch != "" {
-		worktreePath = git.WorktreePath(result.RepoPath, result.DefaultBranch)
-	}
-
-	b.WriteString("\n")
-	b.WriteString(viewSeparator(m.width))
-	b.WriteString("\n\n")
-	b.WriteString(m.cdLine(worktreePath))
+	b.WriteString(m.cdLine(worktree))
 	b.WriteString("\n")
 	b.WriteString(viewFooter(m.width, repoSummaryFooter))
 	b.WriteString("\n")

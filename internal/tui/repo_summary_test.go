@@ -57,7 +57,7 @@ func cloneSuccessResult() repo.CloneResult {
 
 func TestViewCloneRepoSummary_WorktreeFailure_ShowsErrorNotReady(t *testing.T) {
 	m := makeRepoSummaryModel(cloneFailureResult())
-	out := stripAnsi(m.viewCloneRepoSummary(cloneFailureResult()))
+	out := stripAnsi(m.viewRepoSummary())
 
 	if strings.Contains(out, "ready") {
 		t.Errorf("failed clone summary must not say 'ready':\n%s", out)
@@ -78,7 +78,7 @@ func TestViewCloneRepoSummary_WorktreeFailure_ShowsErrorNotReady(t *testing.T) {
 
 func TestViewCloneRepoSummary_Success_ShowsReady(t *testing.T) {
 	m := makeRepoSummaryModel(cloneSuccessResult())
-	out := stripAnsi(m.viewCloneRepoSummary(cloneSuccessResult()))
+	out := stripAnsi(m.viewRepoSummary())
 
 	if !strings.Contains(out, "ready") {
 		t.Errorf("successful clone summary should say 'ready':\n%s", out)
@@ -101,7 +101,7 @@ func TestViewCreateRepoSummary_SetupFailure_ShowsFailed(t *testing.T) {
 		},
 	}
 	m := makeRepoSummaryModel(result)
-	out := stripAnsi(m.viewCreateRepoSummary(result))
+	out := stripAnsi(m.viewRepoSummary())
 
 	if strings.Contains(out, "ready") {
 		t.Errorf("setup failure must not say 'ready':\n%s", out)
@@ -129,7 +129,7 @@ func TestViewCreateRepoSummary_GitHubFailure_ShowsLocalOnly(t *testing.T) {
 		},
 	}
 	m := makeRepoSummaryModel(result)
-	out := stripAnsi(m.viewCreateRepoSummary(result))
+	out := stripAnsi(m.viewRepoSummary())
 
 	if !strings.Contains(out, "ready (local only)") {
 		t.Errorf("GitHub-only failure should render 'ready (local only)':\n%s", out)
@@ -205,9 +205,9 @@ func TestViewRepoSummary_LongPathsKeepTheirEnd(t *testing.T) {
 		view string
 		want []string
 	}{
-		"created":      {makeRepoSummaryModel(created).viewCreateRepoSummary(created), []string{"    Path       …", "/my-project\n", "    Branch     main\n"}},
-		"cloned":       {makeRepoSummaryModel(cloned).viewCloneRepoSummary(cloned), []string{"    Path       …", "/my-project\n", "    Branch     main\n", "    Origin     …", "nested/my-project.git\n"}},
-		"failed clone": {makeRepoSummaryModel(failedClone).viewCloneRepoSummary(failedClone), []string{"    Path       …", "/my-project\n", "    Branch     main\n"}},
+		"created":      {makeRepoSummaryModel(created).viewRepoSummary(), []string{"    Path       …", "/my-project\n", "    Branch     main\n"}},
+		"cloned":       {makeRepoSummaryModel(cloned).viewRepoSummary(), []string{"    Path       …", "/my-project\n", "    Branch     main\n", "    Origin     …", "nested/my-project.git\n"}},
+		"failed clone": {makeRepoSummaryModel(failedClone).viewRepoSummary(), []string{"    Path       …", "/my-project\n", "    Branch     main\n"}},
 	} {
 		view := stripANSI(tc.view)
 		for _, want := range tc.want {
