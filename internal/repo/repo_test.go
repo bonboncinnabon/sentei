@@ -2,6 +2,7 @@ package repo
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -129,5 +130,19 @@ func TestResolveBareRoot(t *testing.T) {
 				t.Errorf("ResolveBareRoot() = %q, want %q", got, dir)
 			}
 		})
+	}
+}
+
+// Given the .bare directory itself, the root used to come back as .bare, and
+// `sentei create` then placed the new worktree inside it.
+func TestResolveBareRoot_FromTheBareDirectoryOfALayout(t *testing.T) {
+	container := t.TempDir()
+	bare := filepath.Join(container, ".bare")
+	runner := &mock.Runner{Responses: map[string]mock.Response{
+		bare + ":[rev-parse --git-common-dir]": {Output: "."},
+	}}
+
+	if got := ResolveBareRoot(runner, bare); got != container {
+		t.Errorf("ResolveBareRoot(.bare) = %q, want the container %q", got, container)
 	}
 }
