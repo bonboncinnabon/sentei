@@ -1,0 +1,22 @@
+internal/tui/form_test.go
+  s_b5d41ab2ae0f4c::t_cf03f62350fd61 8-11,79-99
+  s_b5d41ab2ae0f4c::t_37883b1b01d34d 100-101
+internal/tui/menu.go
+  s_b5d41ab2ae0f4c::t_42c8f0fbbbaf13 87-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f24fe19cb7ab1c20033a1f0a0606aca5bb01814f",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
