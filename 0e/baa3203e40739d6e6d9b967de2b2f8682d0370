@@ -1,0 +1,45 @@
+internal/tui/chrome.go
+  s_b5d41ab2ae0f4c::t_002d5592b1a13f 158-174
+internal/tui/clone_input.go
+  s_b5d41ab2ae0f4c::t_e2cf4d9be00906 111
+internal/tui/create_branch.go
+  s_b5d41ab2ae0f4c::t_4897822c59be7b 34,76,87,99-112,121-125,132,134-155,179,181-191,193-194,213
+internal/tui/create_branch_test.go
+  s_b5d41ab2ae0f4c::t_1656294752d9fc 354-433
+internal/tui/create_confirm.go
+  s_b5d41ab2ae0f4c::t_e3ac4f5f5206d4 4,79-84,86
+internal/tui/create_options.go
+  s_b5d41ab2ae0f4c::t_c5d0c074f49c7c 190
+internal/tui/create_progress.go
+  s_b5d41ab2ae0f4c::t_ae976ad3f96de8 36
+internal/tui/create_summary.go
+  s_b5d41ab2ae0f4c::t_d6929ce7494b45 69-72,74,93,111,117-126
+internal/tui/form.go
+  s_b5d41ab2ae0f4c::t_3bffe71fb3c272 4-5,52-67
+internal/tui/form_test.go
+  s_b5d41ab2ae0f4c::t_20b69f565c2b9a 9,145-197
+internal/tui/model.go
+  s_b5d41ab2ae0f4c::t_a9c097051713b9 150-151,153
+internal/tui/repo_name.go
+  s_b5d41ab2ae0f4c::t_95135f7318f487 107
+internal/tui/repo_summary.go
+  s_b5d41ab2ae0f4c::t_293369d2115406 92,125-126,129,137,148-149,174,176,191-192,194,205-206
+internal/tui/repo_summary_test.go
+  s_b5d41ab2ae0f4c::t_fb72fc0e6e1265 9,190-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0ebaa3203e40739d6e6d9b967de2b2f8682d0370",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
