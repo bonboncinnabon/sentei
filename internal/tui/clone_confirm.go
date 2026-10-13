@@ -24,6 +24,8 @@ func (m *Model) SetCloneOpts(opts *CloneOpts) {
 		m.view = cloneConfirmView
 	} else {
 		m.view = cloneInputView
+		// The form opens ready to type, as it does from the menu.
+		m.repo.urlInput.Focus()
 	}
 }
 

@@ -56,6 +56,23 @@ func TestSetCloneOpts_NothingSet_EntersInputView(t *testing.T) {
 	}
 }
 
+// `sentei clone` without --url opens the form. Its URL field must have focus:
+// without it every key was dropped until tab had been pressed twice.
+func TestSetCloneOpts_NothingSet_URLFieldTakesTyping(t *testing.T) {
+	m := NewMenuModel(nil, nil, "/repo", &config.Config{}, repo.ContextNoRepo)
+	m.SetCloneOpts(&CloneOpts{})
+
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "git@host:me/project.git"})
+	model := updated.(Model)
+
+	if got := model.repo.urlInput.Value(); got != "git@host:me/project.git" {
+		t.Errorf("URL field = %q after typing, want the typed text", got)
+	}
+	if got := model.repo.cloneNameInput.Value(); got != "project" {
+		t.Errorf("name field = %q, want it derived from the typed URL", got)
+	}
+}
+
 func TestCloneConfirmationVM_RendersURLAndName(t *testing.T) {
 	m := makeCloneConfirmModel(&CloneOpts{
 		URL:  "git@github.com:user/repo.git",
