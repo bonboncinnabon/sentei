@@ -205,10 +205,17 @@ environment.
 
 ### Layouts and platforms
 
-- sentei can be started from the container, from any worktree inside it, or
-  with the container's path as an argument. A plain bare repository (for
-  example `project.git` with worktrees inside it) works when sentei is given
-  the bare directory itself; its worktrees are not recognised as entry points.
+- sentei works on any repository whose shared git directory is bare, whatever
+  that directory is called: the `.bare` layout above, or a plain bare
+  repository such as `project.git` with its worktrees inside it or beside it.
+  Start it in the bare directory, in the container, or in any worktree, or
+  pass one of them as the path: every command behaves the same from each. New
+  worktrees are created where `.sentei.yaml` is read. That is the container
+  when the bare directory is named `.bare` or a `.git` pointer file beside it
+  leads to it, and otherwise the bare directory itself, also when the existing
+  worktrees sit beside it. A container needs its `.git` pointer file. An
+  ordinary clone is not such a layout, even when it has linked worktrees; see
+  `migrate` above.
 - macOS and Linux are tested on every change. Windows binaries are published
   but untested, and dependency installs run through `sh -c`, so they need a
   POSIX shell on the `PATH`.

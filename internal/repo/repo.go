@@ -1,8 +1,6 @@
 package repo
 
 import (
-	"path/filepath"
-
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
@@ -27,31 +25,20 @@ func (c RepoContext) String() string {
 	}
 }
 
-// DetectContext determines the repo context at the given path.
-//
-// Detection logic:
-//  1. git rev-parse --is-bare-repository → "true" means ContextBareRepo
-//  2. Check for .bare directory at repo root (sentei's bare structure from a worktree)
-//  3. git rev-parse --git-dir succeeds → ContextNonBareRepo
-//  4. Otherwise → ContextNoRepo
+// DetectContext reports what kind of repository holds path. A bare layout is
+// any repository whose shared git directory is a bare repository, whatever
+// that directory is called and wherever its worktrees live; path may be the
+// bare directory, the container of a .bare layout, or any worktree. Git is
+// asked at the shared directory because inside a worktree it answers for the
+// worktree, which is never bare.
 func DetectContext(runner git.CommandRunner, path string) RepoContext {
-	output, err := runner.Run(path, "rev-parse", "--is-bare-repository")
-	if err == nil && output == "true" {
-		return ContextBareRepo
-	}
-
-	// Check if git repo at all
-	_, err = runner.Run(path, "rev-parse", "--git-dir")
+	commonDir, err := git.CommonDir(runner, path)
 	if err != nil {
 		return ContextNoRepo
 	}
-
-	// Inside a git repo — sentei's bare layout has a ".bare" common dir.
-	// (--show-toplevel returns the worktree root, not the bare repo root.)
-	if commonDir, err := git.CommonDir(runner, path); err == nil && filepath.Base(commonDir) == ".bare" {
+	if bare, err := runner.Run(commonDir, "rev-parse", "--is-bare-repository"); err == nil && bare == "true" {
 		return ContextBareRepo
 	}
-
 	return ContextNonBareRepo
 }
 

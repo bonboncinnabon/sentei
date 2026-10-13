@@ -1,148 +1,70 @@
 package repo
 
 import (
-	"fmt"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
+	"github.com/bonboncinnabon/sentei/internal/testutil/layouts"
 )
 
-func TestDetectContext(t *testing.T) {
-	tests := []struct {
-		name      string
-		responses map[string]mock.Response
-		setupDir  func(t *testing.T, dir string)
-		want      RepoContext
-	}{
-		{
-			name: "bare repo detected via git",
-			responses: map[string]mock.Response{
-				"{dir}:[rev-parse --is-bare-repository]": {Output: "true"},
-			},
-			want: ContextBareRepo,
-		},
-		{
-			name: "worktree inside bare repo with .bare directory",
-			responses: map[string]mock.Response{
-				"{dir}:[rev-parse --is-bare-repository]": {Output: "false"},
-				"{dir}:[rev-parse --git-dir]":            {Output: "/repo/.bare"},
-				"{dir}:[rev-parse --git-common-dir]":     {Output: "/repo/.bare"},
-			},
-			want: ContextBareRepo,
-		},
-		{
-			name: "non-bare regular repo",
-			responses: map[string]mock.Response{
-				"{dir}:[rev-parse --is-bare-repository]": {Output: "false"},
-				"{dir}:[rev-parse --git-dir]":            {Output: ".git"},
-				"{dir}:[rev-parse --git-common-dir]":     {Output: ".git"},
-			},
-			want: ContextNonBareRepo,
-		},
-		{
-			name: "no repo at all",
-			responses: map[string]mock.Response{
-				"{dir}:[rev-parse --is-bare-repository]": {Output: "", Err: fmt.Errorf("not a git repository")},
-				"{dir}:[rev-parse --git-dir]":            {Output: "", Err: fmt.Errorf("not a git repository")},
-			},
-			want: ContextNoRepo,
-		},
-	}
+// Any path into a repository whose shared git directory is bare is an entry
+// point, whatever that directory is called and wherever the worktrees live.
+// Worktrees of a bare directory not named .bare used to be taken for regular
+// repositories, and every command refused them.
+func TestDetectContext_BareLayoutFromEveryEntryPoint(t *testing.T) {
+	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
+		if got := DetectContext(realGit, entry); got != ContextBareRepo {
+			t.Errorf("DetectContext(%q) = %v, want %v", entry, got, ContextBareRepo)
+		}
+		if got := ResolveBareRoot(realGit, entry); got != layout.Root {
+			t.Errorf("ResolveBareRoot(%q) = %q, want %q", entry, got, layout.Root)
+		}
+	})
+}
 
+// A regular clone is what migrate converts. Linked worktrees do not make it a
+// bare layout: its shared git directory has a working tree of its own.
+func TestDetectContext_RegularRepositoryAndNoRepository(t *testing.T) {
+	_, regular := newCheckout(t)
+	linked := filepath.Join(t.TempDir(), "linked")
+	mustGit(t, regular, "worktree", "add", "--quiet", "-b", "linked", linked)
+
+	tests := []struct {
+		name string
+		path string
+		want RepoContext
+	}{
+		{"main working tree", regular, ContextNonBareRepo},
+		{"directory inside the working tree", filepath.Join(regular, "src", "deep"), ContextNonBareRepo},
+		{"its .git directory", filepath.Join(regular, ".git"), ContextNonBareRepo},
+		{"linked worktree", linked, ContextNonBareRepo},
+		{"directory outside any repository", t.TempDir(), ContextNoRepo},
+		{"path that does not exist", filepath.Join(t.TempDir(), "missing"), ContextNoRepo},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-
-			// Replace {dir} placeholders in response keys
-			resolved := make(map[string]mock.Response)
-			for k, v := range tt.responses {
-				resolvedKey := strings.ReplaceAll(k, "{dir}", dir)
-				resolvedVal := mock.Response{
-					Output: strings.ReplaceAll(v.Output, "{dir}", dir),
-					Err:    v.Err,
-				}
-				resolved[resolvedKey] = resolvedVal
-			}
-
-			if tt.setupDir != nil {
-				tt.setupDir(t, dir)
-			}
-
-			runner := &mock.Runner{Responses: resolved}
-			got := DetectContext(runner, dir)
-			if got != tt.want {
-				t.Errorf("DetectContext() = %v, want %v", got, tt.want)
+			if got := DetectContext(realGit, tt.path); got != tt.want {
+				t.Errorf("DetectContext(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestResolveBareRoot(t *testing.T) {
-	tests := []struct {
-		name      string
-		responses map[string]mock.Response
-		wantExact string // if set, expect this exact path
-		wantSelf  bool   // if true, expect the input dir back
-	}{
-		{
-			name: "plain bare repo returns itself (git-common-dir is dot)",
-			responses: map[string]mock.Response{
-				"{dir}:[rev-parse --git-common-dir]": {Output: "."},
-			},
-			wantSelf: true,
-		},
-		{
-			name: "from worktree resolves to bare root via absolute .bare path",
-			responses: map[string]mock.Response{
-				"{dir}:[rev-parse --git-common-dir]": {Output: "/code/myproject/.bare"},
-			},
-			wantExact: "/code/myproject",
-		},
-		{
-			name: "git command fails returns original path",
-			responses: map[string]mock.Response{
-				"{dir}:[rev-parse --git-common-dir]": {Output: "", Err: fmt.Errorf("not a git repo")},
-			},
-			wantSelf: true,
-		},
-	}
+// git sparse-checkout moves core.bare of a bare repository into
+// config.worktree. Git still answers "bare" there; the config file alone does
+// not say so.
+func TestDetectContext_BareSettingInWorktreeConfig(t *testing.T) {
+	bare := filepath.Join(t.TempDir(), "project.git")
+	worktree := filepath.Join(t.TempDir(), "main")
+	mustGit(t, filepath.Dir(bare), "init", "--quiet", "--bare", bare)
+	mustGit(t, bare, "worktree", "add", "--quiet", "--orphan", "-b", "main", worktree)
+	mustGit(t, bare, "config", "extensions.worktreeConfig", "true")
+	mustGit(t, bare, "config", "--unset", "core.bare")
+	mustGit(t, bare, "config", "--worktree", "core.bare", "true")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			resolved := make(map[string]mock.Response)
-			for k, v := range tt.responses {
-				resolved[strings.ReplaceAll(k, "{dir}", dir)] = mock.Response{
-					Output: strings.ReplaceAll(v.Output, "{dir}", dir),
-					Err:    v.Err,
-				}
-			}
-
-			runner := &mock.Runner{Responses: resolved}
-			got := ResolveBareRoot(runner, dir)
-
-			if tt.wantExact != "" && got != tt.wantExact {
-				t.Errorf("ResolveBareRoot() = %q, want %q", got, tt.wantExact)
-			}
-			if tt.wantSelf && got != dir {
-				t.Errorf("ResolveBareRoot() = %q, want %q", got, dir)
-			}
-		})
-	}
-}
-
-// Given the .bare directory itself, the root used to come back as .bare, and
-// `sentei create` then placed the new worktree inside it.
-func TestResolveBareRoot_FromTheBareDirectoryOfALayout(t *testing.T) {
-	container := t.TempDir()
-	bare := filepath.Join(container, ".bare")
-	runner := &mock.Runner{Responses: map[string]mock.Response{
-		bare + ":[rev-parse --git-common-dir]": {Output: "."},
-	}}
-
-	if got := ResolveBareRoot(runner, bare); got != container {
-		t.Errorf("ResolveBareRoot(.bare) = %q, want the container %q", got, container)
+	for _, entry := range []string{bare, worktree} {
+		if got := DetectContext(realGit, entry); got != ContextBareRepo {
+			t.Errorf("DetectContext(%q) = %v, want %v", entry, got, ContextBareRepo)
+		}
 	}
 }
