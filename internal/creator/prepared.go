@@ -1,7 +1,6 @@
 package creator
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -66,13 +65,13 @@ func prepareCreation(opts Options) (preparedCreation, error) {
 		setup.Steps = append(setup.Steps, progress.PlannedStep{ID: prepared.mergeStepID, Label: "Merge base branch"})
 	}
 	if len(opts.WorktreeFiles) > 0 {
-		prepared.worktreeFileStepID = semanticStepID("copy-worktree-files", worktreeFileIdentity(opts.WorktreeFiles))
+		prepared.worktreeFileStepID = "copy-worktree-files"
 		setup.Steps = append(setup.Steps, progress.PlannedStep{ID: prepared.worktreeFileStepID, Label: "Copy worktree files"})
 	}
 	if opts.CopyEnvFiles {
 		prepared.envFiles = uniqueEnvFiles(opts)
 		if len(prepared.envFiles) > 0 {
-			prepared.envStepID = semanticStepID("copy-env", strings.Join(prepared.envFiles, "\x00"))
+			prepared.envStepID = "copy-env"
 			setup.Steps = append(setup.Steps, progress.PlannedStep{ID: prepared.envStepID, Label: "Copy env files"})
 		}
 	}
@@ -239,7 +238,7 @@ func runPreparedDependency(execution *progress.Execution, shell git.ShellRunner,
 	return nil
 }
 
+// semanticStepID names a step by its kind and by what it acts on.
 func semanticStepID(kind, identity string) progress.StepID {
-	sum := sha256.Sum256([]byte(identity))
-	return progress.StepID(fmt.Sprintf("%s:%x", kind, sum[:8]))
+	return progress.StepID(kind + ":" + identity)
 }

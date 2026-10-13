@@ -34,6 +34,21 @@ func TestPrepareRemoval_SemanticIDsSurviveSelectionReordering(t *testing.T) {
 	}
 }
 
+// A step identity is the plain "remove:<path>". It is shown in the progress
+// details, so it must be readable and hold no control characters.
+func TestPrepareRemoval_StepIDIsThePlainPath(t *testing.T) {
+	prepared, err := prepareRemoval([]git.Worktree{{Path: "/repo/x/../a ", Branch: "refs/heads/feature/a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := prepared.targets[0].StepID; got != "remove:/repo/a" {
+		t.Errorf("step ID = %q, want %q", got, "remove:/repo/a")
+	}
+	if got := prepared.plan.Phases[0].Steps[0].ID; got != prepared.targets[0].StepID {
+		t.Errorf("plan step ID %q differs from the target's %q", got, prepared.targets[0].StepID)
+	}
+}
+
 func TestPrepareRemoval_RejectsDuplicateSemanticWorktree(t *testing.T) {
 	_, err := prepareRemoval([]git.Worktree{
 		{Path: "/repo/a", Branch: "refs/heads/feature/a"},
