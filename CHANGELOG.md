@@ -1,5 +1,113 @@
 # Changelog
 
+## [2.0.0](https://github.com/bonboncinnabon/sentei/compare/v1.14.0...v2.0.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **readme:** git never prompts for credentials; use a credential helper or an SSH key.
+* the `integrations` command, the integration views, and the integrations_enabled, protected_branches and post_install config keys are gone. Index folders that already exist on disk are not touched.
+
+### Features
+
+* remove the integrations feature ([b9c7bc8](https://github.com/bonboncinnabon/sentei/commit/b9c7bc830c46bb61191c08780fa216bb50561c66))
+
+
+### Bug Fixes
+
+* cleanup correctness and reporting from the audit backlog ([a2f3db7](https://github.com/bonboncinnabon/sentei/commit/a2f3db7a1b1ecbe9283025cfb3b38f110c7ba112))
+* **cleanup:** collapse identical config lines with git itself ([938f7ad](https://github.com/bonboncinnabon/sentei/commit/938f7adaa832004fe2d9072640b8859b2e179184))
+* **cleanup:** ignore the detached HEAD entry when listing branches ([16febe9](https://github.com/bonboncinnabon/sentei/commit/16febe9118d0bcb38fd1ed71c5b3e5af246b78da))
+* **cleanup:** make the dry run match the run for gone branches ([8d70397](https://github.com/bonboncinnabon/sentei/commit/8d703979c2dcda53eca33281b39a4089537ba336))
+* **cleanup:** protect the default branch when given a worktree path ([45983a6](https://github.com/bonboncinnabon/sentei/commit/45983a6c09936a9f02912acde93ab1896a9423f5))
+* **cleanup:** run non-interactive cleanup from the repository root ([bd58607](https://github.com/bonboncinnabon/sentei/commit/bd58607493c3ea42ef8c83658ff6543ef5289f3d))
+* **cleanup:** show commit details for a branch that shares a tag's name ([721661e](https://github.com/bonboncinnabon/sentei/commit/721661e94749b1ed76a6b112f1e18e9d9ce6f1ad))
+* **clone:** check out main from a remote whose HEAD is detached ([6d86ee8](https://github.com/bonboncinnabon/sentei/commit/6d86ee81343ebdfbefdb422337e98cd749a30f82))
+* **clone:** keep only the default branch as a local head ([6abfc2b](https://github.com/bonboncinnabon/sentei/commit/6abfc2b69bd04c6d465e2126fcc49cce457f1671))
+* close audit findings in removal, cleanup, installs and the CLI ([6cae71f](https://github.com/bonboncinnabon/sentei/commit/6cae71f5b21d2aed571d271b44ae5bdde45cbd43))
+* **cmd:** plain output off a terminal, named contexts, ecosystems --help ([f4db193](https://github.com/bonboncinnabon/sentei/commit/f4db19386f5fbf72c8159ac4576c7451669ce73c))
+* config errors, default-branch detection and docs after the audit backlog ([9995e4b](https://github.com/bonboncinnabon/sentei/commit/9995e4b816aa61700a923ca136d41ee356129c5f))
+* **config:** find the repo config from every path into a repository ([a2ae465](https://github.com/bonboncinnabon/sentei/commit/a2ae465e037b29aa52d1ef0b0ae0fe59115dfa8c))
+* **config:** let an explicit empty list clear an inherited value ([015aff8](https://github.com/bonboncinnabon/sentei/commit/015aff8102a74b2dfea33e9c6327dcfb92d11bbb))
+* **config:** never resolve the global config against the working directory ([a0a6685](https://github.com/bonboncinnabon/sentei/commit/a0a6685437b0e4baf20afc05e717851c8a2cb840))
+* **config:** read a plain bare repository's config from the repository ([aef99c5](https://github.com/bonboncinnabon/sentei/commit/aef99c5571f2e7df2e08a850ba97b1fd92834e9a))
+* **config:** reject unknown config keys instead of ignoring them ([0bc8bc4](https://github.com/bonboncinnabon/sentei/commit/0bc8bc402604db55fe2f5a5d36a3f8db95fe7af9))
+* create and clone flows from the audit backlog ([c028343](https://github.com/bonboncinnabon/sentei/commit/c0283432670e07f983f606f946245c61ebdda601))
+* **create:** check out a branch that only origin has, tracking it ([8f59a39](https://github.com/bonboncinnabon/sentei/commit/8f59a39e698d2bc21c9cf7e2b31c95cd75c6fa46))
+* **create:** copy env files without requiring an install selection ([8e5c7ac](https://github.com/bonboncinnabon/sentei/commit/8e5c7aca58ed1a2f03de5e5f0d7b3a40777e9304))
+* **create:** install dependencies once at the worktree root ([8dc4811](https://github.com/bonboncinnabon/sentei/commit/8dc4811d803ed10750bedbcc5ac0577f346c0533))
+* **create:** never copy env files from the working directory ([7c2bfd9](https://github.com/bonboncinnabon/sentei/commit/7c2bfd9407a5fd56bbb499ecc03ef279e4c021ea))
+* **create:** print a header that holds for every branch ([4b58767](https://github.com/bonboncinnabon/sentei/commit/4b587678851fb71d5b4121a8ae4d01f10662db67))
+* **create:** report a failed worktree add as failed, keep a hooked one ([201fb82](https://github.com/bonboncinnabon/sentei/commit/201fb829a16723ff26fa3cc565fd2f31a8dd9000))
+* **create:** say when an existing branch is reused, block option names ([13685e3](https://github.com/bonboncinnabon/sentei/commit/13685e3126701ea739e88c0c1fbc394e0579d2dd))
+* **dryrun:** mark the detected default branch as protected ([bcbcd9f](https://github.com/bonboncinnabon/sentei/commit/bcbcd9fc5935911e16a8fc7d8044ce1d634f62c7))
+* **ecosystem:** detect ecosystems in a directory whose path has glob characters ([6845418](https://github.com/bonboncinnabon/sentei/commit/6845418d562e97ba823a25b84b8e2c77782d4d63))
+* git runner isolation, timeouts and config loading from the audit backlog ([9838163](https://github.com/bonboncinnabon/sentei/commit/9838163062f6209e025766fcf003d7ea41ace3e7))
+* **git:** isolate git child processes and bound them with a timeout ([97d3a88](https://github.com/bonboncinnabon/sentei/commit/97d3a88ba9291ff1cf2671a3a60ae3ddcce9baf4))
+* **git:** keep read-only git commands from rewriting the index ([322b6dd](https://github.com/bonboncinnabon/sentei/commit/322b6ddac4d14c186f2b7aa6ac5e1424106e119d))
+* **git:** read the default branch from the shared HEAD as a full ref ([1eb6e18](https://github.com/bonboncinnabon/sentei/commit/1eb6e18c4508d58acb33efbb39c8406d1bfa19de))
+* **git:** run git with LC_ALL=C so its messages can be matched ([76c89fd](https://github.com/bonboncinnabon/sentei/commit/76c89fd47be8e66cfe76e61ac0a3144743e2bc07))
+* **git:** say what to do when git cannot prompt for credentials ([338dbc0](https://github.com/bonboncinnabon/sentei/commit/338dbc088d719d87583e86d949053a5ea9467a80))
+* harden removal, cleanup and the non-interactive CLI ([6025a20](https://github.com/bonboncinnabon/sentei/commit/6025a20c223948230895a65b78bb84b9567641d7))
+* in-place migrate with rollback, clone and repo creation from the audit backlog ([a10d7b0](https://github.com/bonboncinnabon/sentei/commit/a10d7b09eb09b6a47561e67a7d28fb22f032e885))
+* last migrate and clone fixes, and the 2.0 upgrade notes ([055cbcd](https://github.com/bonboncinnabon/sentei/commit/055cbcdb913aea9b1e321ebff8274828df6e5229))
+* **main:** remove the playground repo on every exit path ([485e41f](https://github.com/bonboncinnabon/sentei/commit/485e41fd536a67969466a584f921987718d9f59f))
+* **migrate:** carry the checkout's own git state into the worktree ([cbb2b7f](https://github.com/bonboncinnabon/sentei/commit/cbb2b7fc778b6f23c2c2115f72987116c45ed7ec))
+* **migrate:** convert the repository in place and roll back on failure ([0f17ae9](https://github.com/bonboncinnabon/sentei/commit/0f17ae9e014e541b7e737896529083c552c17bc5))
+* **migrate:** do not clean a worktree path git refused to register ([57d1a8c](https://github.com/bonboncinnabon/sentei/commit/57d1a8cf09b66bd5e42e9ffe675e6f07f3a8cf84))
+* **migrate:** do not overwrite a path that reappeared during rollback ([4f97c7d](https://github.com/bonboncinnabon/sentei/commit/4f97c7d60f636d8860a21d1ed9ede1cebdc3dc3d))
+* **migrate:** find the shared index when the path has brackets ([9deeea0](https://github.com/bonboncinnabon/sentei/commit/9deeea081fc2fec2a129e2750d95ca1764ba9624))
+* **migrate:** name the repository root when asked to migrate a subdirectory ([370112c](https://github.com/bonboncinnabon/sentei/commit/370112c2487bc9bb1866e05b58d41965adfbae12))
+* **migrate:** refuse repository config the conversion would break ([5bf42f7](https://github.com/bonboncinnabon/sentei/commit/5bf42f737c425eb125df27ea74acc825461883c3))
+* **migrate:** restore the config exactly and reach .bare through the pointer ([4a466c9](https://github.com/bonboncinnabon/sentei/commit/4a466c947ba68c881367ab49be9042ca200055e0))
+* remove, flags and output from the audit backlog ([6c8768f](https://github.com/bonboncinnabon/sentei/commit/6c8768f24d4875afa263d9f871bab998348f239f))
+* **remove:** reject --stale durations that overflow ([90cfdc7](https://github.com/bonboncinnabon/sentei/commit/90cfdc78b8b266733f38efc5b0adf944d3597b3c))
+* **remove:** require --force to remove a locked worktree ([09a83ff](https://github.com/bonboncinnabon/sentei/commit/09a83ffcafca3f987d14ecb5dabda03fc60a5866))
+* **remove:** say in the dry-run preview what the real run refuses ([c310435](https://github.com/bonboncinnabon/sentei/commit/c3104351624ebca8f3e7fb529d1bd0eff4637cbd))
+* **remove:** stop --merged from selecting a brand-new branch ([e72d192](https://github.com/bonboncinnabon/sentei/commit/e72d1923b7cdfdcd7e7068692f905feb0df66c9e))
+* **repo:** keep the reason when gh fails without stderr ([e91af65](https://github.com/bonboncinnabon/sentei/commit/e91af6559f8020dbf5402fd1abc67ee860d7e481))
+* **repo:** point the bare HEAD at the default branch ([90ae1bb](https://github.com/bonboncinnabon/sentei/commit/90ae1bb5c8e266243536553b7da30c460e49ea3e))
+* **repo:** resolve the container when given the .bare directory ([cd3d7a3](https://github.com/bonboncinnabon/sentei/commit/cd3d7a3e5fa74b88b8b6e0985d913a527f012679))
+* stop on a config that fails to load instead of running without it ([8910147](https://github.com/bonboncinnabon/sentei/commit/89101477e97976826133b95df66860b09a3af5ca))
+* TUI core behaviour and layout from the audit backlog ([e9d9ed6](https://github.com/bonboncinnabon/sentei/commit/e9d9ed637355223b54af8166a51458b10000d03a))
+* **tui:** ask before quitting a running operation ([99b917b](https://github.com/bonboncinnabon/sentei/commit/99b917b018b36209ecca9a8817185e89a820101a))
+* **tui:** claim a prune on the summary only when one ran ([9991849](https://github.com/bonboncinnabon/sentei/commit/99918495af15c7acb55db261c924457b83c43d42))
+* **tui:** clear the shared repo error when a menu entry opens a screen ([f24fe19](https://github.com/bonboncinnabon/sentei/commit/f24fe19cb7ab1c20033a1f0a0606aca5bb01814f))
+* **tui:** close the help portal when a progress view ends ([dbe9e40](https://github.com/bonboncinnabon/sentei/commit/dbe9e40bbea4355a34c172f7703504f3c06eea82))
+* **tui:** fit the list and confirm views on narrow terminals ([3f6cdb4](https://github.com/bonboncinnabon/sentei/commit/3f6cdb4d41df0c0b2cb9c8bedd6867a14f91f477))
+* **tui:** fit the worktree list to the terminal height ([a49b28e](https://github.com/bonboncinnabon/sentei/commit/a49b28e340ff0c2371edd7973422e9b88f736fda))
+* **tui:** honor create flags and derive the clone name when interactive ([0c4216c](https://github.com/bonboncinnabon/sentei/commit/0c4216c6aef677e032c66b3e5bba1d059c8c5676))
+* **tui:** keep a failed step with a multi-line error on one row ([fa08d75](https://github.com/bonboncinnabon/sentei/commit/fa08d7524d69b27569b7c35530591fe4129fbd5e))
+* **tui:** keep ecosystem choices when the branch form detects again ([7557d6f](https://github.com/bonboncinnabon/sentei/commit/7557d6fe22f92cbf6ae644c7bb8f64bc9b78c6e7))
+* **tui:** keep form validation errors until the text changes ([6d2d428](https://github.com/bonboncinnabon/sentei/commit/6d2d428c56a1658703799e6abaeb746b2f950883))
+* **tui:** keep migrate screens aligned when text wraps ([45176d9](https://github.com/bonboncinnabon/sentei/commit/45176d98294daece73cbb31c36232454f60e450b))
+* **tui:** keep the tail of a long destination path on screen ([0459ea4](https://github.com/bonboncinnabon/sentei/commit/0459ea440077d0b1f8fbda41664e6a3ba25f6acd))
+* **tui:** leave the merge off for a branch that already exists ([cf892e0](https://github.com/bonboncinnabon/sentei/commit/cf892e0192ec8c0ab1b68e57cf53c68a9bb35c45))
+* **tui:** let git re-check rows that looked clean before removing them ([59f5104](https://github.com/bonboncinnabon/sentei/commit/59f5104227c9b3ecbebcbe3209ed447b5f774cb4))
+* **tui:** list every failed branch deletion on the cleanup screens ([fcad104](https://github.com/bonboncinnabon/sentei/commit/fcad10431eaf9d51cb11c6823a5f1ce3429fc40e))
+* **tui:** load worktrees when remove opens the list directly ([4c19630](https://github.com/bonboncinnabon/sentei/commit/4c19630f25fbd0b1953787bdb83703ef1b084b4d))
+* **tui:** make the cleanup screens report what happened ([a978257](https://github.com/bonboncinnabon/sentei/commit/a9782571623ec1e46d3e6603c0f48632d0f2bc30))
+* **tui:** make the create repository form control what runs ([9a73da7](https://github.com/bonboncinnabon/sentei/commit/9a73da70902c213a3f00abb3084d0a4c39d029c3))
+* **tui:** offer only detected ecosystems on the create options screen ([6d3b345](https://github.com/bonboncinnabon/sentei/commit/6d3b3451cc3c1d87fc1ea9e8c7c1c3e9873174d0))
+* **tui:** prune locally after a removal instead of running cleanup ([ad981f7](https://github.com/bonboncinnabon/sentei/commit/ad981f75a65c764623c8886d522e826f17c8f88c))
+* **tui:** quit on ctrl+c from every view ([7776fc1](https://github.com/bonboncinnabon/sentei/commit/7776fc1da7c00b62765cc56834c98a337fd6dc71))
+* **tui:** re-read status before removing rows that looked clean ([bf842a5](https://github.com/bonboncinnabon/sentei/commit/bf842a5c8877728e1e74a76308a4d8e7e0540a1b))
+* **tui:** remove locked worktrees without unlocking them first ([c9789cf](https://github.com/bonboncinnabon/sentei/commit/c9789cf9011cf02f6ce75844f9e863e3fb4c655b))
+* **tui:** report an interrupted flow only while it is running ([6fa596b](https://github.com/bonboncinnabon/sentei/commit/6fa596bea6307902dc2129e503938250c6bb49f0))
+* **tui:** report failed worktree loads and drop rows that are gone ([663fcb3](https://github.com/bonboncinnabon/sentei/commit/663fcb3868950a9e3156c7d858dd48e60b3eecd4))
+* **tui:** say "1 branch remains" on the cleanup result ([ec40928](https://github.com/bonboncinnabon/sentei/commit/ec40928e60dadc9dc184ed10460100b48750604d))
+* **tui:** show the whole reason when the worktree list fails to load ([bef99dc](https://github.com/bonboncinnabon/sentei/commit/bef99dccd85ac523a5404051aac31f72aa94f3e3))
+* **tui:** stop a stale motion tick from doubling the clock ([a7e1e72](https://github.com/bonboncinnabon/sentei/commit/a7e1e72a4f5a782489be8fb01c00c75f62287b54))
+* **tui:** tick the elapsed stopwatch once a second ([066e607](https://github.com/bonboncinnabon/sentei/commit/066e607b1d07c95fe35c05163e595c315f1767ec))
+* **tui:** truncate by display width, not rune count ([8ae4225](https://github.com/bonboncinnabon/sentei/commit/8ae4225bbe7ab0205713fcd852a6ddeded1c3bc6))
+* **worktree:** date worktrees by committer date, not author date ([9a8c872](https://github.com/bonboncinnabon/sentei/commit/9a8c872d54d8e9381b040afbf5b9ea5f7607bd6f))
+* **worktree:** see untracked files whatever status.showUntrackedFiles says ([ce49f27](https://github.com/bonboncinnabon/sentei/commit/ce49f27a10fc659ee1ee95bf252d3887f9ea84e1))
+
+
+### Documentation
+
+* **readme:** add upgrade notes for 2.0 ([a98e478](https://github.com/bonboncinnabon/sentei/commit/a98e478bd785b686500d74d9898cc8a96215d607))
+
 ## [1.14.0](https://github.com/abiswas97/sentei/compare/v1.13.0...v1.14.0) (2026-07-29)
 
 
