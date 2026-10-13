@@ -1308,6 +1308,35 @@ func TestMigrate_LinkedWorktreeUnderADirectoryThatCannotBeListedIsNotMoved(t *te
 	}
 }
 
+// A .git file that cannot be written stops the relinking after other linked
+// worktrees have been pointed at .bare. They go back, and the file that was
+// never changed does not count against the rollback.
+func TestMigrate_LinkedWorktreeThatCannotBeRelinkedRollsBackTheOthers(t *testing.T) {
+	t.Parallel()
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file permissions")
+	}
+	base, root := newCheckout(t)
+	first, second := filepath.Join(base, "first"), filepath.Join(base, "second")
+	mustGit(t, root, "worktree", "add", "-q", "-b", "first", first)
+	mustGit(t, root, "worktree", "add", "-q", "-b", "second", second)
+	if err := os.Chmod(filepath.Join(second, ".git"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	before := snapshot(t, base)
+
+	result := Migrate(realGit, MigrateOptions{RepoPath: root}, nil)
+
+	failure := result.Failure()
+	if failure == nil || !strings.Contains(failure.Error(), "pointing a linked worktree at .bare") || !strings.Contains(failure.Error(), filepath.Join("second", ".git")) {
+		t.Fatalf("Failure() = %v, want the file that could not be rewritten named", failure)
+	}
+	if !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Errorf("Failure() = %v, want it reported as rolled back", failure)
+	}
+	assertSameSnapshot(t, before, snapshot(t, base))
+}
+
 // A directory lies inside the root when walking up from it arrives at the
 // root, whatever either path is called, and the answer names it the way the
 // directory entries do.

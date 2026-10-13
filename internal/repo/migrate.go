@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -145,7 +146,7 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			run: func() (string, error) {
 				for _, file := range plan.relinks {
 					if err := os.WriteFile(file.gitfile, file.relinked, 0o644); err != nil {
-						return "", err
+						return "", fmt.Errorf("pointing a linked worktree at .bare: %w; make sure the file can be written, then retry", err)
 					}
 				}
 				return "", nil
@@ -153,6 +154,11 @@ func prepareMigrate(runner git.CommandRunner, opts MigrateOptions) (flow, func([
 			undo: func() error {
 				var undoErr error
 				for _, file := range plan.relinks {
+					// A file that reads as it did needs nothing, and the one
+					// that stopped the step cannot be written now either.
+					if link, err := os.ReadFile(file.gitfile); err == nil && bytes.Equal(link, file.link) {
+						continue
+					}
 					undoErr = errors.Join(undoErr, os.WriteFile(file.gitfile, file.link, 0o644))
 				}
 				return undoErr
