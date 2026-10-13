@@ -1,0 +1,41 @@
+internal/cleanup/cleanup.go
+  s_b5d41ab2ae0f4c::t_38e4a07b2c826d 27-32,110
+internal/cleanup/realgit_test.go
+  s_b5d41ab2ae0f4c::t_dc7e7de7c59854 145-146,157-158,186-187
+internal/tui/cleanup_misreport_test.go
+  s_b5d41ab2ae0f4c::t_020a1ba8c744b7 61,284-442
+internal/tui/cleanup_preview.go
+  s_b5d41ab2ae0f4c::t_3d3fc10565d8ae 137,147,158,162,176,228-247,249,252,254-255,257-263,310-311,317-319
+internal/tui/cleanup_preview_test.go
+  s_b5d41ab2ae0f4c::t_15225e51bc0f26 324-326
+internal/tui/cleanup_result.go
+  s_b5d41ab2ae0f4c::t_f0bc1055ad89c3 52,54-55,57-58,66,68,74-77,81,84,150,152-161,163-171,173
+internal/tui/cleanup_result_test.go
+  s_b5d41ab2ae0f4c::t_cc2e55d9dac7d0 97
+internal/tui/copy.go
+  s_b5d41ab2ae0f4c::t_8aeb4de332bea2 31
+internal/tui/golden_test.go
+  s_b5d41ab2ae0f4c::t_2307a88760e31c 66
+internal/tui/help.go
+  s_b5d41ab2ae0f4c::t_0befbace9ce520 87
+internal/tui/keys.go
+  s_b5d41ab2ae0f4c::t_8044baf9b637b0 213-217
+internal/tui/testdata/TestGoldenCleanupResultView.golden
+  s_b5d41ab2ae0f4c::t_29ff04f218751d 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8bb1e916615c4e74e0471dac6af3be01374a3a3d",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
