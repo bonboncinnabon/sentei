@@ -480,6 +480,49 @@ func TestMigrate_BrokenEventStreamStillRollsBack(t *testing.T) {
 	assertSameSnapshot(t, before, snapshot(t, base))
 }
 
+// The last step compares git status in the new worktree with the status taken
+// before the conversion. A difference means the working tree did not arrive
+// as it left, so the conversion must not stand.
+func TestMigrate_StatusThatChangedDuringTheConversionRollsBack(t *testing.T) {
+	_, root := newCheckout(t)
+	migrate, finish := prepareMigrate(realGit, MigrateOptions{RepoPath: root})
+	for index, declared := range migrate.steps {
+		if declared.id != "move-files" {
+			continue
+		}
+		move := declared.run
+		migrate.steps[index].run = func() (string, error) {
+			message, err := move()
+			// Something edits a tracked file while the conversion is under way.
+			mustWrite(t, filepath.Join(root, "main", "a.txt"), "edited under the migration\n")
+			return message, err
+		}
+	}
+
+	result := finish(migrate.run(nil))
+
+	failure := result.Failure()
+	if failure == nil || !strings.Contains(failure.Error(), "differs from before the conversion") {
+		t.Fatalf("Failure() = %v, want the status difference reported", failure)
+	}
+	if !strings.Contains(failure.Error(), "the repository is unchanged") {
+		t.Errorf("Failure() = %v, want it reported as rolled back", failure)
+	}
+	if verify := stepResult(result.Phases, migrateConvertPhaseID, "verify"); verify.Status != progress.StepFailed {
+		t.Errorf("verify = %#v, want failed", verify)
+	}
+	// The original layout is back, and the edit is where its author left it.
+	if info, err := os.Stat(filepath.Join(root, ".git")); err != nil || !info.IsDir() {
+		t.Errorf(".git is not a directory again (err %v)", err)
+	}
+	if exists(filepath.Join(root, ".bare")) || exists(filepath.Join(root, "main")) {
+		t.Error("the rollback left .bare or the worktree directory behind")
+	}
+	if status := mustGit(t, root, "status", "--porcelain"); status != "M a.txt" {
+		t.Errorf("status = %q, want only the edit to a.txt", status)
+	}
+}
+
 func TestMigrate_ResolvesRelativeRepoPath(t *testing.T) {
 	base, root := newCheckout(t)
 	t.Chdir(base)
