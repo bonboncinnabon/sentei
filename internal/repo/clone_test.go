@@ -394,3 +394,34 @@ func TestClone_URLStartingWithADashIsNotAnOption(t *testing.T) {
 		t.Errorf("the default branch was not checked out: %v", err)
 	}
 }
+
+// A remote whose HEAD is detached names no default branch, so a
+// single-branch clone brings no branch at all. The clone still has to find
+// main and check it out.
+func TestClone_RemoteWithDetachedHEADStillChecksOutMain(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "source")
+	mustGit(t, filepath.Dir(source), "init", "-q", "-b", "main", source)
+	mustWrite(t, filepath.Join(source, "a.txt"), "a\n")
+	mustGit(t, source, "add", ".")
+	mustGit(t, source, "commit", "-qm", "init")
+	mustGit(t, source, "checkout", "-q", "--detach")
+	mustWrite(t, filepath.Join(source, "wip.txt"), "wip\n")
+	mustGit(t, source, "add", ".")
+	mustGit(t, source, "commit", "-qm", "detached work")
+
+	result := Clone(realGit, CloneOptions{URL: source, Location: t.TempDir(), Name: "cloned"}, nil)
+
+	if result.HasFailures() {
+		_, failed, _ := progress.FirstFailure(result.Phases)
+		t.Fatalf("clone failed at %q: %v (Err %v)", failed.Name, failed.Error, result.Err)
+	}
+	if result.DefaultBranch != "main" {
+		t.Errorf("DefaultBranch = %q, want main", result.DefaultBranch)
+	}
+	if _, err := os.Stat(filepath.Join(result.RepoPath, "main", "a.txt")); err != nil {
+		t.Errorf("main was not checked out: %v", err)
+	}
+	if upstream := mustGit(t, result.WorktreePath, "rev-parse", "--abbrev-ref", "main@{upstream}"); upstream != "origin/main" {
+		t.Errorf("upstream of main = %q, want origin/main", upstream)
+	}
+}

@@ -96,6 +96,14 @@ func prepareClone(runner git.CommandRunner, opts CloneOptions) (flow, func([]pro
 	}})
 	clone.add(cloneWorktreePhaseID, "Worktree", step{id: "default-branch", label: "Detect default branch", run: func() (string, error) {
 		branch = git.DetectDefaultBranch(runner, barePath)
+		if !git.BranchExists(runner, barePath, branch) {
+			// A remote whose HEAD is detached names no branch, so the
+			// single-branch clone has no local head to detect. Take the
+			// remote's heads, as a plain bare clone does, and look again.
+			if _, err := runner.Run(barePath, "fetch", "origin", "+refs/heads/*:refs/heads/*"); err == nil {
+				branch = git.DetectDefaultBranch(runner, barePath)
+			}
+		}
 		return branch, nil
 	}})
 	clone.add(cloneWorktreePhaseID, "Worktree", step{id: "checkout", label: "Create worktree", run: func() (string, error) {
