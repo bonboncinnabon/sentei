@@ -83,7 +83,8 @@ func RunRemove(args []string) error {
 	}
 
 	// At-risk gate: without --force, refuse deletions that would lose work
-	// existing nowhere else. Dry-run is exempt (it deletes nothing).
+	// existing nowhere else or override a lock. Dry-run is exempt (it deletes
+	// nothing).
 	if !opts.Force && !opts.DryRun {
 		var atRisk []string
 		for _, wt := range filtered {
@@ -92,7 +93,7 @@ func RunRemove(args []string) error {
 			}
 		}
 		if len(atRisk) > 0 {
-			return fmt.Errorf("%d worktree(s) have uncommitted, untracked, or unpushed work, or a status that could not be read (%s); re-run with --force to delete them, or confirm interactively",
+			return fmt.Errorf("%d worktree(s) are locked, have uncommitted, untracked, or unpushed work, or have a status that could not be read (%s); re-run with --force to delete them, or confirm interactively",
 				len(atRisk), strings.Join(atRisk, ", "))
 		}
 	}

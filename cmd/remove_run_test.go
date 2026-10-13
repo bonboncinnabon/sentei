@@ -165,17 +165,35 @@ func TestRunRemove_RemovesMergedWorktree(t *testing.T) {
 	}
 }
 
-func TestRunRemove_UnlocksLockedWorktree(t *testing.T) {
+// A lock is a deliberate "keep this" marker, so a clean locked worktree is
+// held back by the at-risk gate exactly as the TUI holds it for confirmation.
+func TestRunRemove_LockedWorktreeNeedsForce(t *testing.T) {
 	bareRepo := setupBareRepoWithMergedBranch(t)
 	wtPath := filepath.Join(bareRepo, "feature-merged-branch")
-	mustGit(t, bareRepo, "worktree", "lock", wtPath)
+	mustGit(t, bareRepo, "worktree", "lock", "--reason", "on a removable drive", wtPath)
+	lockFile := filepath.Join(bareRepo, "worktrees", "feature-merged-branch", "locked")
 
-	var err error
+	err := RunRemove([]string{"--all", bareRepo})
+	if err == nil {
+		t.Fatal("expected the at-risk gate to refuse a locked worktree without --force")
+	}
+	for _, want := range []string{"locked", "--force", "feature/merged-branch"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("gate error %q missing %q", err, want)
+		}
+	}
+	if _, statErr := os.Stat(wtPath); statErr != nil {
+		t.Errorf("the gate must leave the locked worktree in place: %v", statErr)
+	}
+	if reason, readErr := os.ReadFile(lockFile); readErr != nil || !strings.Contains(string(reason), "on a removable drive") {
+		t.Errorf("the gate must leave the lock in place: reason %q, err %v", reason, readErr)
+	}
+
 	captureStdout(t, func() {
-		err = RunRemove([]string{"--merged", bareRepo})
+		err = RunRemove([]string{"--all", "--force", bareRepo})
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("--force must unlock and remove the worktree: %v", err)
 	}
 	if _, statErr := os.Stat(wtPath); !os.IsNotExist(statErr) {
 		t.Errorf("expected locked worktree %s to be unlocked and removed", wtPath)

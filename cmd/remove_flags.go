@@ -62,7 +62,7 @@ func ParseRemoveFlags(args []string) (*RemoveOptions, error) {
 	merged := fs.Bool("merged", false, "Remove worktrees whose branches are fully merged")
 	all := fs.Bool("all", false, "Remove all non-protected worktrees")
 	dryRun := fs.Bool("dry-run", false, "Show what would be removed without deleting")
-	force := fs.Bool("force", false, "Remove at-risk worktrees (uncommitted, untracked, or unpushed work)")
+	force := fs.Bool("force", false, "Remove at-risk worktrees (locked, or with uncommitted, untracked, or unpushed work)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
