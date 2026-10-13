@@ -2,14 +2,15 @@
 
 ## Project Overview
 
-sentei is a TUI (Terminal User Interface) tool for managing and cleaning up stale git worktrees in bare repositories. It provides an interactive way to identify, select, and bulk-delete worktrees with parallel execution and progress feedback.
+sentei manages git worktrees in bare-repository layouts (a container directory holding `.bare`, a `.git` pointer file and one directory per worktree). It has an interactive TUI and a non-interactive CLI with the same commands: remove worktrees, create a worktree, clean up branches and config, clone into the layout, migrate an ordinary clone into it. README.md, section "Scripts and agents", is the contract for the non-interactive CLI.
 
 ## Tech Stack
 
-- **Language**: Go 1.21+
-- **TUI Framework**: Bubble Tea (Elm architecture)
-- **UI Components**: Bubbles (progress bars, spinners, lists)
-- **Styling**: Lip Gloss
+- **Language**: Go 1.25 (see `go.mod`)
+- **TUI Framework**: Bubble Tea v2, `charm.land/bubbletea/v2` (Elm architecture)
+- **UI Components**: Bubbles v2, `charm.land/bubbles/v2`
+- **Styling**: Lip Gloss v2, `charm.land/lipgloss/v2`
+- **CLI**: the standard `flag` package; no command framework
 
 ## Development Guidelines
 
@@ -40,39 +41,53 @@ sentei is a TUI (Terminal User Interface) tool for managing and cleaning up stal
 
 ### Git Commands
 
-Always use these exact commands for consistency:
+All git calls go through `git.GitRunner` (`internal/git/commands.go`). It runs `git -C <dir>` with `LC_ALL=C` and `GIT_TERMINAL_PROMPT=0`, no stdin, without an inherited `GIT_DIR`, and with a timeout. Never call `exec.Command("git", ...)` directly, and never parse translated message text when a plumbing command gives the same answer.
+
+The commands the core flows rely on:
 
 ```bash
 # List worktrees
 git worktree list --porcelain
 
-# Last commit date
-git -C <path> log -1 --format=%ai
-
-# Last commit title
+# Last commit date (committer date) and title
+git -C <path> log -1 --format=%ci
 git -C <path> log -1 --format=%s
 
-# Check status
-git -C <path> status --porcelain
+# Status, independent of the user's status.showUntrackedFiles
+git -C <path> status --porcelain --untracked-files=normal
 
-# Remove worktree
+# Remove a worktree; a locked one takes --force twice and is never unlocked first
 git worktree remove --force <path>
+git worktree remove --force --force <path>
 
 # Clean metadata
 git worktree prune
 ```
 
+A worktree is "at risk" when it has uncommitted changes, untracked files, commits on no remote, a lock, or a status that could not be read (`worktree.AtRisk`). Removing an at-risk worktree needs the confirmation screen in the TUI or `--force` in the CLI.
+
 ### Project Structure
 
 ```
 sentei/
-├── main.go                 # Entry point, CLI parsing
+├── main.go                # Entry point: dispatch, flag parsing for interactive launches
+├── cmd/                   # Non-interactive commands (remove, create, cleanup, clone, migrate, ecosystems)
 ├── internal/
-│   ├── git/               # Git command execution and parsing
-│   ├── tui/               # Bubble Tea UI components
-│   └── worktree/          # Business logic (enrichment, deletion)
-├── cmd/                   # CLI commands (if using cobra)
-└── docs/                  # Documentation
+│   ├── cli/              # Command registry and global flags
+│   ├── git/              # GitRunner, worktree list parsing, branch protection, path helpers
+│   ├── worktree/         # Enrichment, at-risk rules, parallel deletion, display helpers
+│   ├── cleanup/          # Stale refs, gone branches, orphaned config sections
+│   ├── creator/          # Create a worktree: add, env files, worktree files, installs
+│   ├── repo/             # Create, clone and migrate repositories into the layout
+│   ├── config/           # Embedded, global and per-repo config (.sentei.yaml)
+│   ├── ecosystem/        # Ecosystem detection for installs and env files
+│   ├── worktreefile/     # Private files copied into new worktrees
+│   ├── progress/         # Plan, step and event model shared by CLI and TUI
+│   ├── tui/              # Bubble Tea model, views and flows
+│   ├── dryrun/           # `sentei --dry-run` table
+│   └── playground/       # Temporary demo repository
+├── openspec/              # Behaviour specs (openspec/specs) and change proposals
+└── docs/                  # PRD and design notes
 ```
 
 Keep internal packages truly internal - they are implementation details.
@@ -84,7 +99,8 @@ Keep internal packages truly internal - they are implementation details.
 - Never delete without explicit confirmation in interactive mode
 - Clearly warn about uncommitted changes and untracked files
 - Prevent deletion of current working directory
-- Use status indicators: 🟢 Clean, 🟡 Dirty, 🔴 Untracked files, 🔒 Locked
+- Status badges are text: `[ok]` clean, `[~]` dirty, `[!]` untracked files, `[^]` unpushed commits, `[?]` status unreadable, `[L]` locked, `[P]` protected
+- Never run a built `sentei` binary or `go run .` from inside this repository without naming a throwaway repository: with no path it acts on the repository that holds the working directory. Tests that run sentei or git build their own repository under `t.TempDir()` and pass it explicitly
 
 ### Performance
 
@@ -132,20 +148,22 @@ Refer to PRD section 9.1 for complete list. Key ones:
 
 ## Before Committing
 
-- Run `go fmt ./...`
-- Run `go vet ./...`
-- Ensure all tests pass: `go test ./...`
-- Check binary builds: `go build`
-- Test with a real bare repo setup
+- `golangci-lint fmt ./...`
+- `make lint` (golangci-lint, must report 0 issues; the pre-commit hook runs it too)
+- `make test` (`go test -race ./...`)
+- `go mod tidy -diff` prints nothing
+- Commit messages follow Conventional Commits; the commit-msg hook and CI enforce it
+- Try behaviour changes with a built binary against a throwaway repository
 
 ## Dependencies
 
 Use `go get` to add dependencies. Keep dependencies minimal and well-maintained.
 
 Current major dependencies:
-- github.com/charmbracelet/bubbletea (TUI framework)
-- github.com/charmbracelet/bubbles (UI components)
-- github.com/charmbracelet/lipgloss (styling)
+- charm.land/bubbletea/v2 (TUI framework)
+- charm.land/bubbles/v2 (UI components)
+- charm.land/lipgloss/v2 (styling)
+- github.com/charmbracelet/x/ansi (width-aware truncation and stripping)
 
 ## Design
 
@@ -154,5 +172,6 @@ When working on TUI design, styling, or visual changes, reference `.impeccable.m
 ## Documentation
 
 - Keep PRD.md as source of truth for requirements
-- Update examples when CLI interface changes
+- Update README.md, including "Scripts and agents", when the CLI interface changes
+- When a change alters behaviour that a spec under `openspec/specs` states, update that spec
 - Document all exported functions and types with Go doc comments

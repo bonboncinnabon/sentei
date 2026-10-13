@@ -35,7 +35,7 @@ git worktree list
 git -C /path/to/worktree status
 
 # 2. Check last activity
-git -C /path/to/worktree log -1 --format=%ai
+git -C /path/to/worktree log -1 --format=%ci
 
 # 3. Remove it
 git worktree remove /path/to/worktree --force
@@ -110,9 +110,9 @@ For each worktree, gather:
 | Metadata | Source Command | Purpose |
 |----------|---------------|---------|
 | Branch name | `git worktree list --porcelain` | Identification |
-| Last commit date | `git -C <path> log -1 --format=%ai` | Staleness indicator |
+| Last commit date | `git -C <path> log -1 --format=%ci` | Staleness indicator |
 | Last commit title | `git -C <path> log -1 --format=%s` | Context |
-| Uncommitted changes | `git -C <path> status --porcelain` | Safety warning |
+| Uncommitted changes | `git -C <path> status --porcelain --untracked-files=normal` | Safety warning |
 | Untracked files | `git -C <path> status --porcelain` | Safety warning |
 | Locked status | `git worktree list --porcelain` | Prevent accidental deletion |
 | Worktree path | `git worktree list --porcelain` | Display and operations |

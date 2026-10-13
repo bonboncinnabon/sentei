@@ -8,7 +8,7 @@ import (
 
 // CommonDir resolves git's common directory (returned absolute) for any path
 // inside a repo: a worktree, the repo root, or the git dir itself. In sentei's
-// bare layout this is the bare repo dir (where sentei.json lives); in a regular
+// bare layout this is the bare repo dir; in a regular
 // repo it is the .git dir. Asking git instead of assuming the ".bare" naming
 // convention lets layouts with a differently named bare dir (e.g. a
 // playground's repo.git) resolve correctly.
