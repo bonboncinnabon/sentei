@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
@@ -53,15 +52,16 @@ func RunCreate(args []string) error {
 		CopyEnvFiles: opts.CopyEnv,
 	}
 
+	// A config that fails to load stops the run before anything is created:
+	// without it the worktree would come up with no private files and no
+	// installs, and still exit 0.
 	cfg, err := config.LoadConfig(repoPath, config.WithRunner(runner))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+		return fmt.Errorf("loading config: %w; fix the file and run create again", err)
 	}
-	if cfg != nil {
-		creatorOpts.WorktreeFiles = cfg.WorktreeFiles
-		if len(opts.Ecosystems) > 0 {
-			creatorOpts.Ecosystems = matchEcosystems(cfg.Ecosystems, opts.Ecosystems)
-		}
+	creatorOpts.WorktreeFiles = cfg.WorktreeFiles
+	if len(opts.Ecosystems) > 0 {
+		creatorOpts.Ecosystems = matchEcosystems(cfg.Ecosystems, opts.Ecosystems)
 	}
 
 	// Find a source worktree for env file copying. The files to copy come from
@@ -72,7 +72,7 @@ func RunCreate(args []string) error {
 		if err == nil {
 			creatorOpts.SourceWorktree = creator.SourceWorktree(worktrees)
 		}
-		if cfg != nil && creatorOpts.SourceWorktree != "" {
+		if creatorOpts.SourceWorktree != "" {
 			detected, _ := ecosystem.NewRegistry(cfg.Ecosystems).Detect(creatorOpts.SourceWorktree)
 			for _, eco := range detected {
 				creatorOpts.EnvFiles = append(creatorOpts.EnvFiles, eco.Config.EnvFiles...)

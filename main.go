@@ -137,7 +137,10 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 
 	runner := &git.GitRunner{}
 	context, repoPath := detectRepo(runner, parsed.repoPath)
-	model := newMenuModel(runner, repoPath, context)
+	model, err := newMenuModel(runner, repoPath, context)
+	if err != nil {
+		return err
+	}
 
 	switch result.Command.Name {
 	case "cleanup":
@@ -213,17 +216,18 @@ func detectRepo(runner git.CommandRunner, path string) (repo.RepoContext, string
 }
 
 // newMenuModel builds the menu TUI for a detected repository. A config that
-// fails to load is reported and the TUI opens without it.
-func newMenuModel(runner git.CommandRunner, repoPath string, context repo.RepoContext, opts ...tui.ModelOption) tui.Model {
+// fails to load stops the launch: a warning would vanish behind the alternate
+// screen, and running without the config silently skips what it sets up.
+func newMenuModel(runner git.CommandRunner, repoPath string, context repo.RepoContext, opts ...tui.ModelOption) (tui.Model, error) {
 	var cfg *config.Config
 	if context == repo.ContextBareRepo {
 		var err error
 		cfg, err = config.LoadConfig(repoPath, config.WithRunner(runner))
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Warning: failed to load config:", err)
+			return tui.Model{}, fmt.Errorf("loading config: %w; fix the file and run sentei again", err)
 		}
 	}
-	return tui.NewMenuModel(runner, &git.DefaultShellRunner{}, repoPath, cfg, context, opts...)
+	return tui.NewMenuModel(runner, &git.DefaultShellRunner{}, repoPath, cfg, context, opts...), nil
 }
 
 // runTUI runs the model to completion and warns when the user quit in the
@@ -314,5 +318,9 @@ func runRoot(args []string) error {
 	if *playgroundFlag {
 		menuOpts = append(menuOpts, tui.WithMinProgressDuration(1500*time.Millisecond))
 	}
-	return runTUI(newMenuModel(runner, repoPath, context, menuOpts...))
+	model, err := newMenuModel(runner, repoPath, context, menuOpts...)
+	if err != nil {
+		return err
+	}
+	return runTUI(model)
 }
