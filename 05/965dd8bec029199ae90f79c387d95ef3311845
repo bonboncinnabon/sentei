@@ -1,0 +1,22 @@
+internal/repo/migrate.go
+  s_b5d41ab2ae0f4c::t_0e112fcb9511ea 93,96-105,107
+  s_b5d41ab2ae0f4c::t_f56f748d84da98 87-88,114-118,176-181
+internal/repo/migrate_test.go
+  s_b5d41ab2ae0f4c::t_9dfc19046b4974 902-903
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "05965dd8bec029199ae90f79c387d95ef3311845",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
