@@ -94,7 +94,7 @@ func TestViewCleanupResult_ShowsActions(t *testing.T) {
 	m := makeCleanupModel()
 	result := cleanup.Result{
 		StaleRefsRemoved:    3,
-		GoneBranchesDeleted: 1,
+		GoneBranchesDeleted: []string{"feature/gone"},
 		ConfigDedupResult:   cleanup.ConfigResult{Removed: 4},
 	}
 	m.cleanupResult = &result

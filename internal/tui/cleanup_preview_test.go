@@ -321,8 +321,9 @@ func TestE2E_CleanupPreviewFlow(t *testing.T) {
 	updated, _ = model.updateCleanupResult(done)
 	model = updated.(Model)
 	final := stripANSI(model.viewCleanupResult())
-	if !strings.Contains(final, "Cleanup complete") {
-		t.Fatalf("expected completion screen:\n%s", final)
+	// The stub runner refuses every git command, so the run ends with errors.
+	if !strings.Contains(final, "Cleanup finished with errors") {
+		t.Fatalf("expected the result screen of a failed run:\n%s", final)
 	}
 	if !strings.Contains(final, "sentei cleanup --mode safe") {
 		t.Fatalf("expected the CLI command echo on the result:\n%s", final)

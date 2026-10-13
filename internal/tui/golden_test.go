@@ -63,7 +63,7 @@ func TestGoldenCleanupResultView(t *testing.T) {
 	m.view = cleanupResultView
 	m.cleanupResult = &cleanup.Result{
 		StaleRefsRemoved:    2,
-		GoneBranchesDeleted: 1,
+		GoneBranchesDeleted: []string{"feature/gone"},
 	}
 	golden.RequireEqual(t, []byte(m.viewCleanupResult()))
 }

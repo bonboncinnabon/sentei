@@ -28,6 +28,7 @@ const (
 	titleConfirmCleanup    = "Confirm cleanup"
 	titleRunningCleanup    = "Running cleanup"
 	titleCleanupComplete   = "Cleanup complete"
+	titleCleanupErrors     = "Cleanup finished with errors"
 
 	portalWorktreeDetails   = "Worktree details"
 	portalAggressiveDetails = "Aggressive cleanup details"

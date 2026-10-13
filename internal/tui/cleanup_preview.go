@@ -134,7 +134,7 @@ func (m Model) viewCleanupPreview() string {
 			styleError.Render(truncateWithEllipsis("Scan failed: "+m.cleanupScanErr.Error(), max(m.width-6, 20))))
 		b.WriteString(viewSeparator(m.width))
 		b.WriteString("\n\n")
-		b.WriteString(viewFooter(m.width, cleanupScanFooter))
+		b.WriteString(m.cleanupPreviewFooter())
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -144,7 +144,7 @@ func (m Model) viewCleanupPreview() string {
 		fmt.Fprintf(&b, "  %s\n\n", shimmerLine(starFrame(m.motionTick)+" Scanning repository…", rampAccent, m.motionTick))
 		b.WriteString(viewSeparator(m.width))
 		b.WriteString("\n\n")
-		b.WriteString(viewFooter(m.width, cleanupScanFooter))
+		b.WriteString(m.cleanupPreviewFooter())
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -155,11 +155,11 @@ func (m Model) viewCleanupPreview() string {
 		fmt.Fprintf(&b, "  %s Repository is clean\n\n", styleIndicatorDone.Render(indicatorDone))
 		// Show what was checked: the user should learn what cleanup covers
 		// before running it, not after.
-		writeSafeChecks(&b, safeCounts, false, nil)
+		writeSafeChecks(&b, safeCounts, false, nil, "")
 		b.WriteString("\n")
 		b.WriteString(viewSeparator(m.width))
 		b.WriteString("\n\n")
-		b.WriteString(viewFooter(m.width, cleanupEmptyFooter))
+		b.WriteString(m.cleanupPreviewFooter())
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -173,7 +173,7 @@ func (m Model) viewCleanupPreview() string {
 
 	b.WriteString(styleTitle.Render("  Safe cleanup:"))
 	b.WriteString("\n")
-	writeSafeChecks(&b, safeCounts, false, scan.Errors)
+	writeSafeChecks(&b, safeCounts, false, scan.Errors, "")
 	b.WriteString("\n")
 
 	if scan.AggressiveHasWork() {
@@ -221,27 +221,46 @@ func (m Model) viewCleanupPreview() string {
 		}
 		b.WriteString(styleWarning.Render(prompt))
 		b.WriteString("\n\n")
-		b.WriteString(viewSeparator(m.width))
-		b.WriteString("\n\n")
-		b.WriteString(viewFooter(m.width, confirmFooter))
-		b.WriteString("\n")
-		return b.String()
 	}
 
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	hints := []key.Binding{cleanupSafeHint}
-	if scan.DeletableAggressiveCount() > 0 {
-		hints = append(hints, aggressiveHint)
-	}
-	if scan.AggressiveHasWork() {
-		hints = append(hints, detailsHint)
-	}
-	hints = append(hints, keys.Back, keys.Quit)
-	b.WriteString(viewFooter(m.width, hints))
+	b.WriteString(m.cleanupPreviewFooter())
 	b.WriteString("\n")
 
 	return b.String()
+}
+
+// cleanupPreviewActions returns the keys that act on the preview in its
+// current state, quit aside. The footer and the F1 help both render this
+// list, so neither offers a key that does something else on this screen.
+func (m Model) cleanupPreviewActions() []key.Binding {
+	scan := m.cleanupScan
+	switch {
+	case scan == nil: // still scanning, or the scan failed
+		return []key.Binding{keys.Back}
+	case cleanupScanIsClean(*scan):
+		return []key.Binding{withDesc(keys.Confirm, "back")}
+	case m.cleanupAggressiveConfirm:
+		return confirmFooter
+	}
+	actions := []key.Binding{cleanupSafeHint}
+	if scan.DeletableAggressiveCount() > 0 {
+		actions = append(actions, aggressiveHint)
+	}
+	if scan.AggressiveHasWork() {
+		actions = append(actions, detailsHint)
+	}
+	return append(actions, keys.Back)
+}
+
+func (m Model) cleanupPreviewFooter() string {
+	hints := m.cleanupPreviewActions()
+	// The y/n prompt stands alone, as on the removal confirm screen.
+	if !m.cleanupAggressiveConfirm {
+		hints = append(hints, keys.Quit)
+	}
+	return viewFooter(m.width, hints)
 }
 
 // cleanupCheck is one category of work cleanup looks for, worded for the two
@@ -288,12 +307,16 @@ func (c cleanupCheck) line(count int, did bool) string {
 // writeSafeChecks renders safeChecks with their counts, given in the same
 // order. A check whose step failed and reported nothing is left out: its
 // count is unknown, and the failure is listed by writeCleanupErrors.
-func writeSafeChecks(b *strings.Builder, counts [len(safeChecks)]int, did bool, errs []cleanup.OperationError) {
+// goneNames is written under the gone-branches check.
+func writeSafeChecks(b *strings.Builder, counts [len(safeChecks)]int, did bool, errs []cleanup.OperationError, goneNames string) {
 	for i, check := range safeChecks {
 		if counts[i] == 0 && cleanupStepFailed(errs, check.step) {
 			continue
 		}
 		b.WriteString(check.line(counts[i], did))
+		if check.step == "gone-branches" {
+			b.WriteString(goneNames)
+		}
 	}
 }
 
