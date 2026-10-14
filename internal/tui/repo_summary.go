@@ -85,9 +85,9 @@ func (m Model) githubOutcome(result repo.CreateResult) (ready, row string) {
 	}
 	switch {
 	case result.GitHubURL != "":
-		row = summaryRow("GitHub", result.GitHubURL+" "+styleIndicatorDone.Render(indicatorDone))
+		row = summaryRow("GitHub", result.GitHubURL+" "+styleIndicatorDone.Render(indicatorDone), m.width)
 	case failure != "":
-		row = summaryRow("GitHub", styleError.Width(max(m.width-16, 30)).Render(indicatorFailed+" "+failure))
+		row = summaryRow("GitHub", styleError.Width(max(m.width-16, 20)).Render(indicatorFailed+" "+failure), m.width)
 	}
 	return ready, row
 }
@@ -128,7 +128,7 @@ func (m Model) viewRepoSummary() string {
 		}
 		b.WriteString(summaryPathRow("Path", outcome.repoPath, m.width))
 		if outcome.branch != "" {
-			b.WriteString(summaryRow("Branch", outcome.branch))
+			b.WriteString(summaryRow("Branch", outcome.branch, m.width))
 		}
 		// A failed run leaves no usable worktree, so there is no cd line to
 		// offer and nothing to open.
@@ -142,7 +142,7 @@ func (m Model) viewRepoSummary() string {
 
 	fmt.Fprintf(&b, "  %s %s %s\n\n", styleIndicatorDone.Render(indicatorDone), filepath.Base(outcome.repoPath), outcome.ready)
 	b.WriteString(summaryPathRow("Path", outcome.repoPath, m.width))
-	b.WriteString(summaryRow("Branch", outcome.branch))
+	b.WriteString(summaryRow("Branch", outcome.branch, m.width))
 	b.WriteString(outcome.rows)
 
 	worktree := outcome.worktree

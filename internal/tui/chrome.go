@@ -158,10 +158,16 @@ func inputFieldLabel(label string, focused bool) string {
 
 // summaryRow renders one "label value" line of a summary. The label is padded
 // before it is styled: escape codes would otherwise count toward the column
-// width. A value of several lines continues in the value column.
-func summaryRow(label, value string) string {
-	value = strings.ReplaceAll(value, "\n", "\n"+strings.Repeat(" ", 15))
-	return fmt.Sprintf("    %s %s\n", styleDim.Render(fmt.Sprintf("%-10s", label)), value)
+// width. A value of several lines, or one wider than width, continues in the
+// value column. Width 0 means unknown.
+func summaryRow(label, value string, width int) string {
+	prefix := "    " + styleDim.Render(fmt.Sprintf("%-10s", label)) + " "
+	if width <= 0 {
+		return prefix + strings.ReplaceAll(value, "\n", "\n"+strings.Repeat(" ", 15)) + "\n"
+	}
+	var b strings.Builder
+	writeProgressDetailValue(&b, prefix, value, width)
+	return b.String()
 }
 
 // summaryPathRow is a summaryRow for a path or a URL. One that does not fit
@@ -171,5 +177,5 @@ func summaryPathRow(label, path string, width int) string {
 	if width > 0 {
 		path = fitPathTail(path, max(width-16, 20))
 	}
-	return summaryRow(label, path)
+	return summaryRow(label, path, width)
 }

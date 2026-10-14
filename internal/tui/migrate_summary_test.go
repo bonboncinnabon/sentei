@@ -156,3 +156,44 @@ func TestViewMigrateSummary_WrappedFailureKeepsItsIndent(t *testing.T) {
 
 	assertWrappedIndent(t, stripAnsi(makeMigrateSummaryModel(result).viewMigrateSummary()), "blocked")
 }
+
+// The migrate screens draw their rows, errors and cd line with the helpers
+// the other flows use, so on a narrow screen a long path keeps its end and
+// the cd line keeps all of it.
+func TestMigrateScreens_FitANarrowScreen(t *testing.T) {
+	long := "/Users/someone/code/clients/" + strings.Repeat("deeply-nested/", 4) + "project"
+	result := repo.MigrateResult{BareRoot: long, WorktreePath: long + "/feature-x", Branch: "feature/" + strings.Repeat("x", 50)}
+	m := makeMigrateSummaryModel(result)
+	m.width = 40
+
+	m.repo.migrateInfo = MigrateInfo{Loaded: true, Plan: repo.MigratePlan{
+		RepoPath: long, WorktreePath: long + "/main", Branch: result.Branch, DefaultBranch: "main",
+	}}
+	failed := m
+	failed.repo.result = repo.MigrateResult{Err: errors.New(strings.Repeat("a long reason ", 8))}
+
+	for name, view := range map[string]string{
+		"summary": m.viewMigrateSummary(),
+		"confirm": m.viewMigrateConfirm(),
+		"failure": failed.viewMigrateSummary(),
+	} {
+		for line := range strings.SplitSeq(stripAnsi(view), "\n") {
+			// The footer and the title have their own fitting.
+			if w := len([]rune(line)); w > m.width && !strings.Contains(line, "┄") {
+				t.Errorf("%s: line is %d cells on a %d-cell screen: %q", name, w, m.width, line)
+			}
+		}
+	}
+	summary := stripAnsi(m.viewMigrateSummary())
+	if !strings.Contains(summary, "project") {
+		t.Errorf("the path row must keep the end of the path:\n%s", summary)
+	}
+	var cd strings.Builder
+	_, after, _ := strings.Cut(summary, "cd ")
+	for line := range strings.SplitSeq(after, "\n") {
+		cd.WriteString(strings.TrimSpace(line))
+	}
+	if !strings.Contains(cd.String(), long+"/feature-x") {
+		t.Errorf("the cd line must keep the whole path:\n%s", summary)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/config"
@@ -199,5 +200,36 @@ func TestLaunchConfirm_KeysActInOneUpdate(t *testing.T) {
 				t.Errorf("%s: %q did not quit", name, quitKey.String())
 			}
 		}
+	}
+}
+
+// A row wider than the screen used to run off its edge, where the terminal
+// cut it: the end of a long branch name or path, the part that tells two
+// apart, was the part lost.
+func TestConfirmationView_WrapsLongValuesUnderTheirColumn(t *testing.T) {
+	branch := "feature/" + strings.Repeat("very-long-name-", 6) + "end"
+	vm := ConfirmationViewModel{
+		Title:      "Confirm create",
+		Items:      []ConfirmationItem{{Label: "Branch:", Value: branch}, {Label: "Base:", Value: "main"}},
+		CLICommand: "sentei create --branch " + branch,
+		Width:      40,
+	}
+
+	out := stripAnsi(vm.View())
+	var joined strings.Builder
+	for line := range strings.SplitSeq(out, "\n") {
+		if w := ansi.StringWidth(line); w > vm.Width {
+			t.Errorf("line is %d cells on a %d-cell screen: %q", w, vm.Width, line)
+		}
+		joined.WriteString(strings.TrimSpace(line))
+	}
+	if !strings.Contains(joined.String(), branch) {
+		t.Errorf("the branch name must survive whole across its lines:\n%s", out)
+	}
+	// "  Branch:  " is 11 cells: the continuation starts in the value column.
+	_, after, _ := strings.Cut(out, "Branch:")
+	lines := strings.Split(after, "\n")
+	if len(lines) < 2 || len(lines[1])-len(strings.TrimLeft(lines[1], " ")) != 11 {
+		t.Errorf("the branch must continue under the value column:\n%s", out)
 	}
 }

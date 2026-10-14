@@ -68,7 +68,7 @@ func (m Model) viewCreateSummary() string {
 	if result != nil {
 		existing = result.ExistingBranch
 	}
-	b.WriteString(summaryRow("Branch", fmt.Sprintf("%s (%s)", branch, branchOrigin(branch, base, existing))))
+	b.WriteString(summaryRow("Branch", fmt.Sprintf("%s (%s)", branch, branchOrigin(branch, base, existing)), m.width))
 
 	// Dependency steps are always listed; a setup step only when it failed,
 	// so "with issues" names its cause.
@@ -87,7 +87,7 @@ func (m Model) viewCreateSummary() string {
 				if failed {
 					status = styleIndicatorFailed.Render(indicatorFailed)
 				}
-				b.WriteString(summaryRow(label, step.Name+" "+status))
+				b.WriteString(summaryRow(label, step.Name+" "+status, m.width))
 				if failed && step.Error != nil {
 					peek := errorPeekLines(step.Error.Error(), max(m.width-8, 20))
 					for i, line := range peek {
@@ -155,6 +155,15 @@ func (m Model) errorBlock(err error) string {
 	var b strings.Builder
 	for _, line := range m.wrapSummaryLine(err.Error()) {
 		fmt.Fprintf(&b, "    %s\n", styleError.Render(line))
+	}
+	return b.String()
+}
+
+// dimParagraph renders prose wrapped to the terminal under a two-space indent.
+func (m Model) dimParagraph(text string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(lipgloss.NewStyle().Width(max(m.width-4, 20)).Render(text), "\n") {
+		b.WriteString(styleDim.Render("  "+strings.TrimRight(line, " ")) + "\n")
 	}
 	return b.String()
 }

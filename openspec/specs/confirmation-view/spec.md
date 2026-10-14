@@ -16,6 +16,10 @@ The TUI SHALL provide a reusable confirmation view component that renders using 
 - **WHEN** the confirmation view is shown for a cleanup operation with Mode="aggressive"
 - **THEN** the view SHALL display `viewTitle("Confirm Cleanup")` with Mode="aggressive" as a labeled row, using standard chrome
 
+#### Scenario: A value wider than the screen
+- **WHEN** a row's value or the CLI command is wider than the terminal
+- **THEN** it SHALL wrap, continuing under the value's first line, and SHALL NOT be cut
+
 #### Scenario: No border wrapping
 - **WHEN** any confirmation view is rendered
 - **THEN** the view SHALL NOT use `styleDialogBox` or any border wrapping — it SHALL use the same full-width layout as all other views
