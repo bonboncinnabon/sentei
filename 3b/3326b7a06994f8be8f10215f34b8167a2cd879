@@ -1,0 +1,66 @@
+internal/tui/migrate_summary_test.go
+  s_b5d41ab2ae0f4c::t_218f1b509fa45b 191-192
+internal/tui/migrate_confirm.go
+  s_b5d41ab2ae0f4c::t_245f2c633512a7 84,123
+internal/tui/repo_summary_test.go
+  s_b5d41ab2ae0f4c::t_218f1b509fa45b 226-230
+internal/tui/form.go
+  s_b5d41ab2ae0f4c::t_ed8ff9b21b7977 53-55
+  s_b5d41ab2ae0f4c::t_8003d8dc6911a1 45-46,48-50,52,56-81
+internal/tui/help.go
+  s_b5d41ab2ae0f4c::t_7a13ad3db0cdd2 220-226,242,250
+  s_b5d41ab2ae0f4c::t_9b02bf58b591a1 227
+internal/tui/confirmation_test.go
+  s_b5d41ab2ae0f4c::t_218f1b509fa45b 207-226,228-253
+internal/tui/progress_endings_test.go
+  s_b5d41ab2ae0f4c::t_9e8a5b5c5102c8 8
+  s_b5d41ab2ae0f4c::t_218f1b509fa45b 105-111
+  s_b5d41ab2ae0f4c::t_66ed762284c9b9 9
+internal/tui/chrome_test.go
+  s_b5d41ab2ae0f4c::t_4b1bc8f9cd3b7d 9,268-270
+  s_b5d41ab2ae0f4c::t_efec9906baaee2 237-267,271-315
+internal/tui/chrome.go
+  s_b5d41ab2ae0f4c::t_54e193d8b7e3d8 6,116,177,180,182-183,186,188,190-195,197
+  s_b5d41ab2ae0f4c::t_17f3877530918f 114-115,117-155,157-162,165,170-176,178-179,181,184-185,187,189,196,198-199
+  s_b5d41ab2ae0f4c::t_9b02bf58b591a1 166-169,249-250,257-260
+  s_b5d41ab2ae0f4c::t_5b9002eccdb744 156,163-164
+.impeccable.md
+  s_b5d41ab2ae0f4c::t_0b5b2c5e70f5ff 71,120-126
+internal/tui/confirmation.go
+  s_b5d41ab2ae0f4c::t_9b02bf58b591a1 79-81,93-96,102,104-108
+openspec/specs/confirmation-view/spec.md
+  s_b5d41ab2ae0f4c::t_0b5b2c5e70f5ff 20-29
+internal/tui/repo_summary.go
+  s_b5d41ab2ae0f4c::t_49d82ecc77fce3 143
+internal/tui/migrate_summary.go
+  s_b5d41ab2ae0f4c::t_49d82ecc77fce3 57
+internal/tui/constants.go
+  s_b5d41ab2ae0f4c::t_9b02bf58b591a1 68-72
+internal/tui/motion_test.go
+  s_b5d41ab2ae0f4c::t_245f2c633512a7 4-5,202-223,225-226
+  s_b5d41ab2ae0f4c::t_91f330bf18dbff 224,227-228
+internal/tui/helpers_test.go
+  s_b5d41ab2ae0f4c::t_b1e8af9e77b995 5
+  s_b5d41ab2ae0f4c::t_218f1b509fa45b 90-96
+internal/tui/create_summary.go
+  s_b5d41ab2ae0f4c::t_9b02bf58b591a1 116-117,119-121,123-124
+  s_b5d41ab2ae0f4c::t_c240708403bf72 5-6
+  s_b5d41ab2ae0f4c::t_49d82ecc77fce3 10,56,58,138,156-163
+  s_b5d41ab2ae0f4c::t_3b5ebea1928977 164-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3b3326b7a06994f8be8f10215f34b8167a2cd879",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
