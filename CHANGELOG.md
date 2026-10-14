@@ -1,5 +1,49 @@
 # Changelog
 
+## [2.1.0](https://github.com/bonboncinnabon/sentei/compare/v2.0.0...v2.1.0) (2026-10-13)
+
+
+### Features
+
+* **cleanup:** name the branches deleted and skipped on the command line ([ed077ee](https://github.com/bonboncinnabon/sentei/commit/ed077ee64cd81e6c8c12c3090c32fed704395c56))
+* **config:** let an empty install command clear the inherited one ([427ba93](https://github.com/bonboncinnabon/sentei/commit/427ba93a7166c4d54398111154711dd0d59dc74b))
+* **migrate:** convert repositories that have linked worktrees ([ecd4d3e](https://github.com/bonboncinnabon/sentei/commit/ecd4d3eb8b4d5508dc3e1a26f10a75cf63418a0d))
+* **migrate:** convert repositories that have submodules ([88ce950](https://github.com/bonboncinnabon/sentei/commit/88ce95031291104dcb6b350b43027438a8caf284))
+* **migrate:** convert sparse checkouts and per-worktree config ([8d73475](https://github.com/bonboncinnabon/sentei/commit/8d734757495e0b5a2bd19ff4a858538e4d4509d0))
+* **migrate:** make relative remote paths absolute ([c1aab1a](https://github.com/bonboncinnabon/sentei/commit/c1aab1a7a41dd1e549b2c1ce224dcc2fb56141e5))
+* plain bare layouts, migrate conversions and the remaining audit items ([52b69dc](https://github.com/bonboncinnabon/sentei/commit/52b69dcb7c44f2937f1154a9c0a8bd25c2b50ecc))
+* **tui:** list what else a migration changes before it is confirmed ([cdb2456](https://github.com/bonboncinnabon/sentei/commit/cdb245675fba8963059f6f9e387a6e48862c61c9))
+
+
+### Bug Fixes
+
+* **cli:** print migrate steps by their labels ([6401ec2](https://github.com/bonboncinnabon/sentei/commit/6401ec2fb76c0442d1c6ffb1345a58c612239575))
+* **clone:** print step labels instead of step ids ([9d07794](https://github.com/bonboncinnabon/sentei/commit/9d07794b7ef881b8804036881c26064a8347ee71))
+* **git:** drop an inherited GIT_DIR for gh and the relaunched sentei ([840e53b](https://github.com/bonboncinnabon/sentei/commit/840e53b7c3e481360da2446627a628b46a9d10f3))
+* **git:** find the default branch when bare repositories must be named ([0f15ee3](https://github.com/bonboncinnabon/sentei/commit/0f15ee3dafcbc2d8d8be88963b7a0132365b61c5))
+* **git:** resolve one repository root for config and worktree placement ([ab55bee](https://github.com/bonboncinnabon/sentei/commit/ab55bee5a7d4606826bd1031d72e46f3fb74acf1))
+* **git:** return an absolute common dir for a relative path ([e81f44d](https://github.com/bonboncinnabon/sentei/commit/e81f44dc715b898faad58ee77c64b97fdb44f5d9))
+* **git:** run ssh in batch mode so it cannot prompt under the TUI ([b8bf8ef](https://github.com/bonboncinnabon/sentei/commit/b8bf8efe9820b458de3ff4114f7e83b5ac2c19a5))
+* **git:** take a parent for the root only when its pointer names the common dir ([6122508](https://github.com/bonboncinnabon/sentei/commit/61225089437fd7d4c357775beaeef82c6fc857fc))
+* **migrate:** keep a linked worktree under a root spelled in another case ([5c55905](https://github.com/bonboncinnabon/sentei/commit/5c559056d9ffc5c6e1cc5ab12077faff21055623))
+* **migrate:** read extensions.worktreeConfig from the repository only ([ad60ada](https://github.com/bonboncinnabon/sentei/commit/ad60adaf97d940f9b7ac8503a2a543478ca8bca8))
+* **migrate:** refuse a submodule that has linked worktrees of its own ([de0ee19](https://github.com/bonboncinnabon/sentei/commit/de0ee198a3f48cd19334c8b03f954180fd8a576b))
+* **migrate:** rewrite a relative remote that leaves out the .git suffix ([a5a37a9](https://github.com/bonboncinnabon/sentei/commit/a5a37a9d569504297a8cc1b46d56dce4fb46989d))
+* **migrate:** undo only the worktree links that were rewritten ([ad0ab8d](https://github.com/bonboncinnabon/sentei/commit/ad0ab8d2edf08f68ab5c6595d791017a22ff06f4))
+* **remove:** make --merged right for fast-forwards and unused branches ([016e256](https://github.com/bonboncinnabon/sentei/commit/016e256c4630bde5900eb66d43a4275ebe08dee1))
+* **repo:** accept any worktree of a bare repository as an entry point ([52898eb](https://github.com/bonboncinnabon/sentei/commit/52898eb0c571ec6b0e403207fcd50e2e32f6e29a))
+* **repo:** name the shared directory to git when asking whether it is bare ([278842a](https://github.com/bonboncinnabon/sentei/commit/278842a46f20c306f827d2c77c4d69e9ebb4d310))
+* **tui:** focus the URL field when `sentei clone` opens the form ([42a76d9](https://github.com/bonboncinnabon/sentei/commit/42a76d9d6b7da7895901b81f239d06abe195360c))
+* **tui:** indent every row of the removal summary's failure block ([8d2f7b2](https://github.com/bonboncinnabon/sentei/commit/8d2f7b2fe608762e0c66d2076bfb0466db88b291))
+* **tui:** keep the command echo on a direct migrate launch ([e98668e](https://github.com/bonboncinnabon/sentei/commit/e98668e57cb27907ca2a64ef9f4ca593cb97f3c0))
+* **tui:** keep the open help in step with the view behind it ([c84eec6](https://github.com/bonboncinnabon/sentei/commit/c84eec630e75296a15d2376a9064dcc4c2637d8e))
+* **tui:** keep the origin of a long branch on the create screens ([97c9bd3](https://github.com/bonboncinnabon/sentei/commit/97c9bd376a2430a91e9de7d81a39b3c6fae7c7c8))
+* **tui:** make the cleanup screens say what happened and what enter does ([8bb1e91](https://github.com/bonboncinnabon/sentei/commit/8bb1e916615c4e74e0471dac6af3be01374a3a3d))
+* **tui:** offer no install row for an ecosystem without a command ([e0db9e3](https://github.com/bonboncinnabon/sentei/commit/e0db9e38e46bd98f14ee441289979fcea769ce7b))
+* **tui:** show the pre-flight when migrate is launched directly ([1e462ca](https://github.com/bonboncinnabon/sentei/commit/1e462ca874412d8659698df0fa2d7aee456a106f))
+* **tui:** stop titling a failed repository run as created or cloned ([366eb56](https://github.com/bonboncinnabon/sentei/commit/366eb5614a8607217790505a0432dd4b2cb07e5c))
+* **tui:** tell the truth in the create flow and keep the end of long paths ([0ebaa32](https://github.com/bonboncinnabon/sentei/commit/0ebaa3203e40739d6e6d9b967de2b2f8682d0370))
+
 ## [2.0.0](https://github.com/bonboncinnabon/sentei/compare/v1.14.0...v2.0.0) (2026-10-13)
 
 
