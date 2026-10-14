@@ -27,7 +27,7 @@ The system SHALL provide a `DetailPortal` component that renders pre-formatted c
 The portal SHALL render with consistent chrome: a title bar at the top, scroll indicator when scrollable, and a key hints line at the bottom.
 
 #### Scenario: Title bar
-- **WHEN** the portal is opened with title "Aggressive Cleanup Details"
+- **WHEN** the portal is opened with title "Cleanup details"
 - **THEN** the portal SHALL display the title in bold white at the top of the overlay
 
 #### Scenario: Scroll indicator when scrollable

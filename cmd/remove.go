@@ -33,8 +33,10 @@ func RunRemove(args []string) error {
 
 	runner := &git.GitRunner{}
 
-	context := repo.DetectContext(runner, repoPath)
-	if context != repo.ContextBareRepo {
+	if context := repo.DetectContext(runner, repoPath); context != repo.ContextBareRepo {
+		if err := repo.Unreachable(runner, repoPath); err != nil {
+			return err
+		}
 		return fmt.Errorf("remove requires a bare repository (detected: %v)", context)
 	}
 
@@ -53,6 +55,10 @@ func RunRemove(args []string) error {
 	// Detect the default branch once: it is always protected (it may be
 	// non-standard, e.g. "production"), and --merged needs it as the merge target.
 	defaultBranch := git.DetectDefaultBranch(runner, repoPath)
+
+	if err := CheckNamedBranches(worktrees, opts.Branches, defaultBranch); err != nil {
+		return err
+	}
 
 	var isMerged MergedChecker
 	if opts.Merged {

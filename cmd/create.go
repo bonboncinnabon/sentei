@@ -34,8 +34,10 @@ func RunCreate(args []string) error {
 	runner := &git.GitRunner{}
 	shell := &git.DefaultShellRunner{}
 
-	context := repo.DetectContext(runner, repoPath)
-	if context != repo.ContextBareRepo {
+	if context := repo.DetectContext(runner, repoPath); context != repo.ContextBareRepo {
+		if err := repo.Unreachable(runner, repoPath); err != nil {
+			return err
+		}
 		return fmt.Errorf("create requires a bare repository (detected: %v)", context)
 	}
 

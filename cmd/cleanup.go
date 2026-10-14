@@ -22,18 +22,23 @@ func RunCleanup(args []string) error {
 
 // RunCleanupWithOpts executes cleanup with pre-parsed options.
 func RunCleanupWithOpts(opts *cleanup.Options, repoPath string) error {
-	if opts.DryRun {
-		fmt.Printf("%s(dry run)%s\n", dim, nc)
-	}
-	fmt.Println()
-
 	runner := &git.GitRunner{}
 	// Cleanup acts on the whole repository, so it runs from the repository
 	// root like the TUI does. Inside a worktree git judges "merged" against
 	// that worktree's branch instead of the default branch.
-	if repo.DetectContext(runner, repoPath) == repo.ContextBareRepo {
+	switch repo.DetectContext(runner, repoPath) {
+	case repo.ContextBareRepo:
 		repoPath = repo.ResolveBareRoot(runner, repoPath)
+	case repo.ContextNoRepo:
+		if err := repo.Unreachable(runner, repoPath); err != nil {
+			return err
+		}
 	}
+
+	if opts.DryRun {
+		fmt.Printf("%s(dry run)%s\n", dim, nc)
+	}
+	fmt.Println()
 	result := cleanup.Run(runner, repoPath, *opts, printEvent)
 
 	fmt.Println()

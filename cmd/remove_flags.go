@@ -14,6 +14,7 @@ import (
 
 // RemoveOptions holds parsed flags for the remove command.
 type RemoveOptions struct {
+	Branches []string // remove the worktrees of these branches
 	Stale    time.Duration
 	Merged   bool
 	All      bool
@@ -58,6 +59,14 @@ func ParseStaleDuration(s string) (time.Duration, error) {
 // ParseRemoveFlags parses remove-specific flags and returns RemoveOptions.
 func ParseRemoveFlags(args []string) (*RemoveOptions, error) {
 	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
+	var branches []string
+	fs.Func("branch", "Remove the worktree of `branch`; repeat the flag for more", func(name string) error {
+		if name == "" {
+			return errors.New("--branch needs a branch name")
+		}
+		branches = append(branches, name)
+		return nil
+	})
 	stale := fs.String("stale", "", "Remove worktrees older than duration (e.g., 30d, 2w, 3m)")
 	merged := fs.Bool("merged", false, "Remove worktrees whose branches are merged into the default branch (a branch still at its tip counts as new)")
 	all := fs.Bool("all", false, "Remove all non-protected worktrees")
@@ -69,10 +78,11 @@ func ParseRemoveFlags(args []string) (*RemoveOptions, error) {
 	}
 
 	opts := &RemoveOptions{
-		Merged: *merged,
-		All:    *all,
-		DryRun: *dryRun,
-		Force:  *force,
+		Branches: branches,
+		Merged:   *merged,
+		All:      *all,
+		DryRun:   *dryRun,
+		Force:    *force,
 	}
 
 	if *stale != "" {
@@ -92,11 +102,16 @@ func ParseRemoveFlags(args []string) (*RemoveOptions, error) {
 	return opts, nil
 }
 
+// HasFilter reports whether the options select any worktree.
+func (o *RemoveOptions) HasFilter() bool {
+	return len(o.Branches) > 0 || o.Merged || o.All || o.Stale > 0
+}
+
 // ValidateRemoveForNonInteractive checks that at least one filter is specified
 // for non-interactive execution.
 func ValidateRemoveForNonInteractive(opts *RemoveOptions) error {
-	if !opts.Merged && !opts.All && opts.Stale == 0 {
-		return fmt.Errorf("at least one filter required: --stale, --merged, or --all")
+	if !opts.HasFilter() {
+		return fmt.Errorf("at least one filter required: --branch, --stale, --merged, or --all")
 	}
 	return nil
 }
@@ -118,6 +133,10 @@ func RemoveCLICommand(opts *RemoveOptions) string {
 		flags["dry-run"] = "true"
 	}
 	cmd := cli.BuildFlagString("sentei remove", flags)
+	// A repeated flag does not fit the map. Branch names hold no spaces.
+	for _, branch := range opts.Branches {
+		cmd += " --branch " + branch
+	}
 	if opts.RepoPath != "" {
 		cmd += " " + opts.RepoPath
 	}
@@ -135,6 +154,9 @@ func FormatFilterLabel(opts *RemoveOptions) string {
 	var parts []string
 	if opts.All {
 		return "all"
+	}
+	if len(opts.Branches) > 0 {
+		parts = append(parts, "branch "+strings.Join(opts.Branches, ", "))
 	}
 	if opts.Merged {
 		parts = append(parts, "merged")

@@ -45,8 +45,8 @@ func (m Model) viewMigrateSummary() string {
 	if failure := result.Failure(); failure != nil {
 		fmt.Fprintf(&b, "  %s Migration failed\n\n",
 			styleIndicatorFailed.Render(indicatorFailed))
-		b.WriteString(styleError.Width(max(m.width-8, 30)).MarginLeft(4).Render(failure.Error()))
-		b.WriteString("\n\n")
+		b.WriteString(m.errorBlock(failure))
+		b.WriteString("\n")
 		b.WriteString(viewSeparator(m.width))
 		b.WriteString("\n\n")
 		b.WriteString(viewFooter(m.width, quitOnlyFooter))
@@ -54,23 +54,17 @@ func (m Model) viewMigrateSummary() string {
 		return b.String()
 	}
 
-	fmt.Fprintf(&b, "  %s %s migrated\n\n",
-		styleIndicatorDone.Render(indicatorDone), filepath.Base(result.BareRoot))
+	b.WriteString(m.headline(styleIndicatorDone.Render(indicatorDone), filepath.Base(result.BareRoot), "migrated"))
 
-	// Labels are padded before they are styled: escape codes would otherwise
-	// count toward the column width.
-	fmt.Fprintf(&b, "    %s %s\n", styleDim.Render(fmt.Sprintf("%-10s", "Path")), result.BareRoot)
-	fmt.Fprintf(&b, "    %s %s\n", styleDim.Render(fmt.Sprintf("%-10s", "Branch")), result.Branch)
+	b.WriteString(summaryPathRow("Path", result.BareRoot, m.width))
+	b.WriteString(summaryRow("Branch", result.Branch, m.width))
 	b.WriteString("\n")
-	b.WriteString(styleDim.Render("  Your files, stashes, remotes, config and hooks are where"))
+	b.WriteString(m.dimParagraph("Your files, stashes, remotes, config and hooks are where they were, one directory down. Continue in sentei to add worktrees, or exit to your shell."))
 	b.WriteString("\n")
-	b.WriteString(styleDim.Render("  they were, one directory down. Continue in sentei to add"))
-	b.WriteString("\n")
-	b.WriteString(styleDim.Render("  worktrees, or exit to your shell."))
-	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	fmt.Fprintf(&b, "    cd %s\n\n", styleDim.Render(result.WorktreePath))
+	b.WriteString(m.cdLine(result.WorktreePath))
+	b.WriteString("\n")
 	b.WriteString(viewFooter(m.width, migrateOpenFooter))
 	b.WriteString("\n")
 

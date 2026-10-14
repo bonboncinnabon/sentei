@@ -98,10 +98,14 @@ an independent, opt-in create option controlled by `--copy-env`.
 sentei                                         # menu, then pick from the list
 sentei remove --merged                         # open the list with matches selected
 sentei remove --non-interactive --merged --stale 30d --dry-run
+sentei remove --non-interactive --branch feature/x
 ```
 
 Filters combine with OR:
 
+- `--branch <name>`: the worktree of that branch. Repeat the flag for more.
+  A named branch that has no worktree, is protected, or whose worktree holds
+  the current directory stops the run before anything is removed.
 - `--merged`: the default branch contains the branch's tip, and the branch
   either came in through a merge commit or was fast-forwarded in. A
   fast-forward is recognised from the branch's reflog, which must show that
@@ -222,8 +226,8 @@ accept its key, or load the key into an agent with `ssh-add`, and run the
 command again. If you have configured your own ssh command with `GIT_SSH`,
 `GIT_SSH_COMMAND` or `core.sshCommand`, sentei runs it unchanged: add
 `-oBatchMode=yes` to it if it should never prompt. `sentei clone` also leaves
-ssh alone when your git config has an `includeIf` section, because the include
-may set `core.sshCommand` for the new repository.
+ssh alone when an `includeIf` section in your git config brings in a file that
+sets `core.sshCommand`: the include may apply to the new repository.
 
 ### Layouts and platforms
 
@@ -235,10 +239,11 @@ may set `core.sshCommand` for the new repository.
   worktrees are created where `.sentei.yaml` is read. That is the container
   when the bare directory is named `.bare` or a `.git` pointer file beside it
   leads to it, and otherwise the bare directory itself, also when the existing
-  worktrees sit beside it. A container needs its `.git` pointer file. With
-  git's `safe.bareRepository=explicit` only a layout with that pointer file
-  works, started in the container or in a worktree: git refuses a bare
-  directory it is started in. An ordinary clone is not such a layout, even
+  worktrees sit beside it. A container needs its `.git` pointer file; without
+  it sentei stops and prints the command that recreates it. With git's
+  `safe.bareRepository=explicit` only a layout with that pointer file works,
+  started in the container or in a worktree: git refuses a bare directory it
+  is started in, and sentei says so instead of entering it. An ordinary clone is not such a layout, even
   when it has linked worktrees; see `migrate` above.
 - macOS and Linux are tested on every change. Windows binaries are published
   but untested, and dependency installs run through `sh -c`, so they need a
@@ -251,7 +256,7 @@ Every command runs without the TUI when given `--non-interactive` (or `--yes`,
 
 ```bash
 sentei create  --non-interactive --branch feature/x --base main [--copy-env] [--ecosystems pnpm] [repo]
-sentei remove  --non-interactive --merged [--stale 30d] [--all] [--dry-run] [--force] [repo]
+sentei remove  --non-interactive [--branch <name>] [--merged] [--stale 30d] [--all] [--dry-run] [--force] [repo]
 sentei cleanup --non-interactive --mode safe [--dry-run] [--force] [repo]
 sentei clone   --non-interactive --url <url> [--name <dir>]
 sentei migrate --non-interactive <repo>
@@ -268,8 +273,9 @@ What a caller can rely on:
 - **The exit status is the result.** Non-zero means something failed: a bad
   flag, a config file that does not load, a worktree that could not be
   removed, a cleanup step that errored, a failed setup or install step.
-- **Nothing waits for input.** git never prompts for credentials, and a
-  config file that fails to load stops the run before anything is created.
+- **Nothing waits for input.** git never prompts for credentials, also when
+  an install command runs it, and a config file that fails to load stops the
+  run before anything is created.
 - **`--non-interactive` does not override a safety.** `remove` refuses the
   whole run, and names the worktrees, when a match is locked, has uncommitted,
   untracked or unpushed work, or has a status that could not be read. `--force`

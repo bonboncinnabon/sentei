@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/git"
 )
@@ -223,4 +224,92 @@ func stripANSI(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// Before the first size message the width is unknown: a value of several
+// lines still continues in the value column, and nothing is wrapped.
+func TestSummaryRow_UnknownWidthKeepsTheValueColumn(t *testing.T) {
+	got := stripAnsi(summaryRow("Branch", "first\nsecond", 0))
+	if want := "    Branch     first\n               second\n"; got != want {
+		t.Errorf("summaryRow = %q, want %q", got, want)
+	}
+}
+
+func TestFitPathTail_CutsAtADirectoryBoundary(t *testing.T) {
+	path := "/Users/someone/code/clients/acme/platform/feature-payments"
+	for _, width := range []int{20, 30, 45} {
+		got := fitPathTail(path, width)
+		if ansi.StringWidth(got) > width || !strings.HasPrefix(got, "…/") || !strings.HasSuffix(path, got[len("…"):]) {
+			t.Errorf("fitPathTail(%d) = %q, want …/ then the path's whole last elements", width, got)
+		}
+	}
+	// A last element wider than the room is cut inside it.
+	if got := fitPathTail("/a/b/an-element-too-long-for-the-room", 12); got != "…or-the-room" {
+		t.Errorf("fitPathTail = %q, want the cut inside the last element", got)
+	}
+	if got := fitPathTail(path, 0); got != "" {
+		t.Errorf("fitPathTail with no room = %q, want nothing", got)
+	}
+}
+
+func TestFitNameMiddle_KeepsTheKindAndTheEnd(t *testing.T) {
+	name := "feature/payments-reconciliation-for-multi-currency-ledgers"
+	for _, width := range []int{24, 30, 45} {
+		got := fitNameMiddle(name, width)
+		tail, ok := strings.CutPrefix(got, "feature/…")
+		if !ok || ansi.StringWidth(got) > width || !strings.HasSuffix(name, "-"+tail) {
+			t.Errorf("fitNameMiddle(%d) = %q, want feature/… and whole words of the end", width, got)
+		}
+	}
+	if got := fitNameMiddle(name, 80); got != name {
+		t.Errorf("a name that fits is unchanged, got %q", got)
+	}
+	// No segment to keep: the tail stays, as for a path.
+	const flat = "a-very-long-branch-name-without-segments"
+	if got, want := fitNameMiddle(flat, 20), fitPathTail(flat, 20); got != want {
+		t.Errorf("fitNameMiddle without a segment = %q, want %q", got, want)
+	}
+}
+
+// Whatever the width, the lines fit it (from the narrowest any view uses) and
+// a mouse copy pastes back as the command.
+func TestShellLines_FitAndPasteBack(t *testing.T) {
+	for _, command := range []string{
+		"sentei create --base main --branch feature/payments-reconciliation-for-multi-currency-ledgers --copy-env --ecosystems pnpm,go,uv --merge-base",
+		"sentei clone --name a-fairly-long-repository-name-for-the-platform-team --url git@github.com:some-org/a-fairly-long-repository-name-for-the-platform-team.git",
+		"cd ~/code/clients/acme/platform/worktrees/feature-payments-reconciliation-for-multi-currency-ledgers",
+		"sentei cleanup --mode aggressive",
+	} {
+		for width := 1; width <= 160; width++ {
+			lines := shellLines(command, "  ", width)
+			if got := pasted(strings.Join(lines, "\n")); got != command {
+				t.Fatalf("width %d: pastes as %q, want %q:\n%s", width, got, command, strings.Join(lines, "\n"))
+			}
+			if width < 20 {
+				continue
+			}
+			for _, line := range lines {
+				if w := ansi.StringWidth(line); w > width {
+					t.Errorf("width %d: line is %d cells: %q", width, w, line)
+				}
+				if strings.HasSuffix(line, " ") {
+					t.Errorf("width %d: trailing space after the continuation would escape it: %q", width, line)
+				}
+			}
+			if ansi.StringWidth("  "+command) <= width && len(lines) != 1 {
+				t.Errorf("width %d: a command that fits must stay on one line", width)
+			}
+		}
+	}
+}
+
+func TestSummaryRow_StacksBelowTheValueColumnMinimum(t *testing.T) {
+	inline := stripAnsi(summaryRow("Branch", "feature/x", 80))
+	if inline != "    Branch     feature/x\n" {
+		t.Errorf("wide summaryRow = %q", inline)
+	}
+	stacked := stripAnsi(summaryRow("Branch", "feature/x", 40))
+	if stacked != "    Branch\n      feature/x\n" {
+		t.Errorf("narrow summaryRow = %q, want the label above the value", stacked)
+	}
 }

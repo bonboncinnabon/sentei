@@ -71,21 +71,15 @@ func (c ConfirmationViewModel) View() string {
 	b.WriteString("\n\n")
 
 	if len(c.Items) > 0 {
-		labelWidth := 0
-		for _, item := range c.Items {
-			if len(item.Label) > labelWidth {
-				labelWidth = len(item.Label)
-			}
-		}
-
-		for _, item := range c.Items {
-			fmt.Fprintf(&b, "  %-*s  %s\n", labelWidth, item.Label, item.Value)
-		}
+		writeConfirmationItems(&b, c.Items, c.Width)
 		b.WriteString("\n")
 	}
 
 	if c.CLICommand != "" {
-		b.WriteString(styleDim.Render("  "+c.CLICommand) + "\n\n")
+		for _, line := range shellLines(c.CLICommand, "  ", c.Width) {
+			b.WriteString(styleDim.Render(line) + "\n")
+		}
+		b.WriteString("\n")
 	}
 
 	b.WriteString(viewSeparator(c.Width))
@@ -93,4 +87,35 @@ func (c ConfirmationViewModel) View() string {
 	b.WriteString(viewFooter(c.Width, confirmationFooter) + "\n")
 
 	return b.String()
+}
+
+// writeConfirmationItems renders items as "label  value" rows with the values
+// in one column. A confirmation is where a typo gets caught, so a value wider
+// than the screen wraps under itself instead of losing its end. When the
+// value column would be narrower than stackBelow, every label takes its own
+// line, dim, with its value under it.
+func writeConfirmationItems(b *strings.Builder, items []ConfirmationItem, width int) {
+	labelWidth := 0
+	for _, item := range items {
+		labelWidth = max(labelWidth, len(item.Label))
+	}
+	stacked := width > 0 && width-labelWidth-4 < stackBelow
+	for _, item := range items {
+		if stacked {
+			b.WriteString(styleDim.Render("  "+item.Label) + "\n")
+			writeWrapped(b, "    ", item.Value, width)
+			continue
+		}
+		writeWrapped(b, fmt.Sprintf("  %-*s  ", labelWidth, item.Label), item.Value, width)
+	}
+}
+
+// writeWrapped writes prefix and value, the value wrapped to width under its
+// first line. Width 0 (no size message yet) writes the line as it is.
+func writeWrapped(b *strings.Builder, prefix, value string, width int) {
+	if width <= 0 {
+		b.WriteString(prefix + value + "\n")
+		return
+	}
+	writeProgressDetailValue(b, prefix, value, width)
 }

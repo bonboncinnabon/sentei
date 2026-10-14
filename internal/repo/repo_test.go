@@ -1,7 +1,10 @@
 package repo
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bonboncinnabon/sentei/internal/testutil/layouts"
@@ -99,5 +102,50 @@ func TestDetectContext_RegularRepositoryWithoutCoreBare(t *testing.T) {
 		if got := DetectContext(realGit, entry); got != ContextNonBareRepo {
 			t.Errorf("DetectContext(%q) = %v, want %v", entry, got, ContextNonBareRepo)
 		}
+	}
+}
+
+// A layout git will not enter is not "no repository": an error says why and
+// how to fix it, and following the fix makes the layout an entry point again.
+// sentei never enters it itself: git passes over these on purpose.
+func TestUnreachable_SaysHowToReachALayoutGitPassesOver(t *testing.T) {
+	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
+		if err := Unreachable(realGit, entry); err != nil {
+			t.Fatalf("Unreachable(%q) = %v for a layout git enters", entry, err)
+		}
+
+		switch entry {
+		case layout.Root:
+			if layout.Root == layout.Bare || filepath.Base(layout.Bare) != ".bare" {
+				return
+			}
+			pointer := filepath.Join(layout.Root, ".git")
+			if err := os.Remove(pointer); err != nil {
+				t.Fatal(err)
+			}
+			err := Unreachable(realGit, entry)
+			if err == nil || !strings.Contains(err.Error(), "no .git file") {
+				t.Fatalf("Unreachable without the pointer = %v, want it to name the missing .git file", err)
+			}
+			// The fix the message prints, run as printed.
+			_, fix, _ := strings.Cut(err.Error(), "recreate the file with: ")
+			if out, err := exec.Command("sh", "-c", fix).CombinedOutput(); err != nil {
+				t.Fatalf("running the printed fix %q: %v\n%s", fix, err, out)
+			}
+			if got := DetectContext(realGit, entry); got != ContextBareRepo {
+				t.Errorf("after the printed fix DetectContext = %v, want %v", got, ContextBareRepo)
+			}
+
+		case layout.Bare:
+			gitConfigEnv(t, "safe.bareRepository", "explicit")
+			err := Unreachable(realGit, entry)
+			if err == nil || !strings.Contains(err.Error(), "safe.bareRepository") || !strings.Contains(err.Error(), "worktrees") {
+				t.Errorf("Unreachable in the bare directory under explicit = %v, want the setting and the way in", err)
+			}
+		}
+	})
+
+	if err := Unreachable(realGit, t.TempDir()); err != nil {
+		t.Errorf("an empty directory holds no layout, got %v", err)
 	}
 }

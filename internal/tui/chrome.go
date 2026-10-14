@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -110,6 +111,92 @@ func truncateWithEllipsis(s string, width int) string {
 	return ansi.Truncate(s, width, "…")
 }
 
+// shellLines lays out a command sentei shows for the user to copy, as lines
+// that each start with indent, within width cells. A command that fits stays
+// on one line. Otherwise each argument takes a line ending in a backslash, and a
+// word still too wide breaks after a break point with a bare backslash and
+// continues at column 0: the shell removes a backslash-newline even inside a
+// word, so a mouse copy of the lines pastes back as the same command. An
+// indent there would split the word. Width 0 means unknown.
+func shellLines(command, indent string, width int) []string {
+	if width <= 0 || ansi.StringWidth(indent+command) <= width {
+		return []string{indent + command}
+	}
+	units := commandUnits(command)
+	var lines []string
+	for i, unit := range units {
+		prefix, end := indent+"  ", " \\"
+		if i == 0 {
+			prefix = indent
+		}
+		if i == len(units)-1 {
+			end = ""
+		}
+		lines = append(lines, shellUnit(unit, prefix, end, width)...)
+	}
+	return lines
+}
+
+// commandUnits splits a command into what shellLines keeps on one line: the
+// program with its subcommand, then each flag with its value. Values hold no
+// spaces; they are branch names, URLs and comma lists.
+func commandUnits(command string) []string {
+	var units []string
+	for _, field := range strings.Fields(command) {
+		if n := len(units); n > 0 && !strings.HasPrefix(field, "-") && !strings.Contains(units[n-1], " ") {
+			units[n-1] += " " + field
+			continue
+		}
+		units = append(units, field)
+	}
+	return units
+}
+
+// shellUnit lays out one unit of shellLines: on its line when it fits, else
+// with its value on the next line when the value fits there, else broken as
+// shellLines describes.
+func shellUnit(unit, prefix, end string, width int) []string {
+	if ansi.StringWidth(prefix+unit+end) <= width {
+		return []string{prefix + unit + end}
+	}
+	var lines []string
+	if head, value, ok := strings.Cut(unit, " "); ok && ansi.StringWidth(prefix+value+end) <= width {
+		return []string{prefix + head + " \\", prefix + value + end}
+	}
+	for unit != "" && ansi.StringWidth(prefix+unit+end) > width {
+		// Room for the backslash, or for the end, so the last piece is never
+		// empty.
+		cut := breakIndex(unit, width-ansi.StringWidth(prefix)-max(1, ansi.StringWidth(end)))
+		lines = append(lines, prefix+unit[:cut]+"\\")
+		unit, prefix = unit[cut:], ""
+	}
+	return append(lines, prefix+unit+end)
+}
+
+// breakIndex returns where to break word so its first part fits room cells:
+// just after the last break point that fits, else as much as fits. It always
+// moves forward, so a loop over it ends.
+func breakIndex(word string, room int) int {
+	fit, lastBreak, cells := 0, 0, 0
+	for i, r := range word {
+		cells += ansi.StringWidth(string(r))
+		if cells > room {
+			break
+		}
+		fit = i + utf8.RuneLen(r)
+		if strings.ContainsRune("/-_:.", r) {
+			lastBreak = fit
+		}
+	}
+	if lastBreak > 0 {
+		return lastBreak
+	}
+	if fit == 0 {
+		_, fit = utf8.DecodeRuneInString(word)
+	}
+	return fit
+}
+
 // fitLines truncates every line of view to width cells. Views call it last,
 // so a terminal narrower than their content shows ellipses instead of rows
 // that wrap and push the rest of the frame down. Width 0 means unknown.
@@ -158,10 +245,21 @@ func inputFieldLabel(label string, focused bool) string {
 
 // summaryRow renders one "label value" line of a summary. The label is padded
 // before it is styled: escape codes would otherwise count toward the column
-// width. A value of several lines continues in the value column.
-func summaryRow(label, value string) string {
-	value = strings.ReplaceAll(value, "\n", "\n"+strings.Repeat(" ", 15))
-	return fmt.Sprintf("    %s %s\n", styleDim.Render(fmt.Sprintf("%-10s", label)), value)
+// width. A value of several lines, or one wider than width, continues in the
+// value column. Below a value column of stackBelow cells the label takes its
+// own line, as on a confirmation. Width 0 means unknown.
+func summaryRow(label, value string, width int) string {
+	prefix := "    " + styleDim.Render(fmt.Sprintf("%-10s", label)) + " "
+	if width <= 0 {
+		return prefix + strings.ReplaceAll(value, "\n", "\n"+strings.Repeat(" ", 15)) + "\n"
+	}
+	var b strings.Builder
+	if width-ansi.StringWidth(prefix) < stackBelow {
+		b.WriteString("    " + styleDim.Render(label) + "\n")
+		prefix = "      "
+	}
+	writeProgressDetailValue(&b, prefix, value, width)
+	return b.String()
 }
 
 // summaryPathRow is a summaryRow for a path or a URL. One that does not fit
@@ -171,5 +269,5 @@ func summaryPathRow(label, path string, width int) string {
 	if width > 0 {
 		path = fitPathTail(path, max(width-16, 20))
 	}
-	return summaryRow(label, path)
+	return summaryRow(label, path, width)
 }

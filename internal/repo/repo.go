@@ -1,6 +1,13 @@
 package repo
 
 import (
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/progress"
 )
@@ -44,6 +51,29 @@ func DetectContext(runner git.CommandRunner, path string) RepoContext {
 		return ContextBareRepo
 	}
 	return ContextNonBareRepo
+}
+
+// Unreachable explains why git finds no repository at path when path holds a
+// bare layout that git will not enter, and how to fix that; otherwise it
+// returns nil. sentei does not enter such a repository itself. A .bare
+// directory with no .git file beside it, and a bare repository under
+// safe.bareRepository=explicit, are what git's discovery passes over on
+// purpose: a bare repository planted in a downloaded tree runs its config's
+// commands for whoever enters it.
+func Unreachable(runner git.CommandRunner, path string) error {
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	if info, err := os.Stat(filepath.Join(path, ".bare")); err == nil && info.IsDir() {
+		pointer := filepath.Join(path, ".git")
+		if _, err := os.Lstat(pointer); errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("%s holds .bare but no .git file pointing at it, so git finds no repository there; if .bare is your repository, recreate the file with: printf 'gitdir: ./.bare\\n' > '%s'", path, pointer)
+		}
+	}
+	if _, err := runner.Run(path, "rev-parse", "--git-dir"); err != nil && strings.Contains(err.Error(), "safe.bareRepository") {
+		return fmt.Errorf("git does not enter the bare repository at %s because safe.bareRepository is explicit; run sentei from one of its worktrees", path)
+	}
+	return nil
 }
 
 // ResolveBareRoot resolves the root that holds a repository's worktrees from

@@ -81,7 +81,7 @@ func (m Model) viewMigrateConfirm() string {
 
 	b.WriteString(viewTitle(titleMigrate))
 	b.WriteString("\n\n")
-	b.WriteString(styleDim.Render(fmt.Sprintf("  %s", m.repoPath)))
+	b.WriteString(styleDim.Render("  " + fitPathTail(m.repoPath, max(m.width, 20)-2)))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
@@ -97,16 +97,15 @@ func (m Model) viewMigrateConfirm() string {
 	case info.Err != nil:
 		fmt.Fprintf(&b, "  %s This repository cannot be migrated yet\n\n",
 			styleIndicatorFailed.Render(indicatorFailed))
-		b.WriteString(styleError.Width(max(m.width-8, 30)).MarginLeft(4).Render(info.Err.Error()))
-		b.WriteString("\n")
+		b.WriteString(m.errorBlock(info.Err))
 		footer = migrateBlockedFooter
 
 	default:
 		worktree := filepath.Join(filepath.Base(info.Plan.RepoPath), filepath.Base(info.Plan.WorktreePath))
-		// The label is padded before it is styled: escape codes would
-		// otherwise count toward the column width.
-		fmt.Fprintf(&b, "  %s %s\n", styleDim.Render(fmt.Sprintf("%-16s", "Current branch")), info.Plan.Branch)
-		fmt.Fprintf(&b, "  %s %s\n", styleDim.Render(fmt.Sprintf("%-16s", "Default branch")), info.Plan.DefaultBranch)
+		writeConfirmationItems(&b, []ConfirmationItem{
+			{Label: "Current branch:", Value: info.Plan.Branch},
+			{Label: "Default branch:", Value: info.Plan.DefaultBranch},
+		}, m.width)
 		b.WriteString("\n")
 		b.WriteString("  This will:\n")
 		changes := []string{"Move .git to .bare", "Move the working tree into " + worktree}
@@ -121,13 +120,10 @@ func (m Model) viewMigrateConfirm() string {
 			changes = append(changes, "Make the relative path of "+strings.Join(remotes, ", ")+" absolute")
 		}
 		for _, change := range changes {
-			fmt.Fprintf(&b, "    %s %s\n", styleDim.Render("●"), change)
+			writeWrapped(&b, "    "+styleAccent.Render(indicatorWouldAct)+" ", change, m.width)
 		}
 		b.WriteString("\n")
-		b.WriteString(styleDim.Render("  Nothing is copied or deleted. Uncommitted, untracked and"))
-		b.WriteString("\n")
-		b.WriteString(styleDim.Render("  ignored files move as they are; a failed step is undone."))
-		b.WriteString("\n")
+		b.WriteString(m.dimParagraph("Nothing is copied or deleted. Uncommitted, untracked and ignored files move as they are; a failed step is undone."))
 	}
 
 	if m.migrateOpts != nil {

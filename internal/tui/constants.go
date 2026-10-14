@@ -65,3 +65,8 @@ const confirmNameWidthMin = 12
 // for real URLs, and required because the v2 textinput renders only the
 // first placeholder rune when its width is unset.
 const formInputWidth = 48
+
+// stackBelow is the narrowest value column a "label  value" row keeps. Below
+// it the label goes on its own line and the value under it: at 40 columns a
+// branch name otherwise takes four lines of a 21-cell column.
+const stackBelow = 30

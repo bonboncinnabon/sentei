@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
 	"github.com/bonboncinnabon/sentei/internal/config"
@@ -198,6 +199,58 @@ func TestLaunchConfirm_KeysActInOneUpdate(t *testing.T) {
 			if _, cmd := tc.model.Update(quitKey); !quits(cmd) {
 				t.Errorf("%s: %q did not quit", name, quitKey.String())
 			}
+		}
+	}
+}
+
+// A row wider than the screen used to run off its edge, where the terminal
+// cut it: the end of a long branch name, the part that tells two apart, was
+// the part lost. It wraps under its value column, at its own break points,
+// and on a narrow screen every label goes above its value. The command echo
+// breaks so that a mouse copy pastes back as the same command.
+func TestConfirmationView_LongValuesStayWholeAndTheEchoStaysRunnable(t *testing.T) {
+	branch := "feature/payments-reconciliation-for-multi-currency-ledgers"
+	command := "sentei create --base main --branch " + branch + " --copy-env --ecosystems pnpm,go,uv --merge-base"
+	for _, width := range []int{40, 60, 80, 120} {
+		vm := ConfirmationViewModel{
+			Title:      "Confirm create",
+			Items:      []ConfirmationItem{{Label: "Branch:", Value: branch}, {Label: "Base:", Value: "main"}},
+			CLICommand: command,
+			Width:      width,
+		}
+		out := stripAnsi(vm.View())
+		for line := range strings.SplitSeq(out, "\n") {
+			if w := ansi.StringWidth(line); w > width {
+				t.Errorf("width %d: line is %d cells: %q", width, w, line)
+			}
+		}
+
+		_, after, _ := strings.Cut(out, "Branch:")
+		rows, _, _ := strings.Cut(after, "Base:")
+		var value strings.Builder
+		for _, line := range strings.Split(rows, "\n") {
+			value.WriteString(strings.TrimSpace(line))
+		}
+		if value.String() != branch {
+			t.Errorf("width %d: the branch reads %q across its lines, want it whole", width, value.String())
+		}
+		// Labels stack when the value column would be under stackBelow.
+		stacked := strings.HasPrefix(rows, "\n")
+		if want := width-len("Branch:")-4 < stackBelow; stacked != want {
+			t.Errorf("width %d: stacked = %v, want %v:\n%s", width, stacked, want, out)
+		}
+		// A row breaks at a hyphen or slash, never inside a word part.
+		for _, line := range strings.Split(strings.TrimSpace(rows), "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasSuffix(line, "-") && !strings.HasSuffix(line, "/") && !strings.HasSuffix(branch, line) {
+				t.Errorf("width %d: the branch breaks mid-word at %q", width, line)
+			}
+		}
+
+		_, echo, _ := strings.Cut(out, "  sentei create")
+		echo, _, _ = strings.Cut("sentei create"+echo, "\n\n")
+		if got := pasted(echo); got != command {
+			t.Errorf("width %d: the echo pastes as %q, want %q:\n%s", width, got, command, out)
 		}
 	}
 }

@@ -548,7 +548,10 @@ func TestMenu_BareLayoutFromEveryEntryPoint(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
 		runner := &git.GitRunner{}
-		context, root := detectRepo(runner, entry)
+		context, root, err := detectRepo(runner, entry)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if context != repo.ContextBareRepo || root != layout.Root {
 			t.Fatalf("detectRepo(%q) = %v, %q; want %v, %q", entry, context, root, repo.ContextBareRepo, layout.Root)
 		}
@@ -577,7 +580,10 @@ func TestMenu_RegularCloneOffersMigrate(t *testing.T) {
 
 	for _, entry := range []string{regular, linked} {
 		runner := &git.GitRunner{}
-		context, root := detectRepo(runner, entry)
+		context, root, err := detectRepo(runner, entry)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if context != repo.ContextNonBareRepo || root != entry {
 			t.Fatalf("detectRepo(%q) = %v, %q; want %v and the path unchanged", entry, context, root, repo.ContextNonBareRepo)
 		}
@@ -588,5 +594,44 @@ func TestMenu_RegularCloneOffersMigrate(t *testing.T) {
 		if menu := model.View().Content; !strings.Contains(menu, "Migrate to bare repository") {
 			t.Errorf("menu for %s does not offer migrate:\n%s", entry, menu)
 		}
+	}
+}
+
+// A container whose .git pointer file is gone is not "no repository": every
+// entry point, interactive or not, stops before the TUI or any git work and
+// prints the command that recreates the pointer.
+func TestRun_ContainerWithoutItsPointerSaysHowToFixIt(t *testing.T) {
+	container := t.TempDir()
+	mustGit(t, container, "clone", "--quiet", "--bare", newBareRepo(t), filepath.Join(container, ".bare"))
+	t.Chdir(t.TempDir())
+
+	for _, args := range [][]string{
+		{"--dry-run", container},
+		{"remove", "--all", container},
+		{"remove", "--non-interactive", "--all", container},
+		{"create", "--non-interactive", "--branch", "x", "--base", "main", container},
+		{"cleanup", "--non-interactive", "--mode", "safe", "--dry-run", container},
+		{"migrate", "--non-interactive", container},
+	} {
+		var err error
+		captureStdout(t, func() { err = run(buildRegistry(), args) })
+		if err == nil || !strings.Contains(err.Error(), "no .git file") || !strings.Contains(err.Error(), "gitdir: ./.bare") {
+			t.Errorf("sentei %s: got %v, want the missing pointer named with its fix", strings.Join(args, " "), err)
+		}
+	}
+	if _, err := os.Lstat(filepath.Join(container, ".git")); !os.IsNotExist(err) {
+		t.Errorf("sentei must not write the pointer itself: %v", err)
+	}
+}
+
+// remove --branch opens the TUI only for names it can remove.
+func TestRun_InteractiveRemoveRefusesAnUnknownBranchBeforeTheTUI(t *testing.T) {
+	bare := newBareRepo(t)
+	addWorktree(t, bare, "feature")
+	t.Chdir(t.TempDir())
+
+	err := run(buildRegistry(), []string{"remove", "--branch", "missing", bare})
+	if err == nil || !strings.Contains(err.Error(), `no worktree has branch "missing"`) {
+		t.Errorf("got %v, want the unknown branch refused", err)
 	}
 }

@@ -29,6 +29,10 @@ The system SHALL display the results of a safe-mode dry-run grouped by category 
 - **WHEN** the scan finds no stale refs
 - **THEN** the preview SHALL display `· No stale remote refs` using the pending indicator
 
+#### Scenario: Gone-upstream branches are named
+- **WHEN** the scan finds branches whose upstream is gone
+- **THEN** the preview SHALL name them under their count, up to four rows; with more, three names and "and N more", and `?` SHALL open the full list
+
 ### Requirement: Aggressive upgrade offer
 The system SHALL display an aggressive cleanup section when the dry-run detects items that aggressive mode would clean beyond safe mode.
 
@@ -52,15 +56,15 @@ The system SHALL display an aggressive cleanup section when the dry-run detects 
 - **WHEN** no aggressive items are available
 - **THEN** the key hints SHALL show `enter run safe · esc back`
 
-### Requirement: Detail portal for aggressive cleanup
-The user SHALL be able to press `?` from the cleanup preview to open a scrollable detail portal showing the full list of branches that aggressive mode would delete, with metadata.
+### Requirement: Detail portal for cleanup branches
+The user SHALL be able to press `?` from the cleanup preview to open a scrollable detail portal showing the branch lists the preview shortens: the gone-upstream branches safe cleanup deletes, when the preview does not name them all, and the branches aggressive mode would delete, with metadata.
 
 #### Scenario: Open details
 - **WHEN** the user presses `?` on the cleanup preview with aggressive items available
-- **THEN** the detail portal SHALL open with title "Aggressive Cleanup Details" and a scrollable list of branch names with merge date and last commit subject
+- **THEN** the detail portal SHALL open with title "Cleanup details" and a scrollable list of branch names with merge date and last commit subject
 
-#### Scenario: No details when no aggressive items
-- **WHEN** the user presses `?` on the cleanup preview with no aggressive items
+#### Scenario: No details when nothing is shortened
+- **WHEN** the user presses `?` on the cleanup preview with no aggressive items and every gone-upstream branch named
 - **THEN** nothing SHALL happen
 
 ### Requirement: Execute cleanup from preview

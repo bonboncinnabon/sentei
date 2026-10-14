@@ -475,3 +475,34 @@ func TestGitRunner_StatusLeavesTheIndexAlone(t *testing.T) {
 		t.Error("git status rewrote the index: read-only commands must not take optional locks")
 	}
 }
+
+// An install fetches git dependencies as git fetch does, and under the same
+// rules: a prompt behind the TUI would wait forever, as RunShell has no
+// timeout. An ssh command the user chose is left alone.
+func TestRunShell_InstallsCannotPrompt(t *testing.T) {
+	noSSHChoice(t)
+	t.Setenv("GIT_TERMINAL_PROMPT", "1")
+	const probe = `printf '%s|%s' "$GIT_TERMINAL_PROMPT" "${GIT_SSH_COMMAND-unset}"`
+
+	got, err := (&DefaultShellRunner{}).RunShell(t.TempDir(), probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "0|" + batchSSHCommand; got != want {
+		t.Errorf("install environment = %q, want %q", got, want)
+	}
+
+	globalGitConfig(t, "[core]\n\tsshCommand = ssh -i work\n")
+	got, err = (&DefaultShellRunner{}).RunShell(t.TempDir(), probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "0|unset"; got != want {
+		t.Errorf("install environment with a chosen ssh command = %q, want %q", got, want)
+	}
+
+	_, err = (&DefaultShellRunner{}).RunShell(t.TempDir(), "echo 'fatal: could not read Username: terminal prompts disabled' >&2; exit 128")
+	if err == nil || !strings.Contains(err.Error(), "credential helper") {
+		t.Errorf("a refused credential prompt should say what to do, got %v", err)
+	}
+}
