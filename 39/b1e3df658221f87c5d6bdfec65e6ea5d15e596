@@ -1,0 +1,25 @@
+README.md
+  s_b5d41ab2ae0f4c::t_384c0c60f6b0b6 276-278
+CLAUDE.md
+  s_b5d41ab2ae0f4c::t_384c0c60f6b0b6 44
+internal/git/commands.go
+  s_b5d41ab2ae0f4c::t_bb408e9daa73ea 241-243,249-253,259
+internal/git/gitrunner_test.go
+  s_b5d41ab2ae0f4c::t_bb408e9daa73ea 478-508
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "39b1e3df658221f87c5d6bdfec65e6ea5d15e596",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
