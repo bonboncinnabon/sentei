@@ -1,0 +1,38 @@
+main_test.go
+  s_b5d41ab2ae0f4c::t_9bf597e549c162 551-554,583-586
+README.md
+  s_b5d41ab2ae0f4c::t_2fa711516ee9eb 242-246
+internal/repo/repo_test.go
+  s_b5d41ab2ae0f4c::t_3c2c803070b349 4-5,7,107-149
+  s_b5d41ab2ae0f4c::t_4daef771e668b7 150-151
+internal/repo/repo.go
+  s_b5d41ab2ae0f4c::t_ebed7cf9546d0f 70
+  s_b5d41ab2ae0f4c::t_af77d2e53ba695 4-10,56-69,71-76
+  s_b5d41ab2ae0f4c::t_f42a906c28b003 77-78
+main.go
+  s_b5d41ab2ae0f4c::t_af77d2e53ba695 139-142,216-218,220-221,223-226,228,301-304
+cmd/create.go
+  s_b5d41ab2ae0f4c::t_af77d2e53ba695 37-40
+cmd/migrate.go
+  s_b5d41ab2ae0f4c::t_af77d2e53ba695 34-36
+cmd/cleanup.go
+  s_b5d41ab2ae0f4c::t_31bbc61d6bd7ad 29-30,32-35,37-41
+cmd/remove.go
+  s_b5d41ab2ae0f4c::t_af77d2e53ba695 36-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d5ba95ac31769dccbeaec70ea73387e6c35f117b",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
