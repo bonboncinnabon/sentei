@@ -2,6 +2,7 @@ package tui
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,4 +86,11 @@ func settleNow(t *testing.T, m Model) Model {
 		t.Fatal("settle observation did not advance the view")
 	}
 	return model.completeProgressTransition()
+}
+
+// pasted is what a shell receives when the lines of text are copied with the
+// mouse and pasted: a backslash-newline disappears, even inside a word, and
+// any run of spaces or newlines separates words.
+func pasted(text string) string {
+	return strings.Join(strings.Fields(strings.ReplaceAll(stripAnsi(text), "\\\n", "")), " ")
 }

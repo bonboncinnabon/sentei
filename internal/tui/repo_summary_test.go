@@ -223,12 +223,11 @@ func TestViewRepoSummary_LongPathsKeepTheirEnd(t *testing.T) {
 		if name == "failed clone" {
 			continue
 		}
-		// Joined back together, the wrapped cd line is the whole command.
-		_, after, _ := strings.Cut(view, "    cd ")
-		command, _, _ := strings.Cut(after, "\n\n")
-		joined := strings.Join(strings.Fields(command), "")
-		if joined != root+"/main" {
-			t.Errorf("%s: the cd line was cut, got %q", name, joined)
+		// Copied and pasted, the broken cd line is the whole command.
+		_, after, _ := strings.Cut(view, "\n    cd")
+		command, _, _ := strings.Cut("cd"+after, "\n\n")
+		if got := pasted(command); got != "cd "+root+"/main" {
+			t.Errorf("%s: the cd line pastes as %q", name, got)
 		}
 	}
 }

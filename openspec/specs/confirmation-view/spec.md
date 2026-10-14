@@ -17,8 +17,16 @@ The TUI SHALL provide a reusable confirmation view component that renders using 
 - **THEN** the view SHALL display `viewTitle("Confirm Cleanup")` with Mode="aggressive" as a labeled row, using standard chrome
 
 #### Scenario: A value wider than the screen
-- **WHEN** a row's value or the CLI command is wider than the terminal
-- **THEN** it SHALL wrap, continuing under the value's first line, and SHALL NOT be cut
+- **WHEN** a row's value is wider than the terminal
+- **THEN** it SHALL wrap under its value column at spaces, hyphens, `/`, `:` or `_`, and SHALL NOT be cut
+
+#### Scenario: A narrow screen
+- **WHEN** the value column would be narrower than 30 cells
+- **THEN** every label SHALL take its own line with its value under it
+
+#### Scenario: A command wider than the screen
+- **WHEN** the equivalent CLI command is wider than the terminal
+- **THEN** each argument SHALL take its own line ending in a backslash, a word still too wide SHALL break with a bare backslash and continue at column 0, and the lines copied and pasted into a shell SHALL run as the same command
 
 #### Scenario: No border wrapping
 - **WHEN** any confirmation view is rendered

@@ -2,9 +2,12 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -50,11 +53,9 @@ func (m Model) viewCreateSummary() string {
 	b.WriteString("\n\n")
 
 	if result != nil && result.HasFailures() {
-		fmt.Fprintf(&b, "  %s %s created with issues\n\n",
-			styleIndicatorWarning.Render(indicatorWarning), branch)
+		b.WriteString(m.headline(styleIndicatorWarning.Render(indicatorWarning), branch, "created with issues"))
 	} else {
-		fmt.Fprintf(&b, "  %s %s ready\n\n",
-			styleIndicatorDone.Render(indicatorDone), branch)
+		b.WriteString(m.headline(styleIndicatorDone.Render(indicatorDone), branch, "ready"))
 	}
 	if result != nil && result.Err != nil {
 		for _, line := range errorPeekLines(result.Err.Error(), max(m.width-8, 20)) {
@@ -112,11 +113,15 @@ func (m Model) viewCreateSummary() string {
 }
 
 // cdLine is the command that takes the user into what a flow created. It is
-// the flow's one actionable artifact, so it wraps and is never truncated.
+// the flow's one actionable artifact, so it is never truncated: it breaks as
+// shellLines does, so a mouse copy still runs, with the home directory as ~.
 func (m Model) cdLine(path string) string {
+	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(path, home+string(filepath.Separator)) {
+		path = "~" + path[len(home):]
+	}
 	var b strings.Builder
-	for _, line := range m.wrapSummaryLine("cd " + path) {
-		fmt.Fprintf(&b, "    %s\n", line)
+	for _, line := range shellLines("cd "+path, "    ", m.width) {
+		b.WriteString(line + "\n")
 	}
 	return b.String()
 }
@@ -130,8 +135,7 @@ func (m Model) viewCreateFailed(branch string, result *creator.Result) string {
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
-	fmt.Fprintf(&b, "  %s %s creation failed\n\n",
-		styleIndicatorFailed.Render(indicatorFailed), branch)
+	b.WriteString(m.headline(styleIndicatorFailed.Render(indicatorFailed), branch, "creation failed"))
 
 	failure := result.Err
 	if failure == nil {
@@ -147,6 +151,16 @@ func (m Model) viewCreateFailed(branch string, result *creator.Result) string {
 	b.WriteString("\n\n")
 	b.WriteString(viewFooter(m.width, summaryMenuFooter) + "\n")
 	return b.String()
+}
+
+// headline renders a summary's verdict line, "✦ <name> ready", and its blank
+// line. The name shares the line with the verdict, so it gives up its middle
+// to fit (fitNameMiddle). Width 0 means unknown.
+func (m Model) headline(indicator, name, verdict string) string {
+	if m.width > 0 {
+		name = fitNameMiddle(name, m.width-ansi.StringWidth("  "+indicator+"  "+verdict))
+	}
+	return fmt.Sprintf("  %s %s %s\n\n", indicator, name, verdict)
 }
 
 // errorBlock renders an error as the body of a failure screen: wrapped to the

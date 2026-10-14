@@ -217,6 +217,14 @@ func renderProgressDetails(layout ProgressLayout, topErr error, width int) strin
 	return strings.TrimRight(b.String(), "\n")
 }
 
+// wrapValue wraps value to width cells at spaces, hyphens and the break
+// points inside paths, URLs and names; a word with none breaks at the width.
+// ansi.Wrap can overrun the width by a cell when a break point sits at the
+// edge before a space ("name-: error"), so a hard wrap bounds what it returns.
+func wrapValue(value string, width int) string {
+	return ansi.Hardwrap(ansi.Wrap(value, width, "/:_"), width, true)
+}
+
 func writeProgressDetailValue(b *strings.Builder, prefix, value string, width int) {
 	if width <= 0 {
 		return
@@ -231,7 +239,7 @@ func writeProgressDetailValue(b *strings.Builder, prefix, value string, width in
 		leading := len(prefix) - len(strings.TrimLeft(prefix, " "))
 		indentWidth := min(leading+2, max(width-minInlineValueWidth, 0))
 		indent := strings.Repeat(" ", indentWidth)
-		wrapped := ansi.Hardwrap(value, max(width-indentWidth, 1), true)
+		wrapped := wrapValue(value, max(width-indentWidth, 1))
 		for _, line := range strings.Split(wrapped, "\n") {
 			b.WriteString(indent)
 			b.WriteString(line)
@@ -239,7 +247,7 @@ func writeProgressDetailValue(b *strings.Builder, prefix, value string, width in
 		}
 		return
 	}
-	wrapped := ansi.Hardwrap(value, max(width-prefixWidth, 1), true)
+	wrapped := wrapValue(value, max(width-prefixWidth, 1))
 	continuation := strings.Repeat(" ", prefixWidth)
 	for i, line := range strings.Split(wrapped, "\n") {
 		if i == 0 {

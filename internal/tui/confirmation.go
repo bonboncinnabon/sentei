@@ -76,7 +76,9 @@ func (c ConfirmationViewModel) View() string {
 	}
 
 	if c.CLICommand != "" {
-		writeWrapped(&b, "  ", styleDim.Render(c.CLICommand), c.Width)
+		for _, line := range shellLines(c.CLICommand, "  ", c.Width) {
+			b.WriteString(styleDim.Render(line) + "\n")
+		}
 		b.WriteString("\n")
 	}
 
@@ -88,14 +90,22 @@ func (c ConfirmationViewModel) View() string {
 }
 
 // writeConfirmationItems renders items as "label  value" rows with the values
-// in one column. A value wider than the screen wraps under itself: the end of
-// a path or a branch name is what tells two values apart.
+// in one column. A confirmation is where a typo gets caught, so a value wider
+// than the screen wraps under itself instead of losing its end. When the
+// value column would be narrower than stackBelow, every label takes its own
+// line, dim, with its value under it.
 func writeConfirmationItems(b *strings.Builder, items []ConfirmationItem, width int) {
 	labelWidth := 0
 	for _, item := range items {
 		labelWidth = max(labelWidth, len(item.Label))
 	}
+	stacked := width > 0 && width-labelWidth-4 < stackBelow
 	for _, item := range items {
+		if stacked {
+			b.WriteString(styleDim.Render("  "+item.Label) + "\n")
+			writeWrapped(b, "    ", item.Value, width)
+			continue
+		}
 		writeWrapped(b, fmt.Sprintf("  %-*s  ", labelWidth, item.Label), item.Value, width)
 	}
 }

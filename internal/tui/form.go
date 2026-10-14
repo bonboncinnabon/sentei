@@ -42,11 +42,43 @@ func editFormField(focused int, first, second *textinput.Model, msg tea.Msg) (te
 
 // fitPathTail fits a path into width cells by eliding its head. On these
 // screens the tail names what is being created, so it is the part to keep.
+// The cut moves forward to a directory boundary (…/platform/feature-x) unless
+// the last element alone does not fit.
 func fitPathTail(path string, width int) string {
-	if over := ansi.StringWidth(path) - max(width, 1); over > 0 {
-		return ansi.TruncateLeft(path, over+1, "…")
+	over := ansi.StringWidth(path) - max(width, 1)
+	if over <= 0 {
+		return path
 	}
-	return path
+	tail := ansi.TruncateLeft(path, over+1, "")
+	if tail == "" {
+		return "" // no room for even the ellipsis
+	}
+	if slash := strings.Index(tail, "/"); slash >= 0 && slash < len(tail)-1 {
+		tail = tail[slash:]
+	}
+	return "…" + tail
+}
+
+// fitNameMiddle fits a branch name into width cells on a line it shares with
+// other text. The first segment (feature/) says what kind of work it is and
+// the tail tells two branches apart, so the middle gives way, from a break
+// point: feature/…multi-currency-ledgers. A name with no segment, or no room
+// for one, keeps its tail.
+func fitNameMiddle(name string, width int) string {
+	if ansi.StringWidth(name) <= width {
+		return name
+	}
+	slash := strings.Index(name, "/")
+	room := width - slash - 2 // the head, its slash and the ellipsis
+	if slash < 0 || room < 8 {
+		return fitPathTail(name, width)
+	}
+	rest := name[slash+1:]
+	tail := ansi.TruncateLeft(rest, ansi.StringWidth(rest)-room, "")
+	if brk := strings.IndexAny(tail, "-_/"); brk >= 0 && brk < len(tail)-1 {
+		tail = tail[brk+1:]
+	}
+	return name[:slash+1] + "…" + tail
 }
 
 // formErrorLine renders a form's validation message on one row. A message

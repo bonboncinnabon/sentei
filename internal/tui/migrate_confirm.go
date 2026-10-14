@@ -81,7 +81,7 @@ func (m Model) viewMigrateConfirm() string {
 
 	b.WriteString(viewTitle(titleMigrate))
 	b.WriteString("\n\n")
-	b.WriteString(styleDim.Render(fmt.Sprintf("  %s", m.repoPath)))
+	b.WriteString(styleDim.Render("  " + fitPathTail(m.repoPath, max(m.width, 20)-2)))
 	b.WriteString("\n\n")
 	b.WriteString(viewSeparator(m.width))
 	b.WriteString("\n\n")
@@ -120,7 +120,7 @@ func (m Model) viewMigrateConfirm() string {
 			changes = append(changes, "Make the relative path of "+strings.Join(remotes, ", ")+" absolute")
 		}
 		for _, change := range changes {
-			writeWrapped(&b, "    "+styleDim.Render("●")+" ", change, m.width)
+			writeWrapped(&b, "    "+styleAccent.Render(indicatorWouldAct)+" ", change, m.width)
 		}
 		b.WriteString("\n")
 		b.WriteString(m.dimParagraph("Nothing is copied or deleted. Uncommitted, untracked and ignored files move as they are; a failed step is undone."))

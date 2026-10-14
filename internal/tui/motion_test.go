@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -192,6 +194,33 @@ func TestVocabulary_NoRetiredGlyphsInMajorViews(t *testing.T) {
 		for _, retired := range []string{"●", "◐", "✓"} {
 			if strings.Contains(plain, retired) {
 				t.Errorf("%s view contains retired glyph %q:\n%s", name, retired, plain)
+			}
+		}
+	}
+}
+
+// The rendered check above sees three views; the migrate confirm drew its
+// bullets with ● unseen. No source outside a comment may carry a retired
+// glyph, whichever view it ends up in.
+func TestVocabulary_NoRetiredGlyphsInTheSource(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		src, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, line := range strings.Split(string(src), "\n") {
+			code, _, _ := strings.Cut(line, "//")
+			for _, retired := range []string{"●", "◐", "✓"} {
+				if strings.Contains(code, retired) {
+					t.Errorf("%s:%d draws retired glyph %q", file, i+1, retired)
+				}
 			}
 		}
 	}

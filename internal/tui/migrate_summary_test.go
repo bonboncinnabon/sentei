@@ -188,12 +188,7 @@ func TestMigrateScreens_FitANarrowScreen(t *testing.T) {
 	if !strings.Contains(summary, "project") {
 		t.Errorf("the path row must keep the end of the path:\n%s", summary)
 	}
-	var cd strings.Builder
-	_, after, _ := strings.Cut(summary, "cd ")
-	for line := range strings.SplitSeq(after, "\n") {
-		cd.WriteString(strings.TrimSpace(line))
-	}
-	if !strings.Contains(cd.String(), long+"/feature-x") {
-		t.Errorf("the cd line must keep the whole path:\n%s", summary)
+	if !strings.Contains(pasted(summary), "cd "+long+"/feature-x") {
+		t.Errorf("the cd line must keep the whole path, and paste back whole:\n%s", summary)
 	}
 }

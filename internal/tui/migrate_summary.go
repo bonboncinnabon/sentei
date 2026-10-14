@@ -54,8 +54,7 @@ func (m Model) viewMigrateSummary() string {
 		return b.String()
 	}
 
-	fmt.Fprintf(&b, "  %s %s migrated\n\n",
-		styleIndicatorDone.Render(indicatorDone), filepath.Base(result.BareRoot))
+	b.WriteString(m.headline(styleIndicatorDone.Render(indicatorDone), filepath.Base(result.BareRoot), "migrated"))
 
 	b.WriteString(summaryPathRow("Path", result.BareRoot, m.width))
 	b.WriteString(summaryRow("Branch", result.Branch, m.width))

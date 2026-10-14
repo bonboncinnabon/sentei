@@ -140,7 +140,7 @@ func (m Model) viewRepoSummary() string {
 		return b.String()
 	}
 
-	fmt.Fprintf(&b, "  %s %s %s\n\n", styleIndicatorDone.Render(indicatorDone), filepath.Base(outcome.repoPath), outcome.ready)
+	b.WriteString(m.headline(styleIndicatorDone.Render(indicatorDone), filepath.Base(outcome.repoPath), outcome.ready))
 	b.WriteString(summaryPathRow("Path", outcome.repoPath, m.width))
 	b.WriteString(summaryRow("Branch", outcome.branch, m.width))
 	b.WriteString(outcome.rows)

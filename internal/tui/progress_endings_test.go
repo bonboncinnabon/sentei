@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/bonboncinnabon/sentei/internal/config"
 	"github.com/bonboncinnabon/sentei/internal/creator"
 	"github.com/bonboncinnabon/sentei/internal/git"
@@ -100,9 +102,12 @@ func TestCreateSummary_FullPathNeverTruncated(t *testing.T) {
 	m.create.result = &creator.Result{WorktreePath: longPath}
 
 	view := stripAnsi(m.viewCreateSummary())
-	flat := strings.ReplaceAll(view, "\n", "")
-	flat = strings.ReplaceAll(flat, " ", "")
-	if !strings.Contains(flat, strings.ReplaceAll(longPath, " ", "")) {
-		t.Errorf("cd path must be fully present (wrapped, not truncated):\n%s", view)
+	if !strings.Contains(pasted(view), "cd "+longPath) {
+		t.Errorf("cd path must be fully present, and paste back whole:\n%s", view)
+	}
+	for _, line := range strings.Split(view, "\n") {
+		if w := ansi.StringWidth(line); w > m.width {
+			t.Errorf("line is %d cells on a %d-cell terminal: %q", w, m.width, line)
+		}
 	}
 }
