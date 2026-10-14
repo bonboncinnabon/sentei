@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.2.0](https://github.com/bonboncinnabon/sentei/compare/v2.1.0...v2.2.0) (2026-10-14)
+
+
+### Features
+
+* **remove:** remove one named worktree with --branch ([4bad761](https://github.com/bonboncinnabon/sentei/commit/4bad761b9c1381cd9e3f866c79de7fbbf8055141))
+* **remove:** remove one named worktree with --branch, and the minor audit items ([c1b510d](https://github.com/bonboncinnabon/sentei/commit/c1b510d877d6ac985b6e017d0833d79c85083069))
+
+
+### Bug Fixes
+
+* **creator:** keep install commands from prompting for git credentials ([39b1e3d](https://github.com/bonboncinnabon/sentei/commit/39b1e3df658221f87c5d6bdfec65e6ea5d15e596))
+* **git:** run clone's ssh in batch mode past includes that name no ssh command ([26f2104](https://github.com/bonboncinnabon/sentei/commit/26f210426c3f0a78207112cf8b66ca4689adcbb4))
+* say how to reach a bare layout git will not enter ([d5ba95a](https://github.com/bonboncinnabon/sentei/commit/d5ba95ac31769dccbeaec70ea73387e6c35f117b))
+* **tui:** check a create --branch launch for an existing worktree ([f445ef4](https://github.com/bonboncinnabon/sentei/commit/f445ef4da710bcfa11ea81ecc44c73eb8a9a847a))
+* **tui:** fit a long value by what it is, and keep commands runnable ([3b3326b](https://github.com/bonboncinnabon/sentei/commit/3b3326b7a06994f8be8f10215f34b8167a2cd879))
+* **tui:** name the gone-upstream branches in the cleanup preview ([6b5dbed](https://github.com/bonboncinnabon/sentei/commit/6b5dbedf80635e64b2e0dbd4387d0c72921c9545))
+* **tui:** wrap long values on confirmation and summary screens ([b972e82](https://github.com/bonboncinnabon/sentei/commit/b972e8287e4d8557b422790d4936abaa69631951))
+
 ## [2.1.0](https://github.com/bonboncinnabon/sentei/compare/v2.0.0...v2.1.0) (2026-10-13)
 
 
