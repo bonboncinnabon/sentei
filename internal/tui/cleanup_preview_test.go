@@ -253,7 +253,7 @@ func TestCleanupDetailContent_PortalIntegration(t *testing.T) {
 	m.cleanupScan = scanWithAggressive(4)
 
 	title, content := m.detailContent()
-	if title != "Aggressive cleanup details" {
+	if title != "Cleanup details" {
 		t.Fatalf("title = %q", title)
 	}
 	plain := stripANSI(content)
@@ -266,7 +266,7 @@ func TestCleanupDetailContent_PortalIntegration(t *testing.T) {
 	// The global ? handler opens the portal with this content.
 	updated, _ := m.Update(keyRune('?'))
 	model := updated.(Model)
-	if !model.portal.Visible() || model.portal.title != "Aggressive cleanup details" {
+	if !model.portal.Visible() || model.portal.title != "Cleanup details" {
 		t.Errorf("expected details portal, visible=%v title=%q", model.portal.Visible(), model.portal.title)
 	}
 
@@ -372,5 +372,44 @@ func TestViewCleanupResult_SkippedBranchesSurfaced(t *testing.T) {
 	}
 	if strings.Contains(view, "Run `sentei cleanup --mode aggressive` to remove them") {
 		t.Errorf("must not re-recommend the mode that just ran:\n%s", view)
+	}
+}
+
+// Safe cleanup deletes the branches whose upstream is gone. The preview used
+// to count them; it names them, as the result screen does after the run.
+func TestViewCleanupPreview_NamesGoneBranches(t *testing.T) {
+	gone := func(n int) *cleanup.DryRunResult {
+		r := &cleanup.DryRunResult{}
+		for i := range n {
+			r.GoneBranches = append(r.GoneBranches, "feature/gone-"+string(rune('a'+i)))
+		}
+		return r
+	}
+
+	m := previewModel()
+	m.cleanupScan = gone(4)
+	view := stripANSI(m.viewCleanupPreview())
+	for _, want := range []string{"4 branches with gone upstream would be deleted", "feature/gone-a", "feature/gone-d"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "? details") {
+		t.Errorf("every name is on screen, so ? has nothing to add:\n%s", view)
+	}
+
+	m.cleanupScan = gone(6)
+	view = stripANSI(m.viewCleanupPreview())
+	for _, want := range []string{"feature/gone-c", "and 3 more", "? details"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("missing %q:\n%s", want, view)
+		}
+	}
+	title, content := m.detailContent()
+	if title != "Cleanup details" || !strings.Contains(stripANSI(content), "feature/gone-f") {
+		t.Errorf("the portal must list every gone branch; title %q:\n%s", title, stripANSI(content))
+	}
+	if strings.Contains(stripANSI(content), "aggressive") {
+		t.Errorf("no aggressive candidates, so no aggressive section:\n%s", stripANSI(content))
 	}
 }

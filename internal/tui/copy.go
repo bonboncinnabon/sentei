@@ -29,7 +29,7 @@ const (
 	titleCleanupComplete   = "Cleanup complete"
 	titleCleanupErrors     = "Cleanup finished with errors"
 
-	portalWorktreeDetails   = "Worktree details"
-	portalAggressiveDetails = "Aggressive cleanup details"
-	portalProgressDetails   = "Progress details"
+	portalWorktreeDetails = "Worktree details"
+	portalCleanupDetails  = "Cleanup details"
+	portalProgressDetails = "Progress details"
 )

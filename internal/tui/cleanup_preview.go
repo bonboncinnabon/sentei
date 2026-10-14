@@ -11,9 +11,16 @@ import (
 	"github.com/bonboncinnabon/sentei/internal/cleanup"
 )
 
-// inlineBranchPreview is how many aggressive branch names the preview shows
+// inlineBranchPreview is how many branch names the preview shows in a list
 // before deferring to the detail portal.
 const inlineBranchPreview = 3
+
+// goneHidden reports whether the preview leaves names of gone-upstream
+// branches to the detail portal: fitBranchNames fills inlineBranchPreview+1
+// rows, the last one counting the rest once the list does not fit.
+func goneHidden(scan cleanup.DryRunResult) bool {
+	return len(scan.GoneBranches) > inlineBranchPreview+1
+}
 
 type cleanupScanDoneMsg struct {
 	result cleanup.DryRunResult
@@ -173,7 +180,9 @@ func (m Model) viewCleanupPreview() string {
 
 	b.WriteString(styleTitle.Render("  Safe cleanup:"))
 	b.WriteString("\n")
-	writeSafeChecks(&b, safeCounts, false, scan.Errors, "")
+	// Deleted branches are named before the run, as after it: git cannot
+	// bring them back from a remote.
+	writeSafeChecks(&b, safeCounts, false, scan.Errors, fitBranchNames(scan.GoneBranches, inlineBranchPreview+1, m.width))
 	b.WriteString("\n")
 
 	if scan.AggressiveHasWork() {
@@ -248,7 +257,7 @@ func (m Model) cleanupPreviewActions() []key.Binding {
 	if scan.DeletableAggressiveCount() > 0 {
 		actions = append(actions, aggressiveHint)
 	}
-	if scan.AggressiveHasWork() {
+	if scan.AggressiveHasWork() || goneHidden(*scan) {
 		actions = append(actions, detailsHint)
 	}
 	return append(actions, keys.Back)
@@ -352,13 +361,23 @@ func writeCleanupErrors(b *strings.Builder, errs []cleanup.OperationError, width
 	}
 }
 
-// cleanupDetailContent renders the full aggressive branch list for the
-// detail portal.
+// cleanupDetailContent renders the branch lists the preview shortens for the
+// detail portal: the gone-upstream branches safe cleanup deletes, and the
+// aggressive candidates.
 func (m Model) cleanupDetailContent() (string, string) {
-	if m.cleanupScan == nil || !m.cleanupScan.AggressiveHasWork() {
+	if m.cleanupScan == nil || (!m.cleanupScan.AggressiveHasWork() && !goneHidden(*m.cleanupScan)) {
 		return "", ""
 	}
 	var b strings.Builder
+	if gone := m.cleanupScan.GoneBranches; goneHidden(*m.cleanupScan) {
+		fmt.Fprintf(&b, "  %s\n\n", styleDim.Render(fmt.Sprintf("%d %s with gone upstream, deleted by safe cleanup:",
+			len(gone), pluralize(len(gone), "branch", "branches"))))
+		b.WriteString(fitBranchNames(gone, len(gone), m.portal.contentWidth()))
+		if !m.cleanupScan.AggressiveHasWork() {
+			return portalCleanupDetails, b.String()
+		}
+		b.WriteString("\n")
+	}
 	n := len(m.cleanupScan.AggressiveBranches)
 	fmt.Fprintf(&b, "  %s\n\n", styleDim.Render(fmt.Sprintf("%d %s aggressive cleanup targets:", n, pluralize(n, "branch", "branches"))))
 	nameWidth := 0
@@ -383,5 +402,5 @@ func (m Model) cleanupDetailContent() (string, string) {
 	if unmerged := m.cleanupScan.UnmergedAggressiveCount(); unmerged > 0 {
 		fmt.Fprintf(&b, "\n  %s\n", styleDim.Render(fmt.Sprintf("%s %d not fully merged: skipped unless --force is used on the CLI", indicatorWarning, unmerged)))
 	}
-	return portalAggressiveDetails, b.String()
+	return portalCleanupDetails, b.String()
 }
