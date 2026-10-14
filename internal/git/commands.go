@@ -151,12 +151,11 @@ func (r *GitRunner) sshIsUnchosen(dir string, env, args []string) bool {
 // no key. Any other failure to read it counts as setting one.
 func (r *GitRunner) includeMayNameSSH(dir string, env []string, origin, path string) bool {
 	if !filepath.IsAbs(path) {
+		// A relative origin (file:.git/config) is relative to dir, where the
+		// read below runs too.
 		file, ok := strings.CutPrefix(origin, "file:")
 		if !ok {
 			return true
-		}
-		if !filepath.IsAbs(file) {
-			file = filepath.Join(dir, file)
 		}
 		path = filepath.Join(filepath.Dir(file), path)
 	}

@@ -311,3 +311,34 @@ func TestGitRunner_DoesNotExplainTheUsersOwnSSHCommand(t *testing.T) {
 		t.Errorf("error = %q: sentei did not choose this ssh command and must not explain it", err)
 	}
 }
+
+// git names a repository's own config by a relative origin (file:.git/config),
+// and a relative include path in it is resolved against that file. An include
+// set on the command line has no file, so its relative path cannot be found
+// and counts as naming an ssh command.
+func TestGitRunner_ResolvesIncludesOutsideTheGlobalConfig(t *testing.T) {
+	noSSHChoice(t)
+	globalGitConfig(t, "")
+	runner := &GitRunner{}
+
+	repo := t.TempDir()
+	if _, err := runner.Run(repo, "init", "--quiet"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".git", "work.gitconfig"), []byte("[core]\n\tsshCommand = ssh -i work\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.Run(repo, "config", "includeIf.gitdir:/nonexistent/work/.path", "work.gitconfig"); err != nil {
+		t.Fatal(err)
+	}
+	if got, present := childEnvIn(t, runner, repo, "clone")["GIT_SSH_COMMAND"]; present {
+		t.Errorf("clone in a repository whose config includes an ssh command: GIT_SSH_COMMAND = %q reached git", got)
+	}
+
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "includeIf.gitdir:/nonexistent/work/.path")
+	t.Setenv("GIT_CONFIG_VALUE_0", "work.gitconfig")
+	if got, present := childEnvIn(t, runner, t.TempDir(), "clone")["GIT_SSH_COMMAND"]; present {
+		t.Errorf("clone with a command-line include of a relative path: GIT_SSH_COMMAND = %q reached git", got)
+	}
+}
