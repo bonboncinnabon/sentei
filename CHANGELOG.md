@@ -6,7 +6,6 @@
 ### Features
 
 * **remove:** remove one named worktree with --branch ([4bad761](https://github.com/bonboncinnabon/sentei/commit/4bad761b9c1381cd9e3f866c79de7fbbf8055141))
-* **remove:** remove one named worktree with --branch, and the minor audit items ([c1b510d](https://github.com/bonboncinnabon/sentei/commit/c1b510d877d6ac985b6e017d0833d79c85083069))
 
 
 ### Bug Fixes
