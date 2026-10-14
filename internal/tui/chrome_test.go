@@ -224,3 +224,12 @@ func stripANSI(s string) string {
 	}
 	return b.String()
 }
+
+// Before the first size message the width is unknown: a value of several
+// lines still continues in the value column, and nothing is wrapped.
+func TestSummaryRow_UnknownWidthKeepsTheValueColumn(t *testing.T) {
+	got := stripAnsi(summaryRow("Branch", "first\nsecond", 0))
+	if want := "    Branch     first\n               second\n"; got != want {
+		t.Errorf("summaryRow = %q, want %q", got, want)
+	}
+}

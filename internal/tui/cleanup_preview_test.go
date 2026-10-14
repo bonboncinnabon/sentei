@@ -412,4 +412,14 @@ func TestViewCleanupPreview_NamesGoneBranches(t *testing.T) {
 	if strings.Contains(stripANSI(content), "aggressive") {
 		t.Errorf("no aggressive candidates, so no aggressive section:\n%s", stripANSI(content))
 	}
+
+	both := scanWithAggressive(2)
+	both.GoneBranches = gone(6).GoneBranches
+	m.cleanupScan = both
+	_, content = m.detailContent()
+	plain := stripANSI(content)
+	gonePos, aggressivePos := strings.Index(plain, "feature/gone-f"), strings.Index(plain, "old/branch-b")
+	if gonePos < 0 || aggressivePos < gonePos {
+		t.Errorf("the portal must list the gone branches, then the aggressive ones:\n%s", plain)
+	}
 }
