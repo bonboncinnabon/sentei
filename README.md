@@ -273,8 +273,9 @@ What a caller can rely on:
 - **The exit status is the result.** Non-zero means something failed: a bad
   flag, a config file that does not load, a worktree that could not be
   removed, a cleanup step that errored, a failed setup or install step.
-- **Nothing waits for input.** git never prompts for credentials, and a
-  config file that fails to load stops the run before anything is created.
+- **Nothing waits for input.** git never prompts for credentials, also when
+  an install command runs it, and a config file that fails to load stops the
+  run before anything is created.
 - **`--non-interactive` does not override a safety.** `remove` refuses the
   whole run, and names the worktrees, when a match is locked, has uncommitted,
   untracked or unpushed work, or has a status that could not be read. `--force`

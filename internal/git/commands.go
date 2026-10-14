@@ -238,18 +238,25 @@ type ShellRunner interface {
 	RunShell(dir string, command string) (string, error)
 }
 
+// DefaultShellRunner runs install commands. They fetch git dependencies (npm,
+// go mod download) as git fetch does, so they get its rules: git asks for no
+// credentials, and ssh runs in batch mode unless the user chose an ssh command.
 type DefaultShellRunner struct{}
 
 func (r *DefaultShellRunner) RunShell(dir string, command string) (string, error) {
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = dir
-	cmd.Env = Environ()
+	cmd.Env = append(Environ(), "GIT_TERMINAL_PROMPT=0")
+	batch := (&GitRunner{}).sshIsUnchosen(dir, cmd.Env, []string{"fetch"})
+	if batch {
+		cmd.Env = append(cmd.Env, batchSSH)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		if stderrMsg := strings.TrimSpace(stderr.String()); stderrMsg != "" {
-			return "", fmt.Errorf("%s: %s", command, stderrMsg)
+			return "", fmt.Errorf("%s: %s%s", command, stderrMsg, promptHint(stderrMsg, batch))
 		}
 		return "", fmt.Errorf("%s: %w", command, err)
 	}
