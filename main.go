@@ -173,7 +173,7 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 
 	case "remove":
 		opts := parsed.remove
-		if opts.Merged || opts.All || opts.Stale > 0 {
+		if opts.HasFilter() {
 			worktrees, err := git.ListWorktrees(runner, repoPath)
 			if err != nil {
 				return err
@@ -181,6 +181,9 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 			worktrees = worktree.EnrichWorktrees(runner, worktrees, worktree.DefaultEnrichConcurrency)
 
 			defaultBranch := git.DetectDefaultBranch(runner, repoPath)
+			if err := cmd.CheckNamedBranches(worktrees, opts.Branches, defaultBranch); err != nil {
+				return err
+			}
 			var isMerged cmd.MergedChecker
 			if opts.Merged {
 				isMerged = cmd.CheckMerged(runner, repoPath, defaultBranch)

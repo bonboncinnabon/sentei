@@ -54,6 +54,10 @@ func RunRemove(args []string) error {
 	// non-standard, e.g. "production"), and --merged needs it as the merge target.
 	defaultBranch := git.DetectDefaultBranch(runner, repoPath)
 
+	if err := CheckNamedBranches(worktrees, opts.Branches, defaultBranch); err != nil {
+		return err
+	}
+
 	var isMerged MergedChecker
 	if opts.Merged {
 		isMerged = CheckMerged(runner, repoPath, defaultBranch)

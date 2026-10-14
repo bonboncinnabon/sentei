@@ -1,7 +1,26 @@
 ## Purpose
-Covers the --stale, --merged, and --all filter flags for the remove command, including duration parsing, composability, and command scoping.
+Covers the --branch, --stale, --merged, and --all filter flags for the remove command, including duration parsing, composability, and command scoping.
 
 ## Requirements
+
+### Requirement: --branch flag selects worktrees by branch name
+The `remove` command SHALL accept a repeatable `--branch <name>` flag that selects the worktree whose branch is `<name>`. A named branch SHALL be removed or reported: when one has no worktree, is protected, or has the worktree holding the current directory, the command SHALL exit non-zero before removing anything, naming every such branch. The at-risk gate applies as for the other filters.
+
+#### Scenario: Remove one worktree by branch
+- **WHEN** the user runs `sentei remove --non-interactive --branch feature/x`
+- **THEN** the system SHALL remove the worktree of `feature/x` and no other
+
+#### Scenario: Named branch without a worktree
+- **WHEN** the user runs `sentei remove --non-interactive --branch missing`
+- **THEN** the system SHALL exit non-zero, naming `missing`, and remove nothing
+
+#### Scenario: Named protected branch
+- **WHEN** the user runs `sentei remove --non-interactive --branch main`
+- **THEN** the system SHALL exit non-zero, saying `main` is protected, and remove nothing
+
+#### Scenario: Branch filter with TUI
+- **WHEN** the user runs `sentei remove --branch feature/x`
+- **THEN** the TUI SHALL display the worktree list with that worktree pre-selected
 
 ### Requirement: --stale flag filters worktrees by last commit age
 The `remove` command SHALL accept a `--stale <duration>` flag that pre-selects worktrees whose last commit is older than the specified duration.

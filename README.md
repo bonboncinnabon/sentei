@@ -98,10 +98,14 @@ an independent, opt-in create option controlled by `--copy-env`.
 sentei                                         # menu, then pick from the list
 sentei remove --merged                         # open the list with matches selected
 sentei remove --non-interactive --merged --stale 30d --dry-run
+sentei remove --non-interactive --branch feature/x
 ```
 
 Filters combine with OR:
 
+- `--branch <name>`: the worktree of that branch. Repeat the flag for more.
+  A named branch that has no worktree, is protected, or whose worktree holds
+  the current directory stops the run before anything is removed.
 - `--merged`: the default branch contains the branch's tip, and the branch
   either came in through a merge commit or was fast-forwarded in. A
   fast-forward is recognised from the branch's reflog, which must show that
@@ -251,7 +255,7 @@ Every command runs without the TUI when given `--non-interactive` (or `--yes`,
 
 ```bash
 sentei create  --non-interactive --branch feature/x --base main [--copy-env] [--ecosystems pnpm] [repo]
-sentei remove  --non-interactive --merged [--stale 30d] [--all] [--dry-run] [--force] [repo]
+sentei remove  --non-interactive [--branch <name>] [--merged] [--stale 30d] [--all] [--dry-run] [--force] [repo]
 sentei cleanup --non-interactive --mode safe [--dry-run] [--force] [repo]
 sentei clone   --non-interactive --url <url> [--name <dir>]
 sentei migrate --non-interactive <repo>

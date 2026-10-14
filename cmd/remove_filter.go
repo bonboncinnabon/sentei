@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,7 +46,7 @@ func ResolveFilters(worktrees []git.Worktree, opts *RemoveOptions, defaultBranch
 }
 
 func matchesFilters(wt git.Worktree, opts *RemoveOptions, now time.Time, isMerged MergedChecker, branch string) bool {
-	if opts.All {
+	if opts.All || slices.Contains(opts.Branches, branch) {
 		return true
 	}
 
@@ -63,6 +65,29 @@ func matchesFilters(wt git.Worktree, opts *RemoveOptions, now time.Time, isMerge
 	}
 
 	return false
+}
+
+// CheckNamedBranches refuses a --branch that cannot be removed: the filters
+// pass over such a worktree silently, but one asked for by name has to be
+// either removed or reported. It reports every such name at once.
+func CheckNamedBranches(worktrees []git.Worktree, branches []string, defaultBranch string) error {
+	// An unreadable working directory leaves cwd empty, which matches nothing.
+	cwd, _ := os.Getwd()
+	var errs []error
+	for _, name := range branches {
+		i := slices.IndexFunc(worktrees, func(wt git.Worktree) bool {
+			return !wt.IsBare && worktree.ShortBranch(wt.Branch) == name
+		})
+		switch {
+		case i < 0:
+			errs = append(errs, fmt.Errorf("no worktree has branch %q; git worktree list shows the worktrees and their branches", name))
+		case git.IsProtectedBranchWith(worktrees[i].Branch, defaultBranch):
+			errs = append(errs, fmt.Errorf("branch %q is protected (the default branch, main, master, develop or dev); its worktree is never removed", name))
+		case git.PathContains(worktrees[i].Path, cwd):
+			errs = append(errs, fmt.Errorf("the worktree of branch %q holds the current directory; run sentei from outside %s", name, worktrees[i].Path))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // reflogStart is a date older than any reflog entry. Asked for a branch at
