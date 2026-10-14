@@ -31,6 +31,9 @@ func RunMigrate(args []string) error {
 		return fmt.Errorf("repository is already bare: %s", repoPath)
 	}
 	if context != repo.ContextNonBareRepo {
+		if err := repo.Unreachable(runner, repoPath); err != nil {
+			return err
+		}
 		return fmt.Errorf("not a git repository: %s", repoPath)
 	}
 

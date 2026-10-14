@@ -33,8 +33,10 @@ func RunRemove(args []string) error {
 
 	runner := &git.GitRunner{}
 
-	context := repo.DetectContext(runner, repoPath)
-	if context != repo.ContextBareRepo {
+	if context := repo.DetectContext(runner, repoPath); context != repo.ContextBareRepo {
+		if err := repo.Unreachable(runner, repoPath); err != nil {
+			return err
+		}
 		return fmt.Errorf("remove requires a bare repository (detected: %v)", context)
 	}
 

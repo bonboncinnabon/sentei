@@ -548,7 +548,10 @@ func TestMenu_BareLayoutFromEveryEntryPoint(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	layouts.EachEntry(t, func(t *testing.T, layout layouts.Layout, entry string) {
 		runner := &git.GitRunner{}
-		context, root := detectRepo(runner, entry)
+		context, root, err := detectRepo(runner, entry)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if context != repo.ContextBareRepo || root != layout.Root {
 			t.Fatalf("detectRepo(%q) = %v, %q; want %v, %q", entry, context, root, repo.ContextBareRepo, layout.Root)
 		}
@@ -577,7 +580,10 @@ func TestMenu_RegularCloneOffersMigrate(t *testing.T) {
 
 	for _, entry := range []string{regular, linked} {
 		runner := &git.GitRunner{}
-		context, root := detectRepo(runner, entry)
+		context, root, err := detectRepo(runner, entry)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if context != repo.ContextNonBareRepo || root != entry {
 			t.Fatalf("detectRepo(%q) = %v, %q; want %v and the path unchanged", entry, context, root, repo.ContextNonBareRepo)
 		}

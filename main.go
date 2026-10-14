@@ -136,7 +136,10 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 	}
 
 	runner := &git.GitRunner{}
-	context, repoPath := detectRepo(runner, parsed.repoPath)
+	context, repoPath, err := detectRepo(runner, parsed.repoPath)
+	if err != nil {
+		return err
+	}
 	model, err := newMenuModel(runner, repoPath, context)
 	if err != nil {
 		return err
@@ -210,13 +213,19 @@ func launchInteractiveDecision(result cli.DispatchResult) error {
 
 // detectRepo reports what kind of repository holds path and, for a bare
 // layout, the layout's root: path may be the bare directory, the container of
-// a .bare layout, or any worktree.
-func detectRepo(runner git.CommandRunner, path string) (repo.RepoContext, string) {
+// a .bare layout, or any worktree. A bare layout git will not enter is an
+// error, not a directory with no repository to offer create or clone in.
+func detectRepo(runner git.CommandRunner, path string) (repo.RepoContext, string, error) {
 	context := repo.DetectContext(runner, path)
-	if context == repo.ContextBareRepo {
+	switch context {
+	case repo.ContextBareRepo:
 		path = repo.ResolveBareRoot(runner, path)
+	case repo.ContextNoRepo:
+		if err := repo.Unreachable(runner, path); err != nil {
+			return context, path, err
+		}
 	}
-	return context, path
+	return context, path, nil
 }
 
 // newMenuModel builds the menu TUI for a detected repository. A config that
@@ -289,7 +298,10 @@ func runRoot(args []string) error {
 	}
 
 	runner := &git.GitRunner{}
-	context, repoPath := detectRepo(runner, repoPath)
+	context, repoPath, err := detectRepo(runner, repoPath)
+	if err != nil {
+		return err
+	}
 
 	if *dryRunFlag {
 		if context != repo.ContextBareRepo {

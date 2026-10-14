@@ -239,10 +239,11 @@ sets `core.sshCommand`: the include may apply to the new repository.
   worktrees are created where `.sentei.yaml` is read. That is the container
   when the bare directory is named `.bare` or a `.git` pointer file beside it
   leads to it, and otherwise the bare directory itself, also when the existing
-  worktrees sit beside it. A container needs its `.git` pointer file. With
-  git's `safe.bareRepository=explicit` only a layout with that pointer file
-  works, started in the container or in a worktree: git refuses a bare
-  directory it is started in. An ordinary clone is not such a layout, even
+  worktrees sit beside it. A container needs its `.git` pointer file; without
+  it sentei stops and prints the command that recreates it. With git's
+  `safe.bareRepository=explicit` only a layout with that pointer file works,
+  started in the container or in a worktree: git refuses a bare directory it
+  is started in, and sentei says so instead of entering it. An ordinary clone is not such a layout, even
   when it has linked worktrees; see `migrate` above.
 - macOS and Linux are tested on every change. Windows binaries are published
   but untested, and dependency installs run through `sh -c`, so they need a
