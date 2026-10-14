@@ -226,8 +226,8 @@ accept its key, or load the key into an agent with `ssh-add`, and run the
 command again. If you have configured your own ssh command with `GIT_SSH`,
 `GIT_SSH_COMMAND` or `core.sshCommand`, sentei runs it unchanged: add
 `-oBatchMode=yes` to it if it should never prompt. `sentei clone` also leaves
-ssh alone when your git config has an `includeIf` section, because the include
-may set `core.sshCommand` for the new repository.
+ssh alone when an `includeIf` section in your git config brings in a file that
+sets `core.sshCommand`: the include may apply to the new repository.
 
 ### Layouts and platforms
 

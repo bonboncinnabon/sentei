@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -116,21 +117,59 @@ func (r *GitRunner) sshIsUnchosen(dir string, env, args []string) bool {
 		return false
 	}
 	read, _ := sshChoices.LoadOrStore(dir, sync.OnceValues(func() (chosen, conditional bool) {
-		keys, err := r.run(dir, env, "config", "--name-only", "--get-regexp", `^(core\.sshcommand$|includeif\.)`)
+		// -z: each entry is the origin, a NUL, the key, a newline, the value
+		// and a NUL. --type=path expands a leading ~ in an include path.
+		entries, err := r.run(dir, env, "config", "-z", "--show-origin", "--type=path",
+			"--get-regexp", `^(core\.sshcommand$|includeif\..*\.path$)`)
 		if err != nil {
-			// Exit status 1 is "no such key". After any other failure the
-			// answer is unknown, and ssh is left as the user has it.
-			var exit *exec.ExitError
-			return !errors.As(err, &exit) || exit.ExitCode() != 1, false
+			return !configKeyAbsent(err), false
 		}
-		return strings.Contains(keys, "core.sshcommand"), strings.Contains(keys, "includeif.")
+		fields := strings.Split(entries, "\x00")
+		for i := 0; i+1 < len(fields); i += 2 {
+			key, value, _ := strings.Cut(fields[i+1], "\n")
+			if key == "core.sshcommand" {
+				return true, false
+			}
+			conditional = conditional || r.includeMayNameSSH(dir, env, fields[i], value)
+		}
+		return false, conditional
 	}))
 	chosen, conditional := read.(func() (bool, bool))()
 	// git clone reads config again once the new repository exists. A
 	// conditional include can then name an ssh command for it (includeIf
 	// "gitdir:..." or "hasconfig:remote.*.url:...") that no read made
-	// beforehand can see, so any conditional include counts as a choice.
+	// beforehand can see.
 	return !chosen && (!conditional || !slices.Contains(args, "clone"))
+}
+
+// includeMayNameSSH reports whether the file a conditional include brings in
+// can set an ssh command: it does, directly or through its own includes, or it
+// has a conditional include of its own, whose condition nothing read here can
+// decide. origin is the config file holding the include, as
+// git config --show-origin prints it; a relative path is resolved against it,
+// as git does. A missing file sets nothing: git skips it, and reading it finds
+// no key. Any other failure to read it counts as setting one.
+func (r *GitRunner) includeMayNameSSH(dir string, env []string, origin, path string) bool {
+	if !filepath.IsAbs(path) {
+		file, ok := strings.CutPrefix(origin, "file:")
+		if !ok {
+			return true
+		}
+		if !filepath.IsAbs(file) {
+			file = filepath.Join(dir, file)
+		}
+		path = filepath.Join(filepath.Dir(file), path)
+	}
+	_, err := r.run(dir, env, "config", "--file", path, "--includes", "--name-only",
+		"--get-regexp", `^(core\.sshcommand$|includeif\.)`)
+	return err == nil || !configKeyAbsent(err)
+}
+
+// configKeyAbsent reports whether a git config read failed only because no key
+// matched: exit status 1. After any other failure the answer is unknown.
+func configKeyAbsent(err error) bool {
+	var exit *exec.ExitError
+	return errors.As(err, &exit) && exit.ExitCode() == 1
 }
 
 // run starts git with env, plus the settings every git child gets, and

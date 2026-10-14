@@ -63,20 +63,62 @@ func TestGitRunner_RunsSSHInBatchMode(t *testing.T) {
 	}
 }
 
-// A conditional include hides an ssh command only from the read made before a
-// clone. In a repository that exists the read applies the include, so every
-// other command still runs ssh in batch mode.
-func TestGitRunner_AConditionalIncludeHoldsBackOnlyClone(t *testing.T) {
-	noSSHChoice(t)
-	// The common use: an identity for some repositories, and no ssh command.
-	globalGitConfig(t, "[includeIf \"gitdir:/nonexistent/work/\"]\n\tpath = work.gitconfig\n")
-	runner := &GitRunner{}
-
-	if got := sshEnv(t, runner, t.TempDir())["GIT_SSH_COMMAND"]; got != batchSSHCommand {
-		t.Errorf("git fetch: GIT_SSH_COMMAND = %q, want %q: the include names no ssh command here", got, batchSSHCommand)
+// A conditional include can hide an ssh command only from the read made
+// before a clone, and only when the file it brings in can set one. In a
+// repository that exists the read applies the include, so every other command
+// runs ssh in batch mode either way.
+func TestGitRunner_AConditionalIncludeHoldsBackCloneOnlyWhenItCanNameSSH(t *testing.T) {
+	tests := []struct {
+		name     string
+		included string // content of work.gitconfig beside the global config; "" leaves it missing
+		absolute bool   // name the file by its absolute path, not relative to the global config
+		holdBack bool
+	}{
+		// The common use: an identity for some repositories, and no ssh command.
+		{name: "identity only", included: "[user]\n\tname = Work\n"},
+		{name: "missing file"},
+		{name: "ssh command", included: "[core]\n\tsshCommand = ssh -i work\n", holdBack: true},
+		{name: "ssh command by absolute path", included: "[core]\n\tsshCommand = ssh -i work\n", absolute: true, holdBack: true},
+		{name: "ssh command through a plain include", included: "[include]\n\tpath = more.gitconfig\n", holdBack: true},
+		{name: "conditional include of its own", included: "[includeIf \"gitdir:/nonexistent/other/\"]\n\tpath = x\n", holdBack: true},
 	}
-	if got, present := childEnvIn(t, runner, t.TempDir(), "clone")["GIT_SSH_COMMAND"]; present {
-		t.Errorf("git clone: GIT_SSH_COMMAND = %q reached git: the include may name an ssh command for the new repository", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			noSSHChoice(t)
+			configDir := t.TempDir()
+			work := filepath.Join(configDir, "work.gitconfig")
+			if tt.included != "" {
+				if err := os.WriteFile(work, []byte(tt.included), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Read only through work.gitconfig's plain include.
+			more := "[core]\n\tsshCommand = ssh -i more\n"
+			if err := os.WriteFile(filepath.Join(configDir, "more.gitconfig"), []byte(more), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			path := "work.gitconfig"
+			if tt.absolute {
+				path = work
+			}
+			global := filepath.Join(configDir, "gitconfig")
+			if err := os.WriteFile(global, []byte("[includeIf \"gitdir:/nonexistent/work/\"]\n\tpath = "+path+"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GIT_CONFIG_GLOBAL", global)
+			runner := &GitRunner{}
+
+			if got := sshEnv(t, runner, t.TempDir())["GIT_SSH_COMMAND"]; got != batchSSHCommand {
+				t.Errorf("git fetch: GIT_SSH_COMMAND = %q, want %q: the include does not apply here", got, batchSSHCommand)
+			}
+			got, present := childEnvIn(t, runner, t.TempDir(), "clone")["GIT_SSH_COMMAND"]
+			switch {
+			case tt.holdBack && present:
+				t.Errorf("git clone: GIT_SSH_COMMAND = %q reached git: the include may name an ssh command for the new repository", got)
+			case !tt.holdBack && got != batchSSHCommand:
+				t.Errorf("git clone: GIT_SSH_COMMAND = %q (set: %v), want %q: the included file names no ssh command", got, present, batchSSHCommand)
+			}
+		})
 	}
 }
 
