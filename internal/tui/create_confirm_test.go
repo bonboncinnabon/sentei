@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/bonboncinnabon/sentei/internal/config"
+	"github.com/bonboncinnabon/sentei/internal/git"
 	"github.com/bonboncinnabon/sentei/internal/repo"
 	"github.com/bonboncinnabon/sentei/internal/testutil/mock"
 )
@@ -54,6 +55,26 @@ func TestSetCreateOpts_OnlyBranch_EntersOptionsView(t *testing.T) {
 
 	if m.view != createOptionsView {
 		t.Errorf("expected createOptionsView, got %d", m.view)
+	}
+}
+
+// A launch with --branch can name a worktree that exists. The form says so,
+// as it does for a typed name, instead of the run failing in git worktree add.
+func TestSetCreateOpts_ExistingWorktreeOpensTheForm(t *testing.T) {
+	for _, opts := range []*CreateOpts{{Branch: "feature/foo", Base: "main"}, {Branch: "feature/foo"}} {
+		m := NewMenuModel(bareDirRunner("/repo"), nil, "/repo", &config.Config{}, repo.ContextBareRepo)
+		m.remove.worktrees = []git.Worktree{{Path: "/repo/feature-foo", Branch: "refs/heads/feature/foo"}}
+		m.SetCreateOpts(opts)
+
+		if m.view != createBranchView {
+			t.Errorf("base %q: view = %d, want createBranchView", opts.Base, m.view)
+		}
+		if !strings.Contains(m.create.validationErr, "already exists") {
+			t.Errorf("base %q: validationErr = %q, want it to say the worktree exists", opts.Base, m.create.validationErr)
+		}
+		if got := m.create.branchInput.Value(); got != "feature/foo" {
+			t.Errorf("base %q: branch input = %q, want the name from the flag", opts.Base, got)
+		}
 	}
 }
 

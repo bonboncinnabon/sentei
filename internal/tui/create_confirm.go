@@ -35,6 +35,10 @@ func (m *Model) SetCreateOpts(opts *CreateOpts) {
 	}
 
 	switch {
+	case opts.Branch != "" && !m.validateCreateBranch():
+		// The form shows why the name was refused, with the name filled in,
+		// as it does when the name is typed there.
+		m.view = createBranchView
 	case direct:
 		// No options screen follows, so the flags are the whole decision,
 		// exactly as in the non-interactive run.

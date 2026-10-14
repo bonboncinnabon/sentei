@@ -76,6 +76,10 @@ When a decision command receives some but not all required flags (without `--non
 - **WHEN** the user runs `sentei create --branch feature/foo --base main`
 - **THEN** the TUI SHALL open at the confirmation view, skipping all input steps
 
+#### Scenario: Branch whose worktree exists
+- **WHEN** the user runs `sentei create --branch feature/foo`, with or without `--base`, and a worktree for `feature/foo` exists
+- **THEN** the TUI SHALL open at the branch name input with the name filled in and the error the input shows for a typed name
+
 ### Requirement: Command registry routes commands
 The system SHALL use a command registry to dispatch commands instead of an ad-hoc if/else chain. Each registered command SHALL declare its name, type (output/decision), flag parser, CLI executor, and TUI builder.
 
