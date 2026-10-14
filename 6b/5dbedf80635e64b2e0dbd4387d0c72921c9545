@@ -1,0 +1,29 @@
+openspec/specs/tui-portal/spec.md
+  s_b5d41ab2ae0f4c::t_bed95ffca8f380 30
+internal/tui/cleanup_preview.go
+  s_b5d41ab2ae0f4c::t_3042ddb4cb2c1f 14,18-24,183-185,260,364-366,368,372-380,405
+openspec/specs/cleanup-preview/spec.md
+  s_b5d41ab2ae0f4c::t_bed95ffca8f380 32-35,59-60,64,66-67
+internal/tui/copy.go
+  s_b5d41ab2ae0f4c::t_12f1dc2c371335 32-34
+internal/tui/cleanup_preview_test.go
+  s_b5d41ab2ae0f4c::t_3042ddb4cb2c1f 256,269
+  s_b5d41ab2ae0f4c::t_aa978077d08876 377-414
+  s_b5d41ab2ae0f4c::t_2339aa92419c9b 415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6b5dbedf80635e64b2e0dbd4387d0c72921c9545",
+  "prompts": {},
+  "sessions": {
+    "s_b5d41ab2ae0f4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bfb01c0-ccdc-434f-b39e-9615423e8a66",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Avi <avishek.biswas.1997@gmail.com>"
+    }
+  }
+}
